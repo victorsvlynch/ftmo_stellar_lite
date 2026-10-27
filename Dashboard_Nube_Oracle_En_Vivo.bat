@@ -4,9 +4,15 @@ title Dashboard Remoto en Vivo - Oracle Cloud VPS (NY_OPEN 24/7)
 chcp 65001 >nul
 cls
 
-:: Resolver clave SSH
-set "KEY=%USERPROFILE%\.ssh\ssh-key-2026-10-26.key"
-if not exist "%KEY%" set "KEY=%USERPROFILE%\.ssh\oracle_vps.key"
+:: Resolver clave SSH (Auto-configuración en nueva PC)
+if not exist "%USERPROFILE%\.ssh" mkdir "%USERPROFILE%\.ssh" >nul 2>&1
+if not exist "%USERPROFILE%\.ssh\oracle_vps.key" (
+    if exist "%~dp0VPS-Oracle\oracle_vps.key" copy /y "%~dp0VPS-Oracle\oracle_vps.key" "%USERPROFILE%\.ssh\oracle_vps.key" >nul 2>&1
+    if exist "%~dp0VPS-Oracle\ssh-key-2026-10-26.key" copy /y "%~dp0VPS-Oracle\ssh-key-2026-10-26.key" "%USERPROFILE%\.ssh\oracle_vps.key" >nul 2>&1
+)
+set "KEY=%USERPROFILE%\.ssh\oracle_vps.key"
+if not exist "%KEY%" set "KEY=%USERPROFILE%\.ssh\ssh-key-2026-10-26.key"
+if not exist "%KEY%" set "KEY=%~dp0VPS-Oracle\oracle_vps.key"
 if not exist "%KEY%" set "KEY=%~dp0VPS-Oracle\ssh-key-2026-10-26.key"
 if not exist "%KEY%" set "KEY=%~dp0VPS-Oracle\ssh-key-2026-10-22-vps-oracle.key"
 

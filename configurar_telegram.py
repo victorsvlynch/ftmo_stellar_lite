@@ -21,14 +21,26 @@ VPS_PATH = "/home/ubuntu/FTMO_Stellar_Lite/telegram_config.json"
 
 def find_ssh_key() -> str:
     home = os.path.expanduser("~")
+    ssh_dir = os.path.join(home, ".ssh")
+    os.makedirs(ssh_dir, exist_ok=True)
+    target_key = os.path.join(ssh_dir, "oracle_vps.key")
+
     candidates = [
-        os.path.join(home, ".ssh", "ssh-key-2026-10-26.key"),
-        os.path.join(home, ".ssh", "oracle_vps.key"),
+        target_key,
+        os.path.join(ssh_dir, "ssh-key-2026-10-26.key"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "VPS-Oracle", "oracle_vps.key"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "VPS-Oracle", "ssh-key-2026-10-26.key"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "VPS-Oracle", "ssh-key-2026-10-22-vps-oracle.key"),
     ]
     for c in candidates:
         if os.path.exists(c):
+            if c != target_key and not os.path.exists(target_key):
+                try:
+                    import shutil
+                    shutil.copy2(c, target_key)
+                    return target_key
+                except Exception:
+                    pass
             return c
     return ""
 
