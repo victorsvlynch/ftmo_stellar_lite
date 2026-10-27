@@ -13,6 +13,10 @@ import time
 import threading
 import argparse
 from datetime import datetime, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
 from typing import Optional, Dict, List, Any
 
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
@@ -503,15 +507,33 @@ def run_live_dashboard(
                 time.sleep(0.1)
                 continue
 
+            now_ny = now_utc.astimezone(ZoneInfo("America/New_York"))
+            now_ny_str = now_ny.strftime("%H:%M:%S EST")
+            ny_minutes = now_ny.hour * 60 + now_ny.minute
+
+            if 8 * 60 + 30 <= ny_minutes <= 11 * 60 + 30:
+                session_status = "[VENTANA ACTIVA NY_OPEN]"
+            elif ny_minutes < 8 * 60 + 30:
+                mins_left = (8 * 60 + 30) - ny_minutes
+                session_status = f"[ESPERA: Abre en {mins_left // 60}h {mins_left % 60}m]"
+            else:
+                session_status = "[CERRADA POR HOY (Modo Vigilia)]"
+
             target_str = (
                 f"${state.profit_target_balance:,.2f} (+${state.profit_target_amount:,.2f})"
                 if state.profit_target_balance is not None
-                else f"SIN TARGET (Split: {state.profit_split * 100:.0f}%)"
+                else f"SIN TARGET (Split: {state.profit_split * 100:.0f}% Vitalicio)"
             )
             personal_cap_pct = float(acc.get("personal_daily_cap_pct", risk.personal_daily_cap_pct))
             personal_floor = round(state.day_start_balance * (1.0 - personal_cap_pct), 2)
+            max_dd_label = f"{rules.max_drawdown_limit_pct * 100:.0f}%"
+            min_days_label = (
+                f"{state.trading_days_completed}/{state.min_trading_days_required} cumplidos"
+                if state.min_trading_days_required > 0
+                else "0 Requeridos (Add-on)"
+            )
 
-            strat_label = "NY ORB 15m"
+            strat_label = "NY ORB 15m (Oro)"
             if risk.session_mode in ("LONDON_OPEN", "LONDON"):
                 strat_label = "LONDON ORB 15m"
             elif risk.session_mode in ("COMBO_DUAL", "NY_LONDON"):
@@ -521,13 +543,12 @@ def run_live_dashboard(
             elif risk.session_mode in ("ALL", "CRYPTO_24H"):
                 strat_label = "CRIPTO 15m"
 
-            # Bloque compacto de exactamente 19 líneas: CERO scroll en cualquier terminal
             lines = [
                 "\033[H\033[J" + sep,
-                f" FUNDEDNEXT STELLAR LITE ($5K) | HORA SERVIDOR: {now_str}",
+                f" FUNDEDNEXT STELLAR LITE ($5K) | UTC: {now_str[:19]} | WALL STREET: {now_ny_str}",
                 sep,
-                f" Cuenta   : {state.phase:<9} Estado: {state.status:<7} | Activo : {engine.symbol} ({price_tag})",
-                f" Estrategia: {strat_label} (R:R 1:{risk.rr_ratio:.0f}) | Sesion : {pre_trade.active_session}",
+                f" Cuenta   : {state.phase:<9} Estado: {state.status:<7} | Activo: {engine.symbol} ({price_tag})",
+                f" Estrategia: {strat_label} (R:R 1:{risk.rr_ratio:.0f}) | Sesion: {pre_trade.active_session} {session_status}",
                 subsep,
                 f" Balance Base : ${float(acc['initial_balance']):>9,.2f}  | Inicio Dia  : ${state.day_start_balance:>9,.2f}",
                 f" Balance Cerr : ${state.balance:>9,.2f}  | Flotante    : ${floating_pnl:>+9,.2f}",
@@ -535,19 +556,47 @@ def run_live_dashboard(
                 f" Objetivo     : {target_str}",
                 subsep,
                 f" Piso Diario (4%): ${state.daily_loss_floor:>8,.2f} (Margen: ${state.daily_loss_remaining:>7,.2f}) | Freno Pers (-2%): ${personal_floor:>8,.2f}",
-                f" Piso Max DD (8%): ${state.max_loss_floor:>8,.2f} (Margen: ${state.max_loss_remaining:>7,.2f}) | Riesgo/Trade    : {float(acc.get('risk_per_trade_pct', risk.default_risk_pct)) * 100:.2f}%",
-                f" Dias Minimos    : {state.trading_days_completed}/{state.min_trading_days_required} cumplidos       | Racha Perdidas  : {pre_trade.consecutive_losses_today}/3 {'[TILT]' if pre_trade.tilt_locked else '[OK]'}",
+                f" Piso Max DD({max_dd_label}): ${state.max_loss_floor:>8,.2f} (Margen: ${state.max_loss_remaining:>7,.2f}) | Riesgo/Trade    : {float(acc.get('risk_per_trade_pct', risk.default_risk_pct)) * 100:.2f}%",
+                f" Dias Minimos    : {min_days_label:<18} | Racha Perdidas  : {pre_trade.consecutive_losses_today}/3 {'[TILT]' if pre_trade.tilt_locked else '[OK]'}",
                 subsep,
                 f" Operaciones Hoy ({trading_date}): Total={total_trades_count} | Abiertas={len(open_positions)} | Cerradas={len(closed_today)} (W:{wins_today} L:{losses_today}) | PnL Hoy=${realized_today:+,.2f}",
             ]
 
             if open_positions:
-                p = open_positions[0]
+                lines.append(subsep)
+                lines.append(" [POSICIONES ABIERTAS EN TIEMPO REAL]")
                 lines.append(
-                    f" Posicion Activa: #{p['id']} {p['symbol']} {p['side']} {p['lots']}L @ {p['entry_price']} | Flotante: ${p.get('floating_pnl', 0.0):+,.2f}"
+                    f"  {'ID':<5} {'ACTIVO':<8} {'LADO':<5} {'LOTES':<7} {'ENTRADA':<10} {'SL':<10} {'TP':<10} {'ACTUAL':<10} {'PNL FLOT.':<11} {'ESTADO'}"
                 )
+                for p in open_positions:
+                    pnl_f = float(p.get("floating_pnl", 0.0))
+                    mark_p = float(p.get("mark_price", p["entry_price"]))
+                    entry_p = float(p["entry_price"])
+                    sl_p = float(p["stop_loss"])
+                    be_tag = "[BREAK-EVEN]" if abs(sl_p - entry_p) < 0.20 else "[EN RIESGO]"
+                    lines.append(
+                        f"  #{p['id']:<4} {p['symbol']:<8} {p['side']:<5} {float(p['lots']):<7.4f} "
+                        f"{entry_p:<10.2f} {sl_p:<10.2f} {float(p['take_profit']):<10.2f} "
+                        f"{mark_p:<10.2f} ${pnl_f:>+9,.2f}  {be_tag}"
+                    )
             else:
-                lines.append(" Posicion Activa: Ninguna en curso. Monitoreando vela NY ORB 15m...")
+                lines.append(f" Posicion Activa: Ninguna en curso. {session_status} Monitoreando...")
+
+            if closed_today:
+                lines.append(subsep)
+                lines.append(f" [OPERACIONES CERRADAS HOY ({len(closed_today)})]")
+                lines.append(
+                    f"  {'ID':<5} {'ACTIVO':<8} {'LADO':<5} {'LOTES':<7} {'ENTRADA':<10} {'SALIDA':<10} {'PNL NETO':<11} {'HORA':<10} {'MOTIVO'}"
+                )
+                for tr in closed_today[-3:]:
+                    pnl_n = float(tr.get("pnl", 0.0))
+                    t_time = str(tr.get("closed_at") or tr.get("opened_at") or "")[11:19]
+                    reason_short = str(tr.get("notes", "CERRADO"))[:25]
+                    lines.append(
+                        f"  #{tr['id']:<4} {tr['symbol']:<8} {tr['side']:<5} {float(tr['lots']):<7.4f} "
+                        f"{float(tr['entry_price']):<10.2f} {float(tr.get('exit_price') or 0):<10.2f} "
+                        f"${pnl_n:>+9,.2f}  {t_time:<10} {reason_short}"
+                    )
 
             lines.append(sep)
             lines.append(" >> EN VIVO | Actualizando cada 1s en su lugar | Presione Ctrl+C para salir <<")
