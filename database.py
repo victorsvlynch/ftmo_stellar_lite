@@ -132,6 +132,29 @@ class TradingDatabase:
                 """
             )
 
+            # Tabla de cola de órdenes para Webhook / EA de MetaTrader 5
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS webhook_actions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    action TEXT NOT NULL,
+                    trade_id INTEGER,
+                    symbol TEXT NOT NULL,
+                    lots REAL NOT NULL,
+                    price REAL,
+                    sl REAL,
+                    tp REAL,
+                    magic INTEGER DEFAULT 505001,
+                    comment TEXT,
+                    status TEXT DEFAULT 'PENDING',
+                    mt5_ticket INTEGER DEFAULT 0,
+                    executed_price REAL DEFAULT 0.0,
+                    created_at TEXT NOT NULL,
+                    executed_at TEXT
+                )
+                """
+            )
+
             # Verificar si existe el registro inicial de la cuenta
             cursor.execute("SELECT COUNT(*) AS cnt FROM account_state WHERE id = 1")
             row = cursor.fetchone()
@@ -280,6 +303,28 @@ class TradingDatabase:
                 """,
                 (phase, trading_date),
             )
+
+            # Encolar para EA Webhook MT5
+            action_type = f"OPEN_{side.upper()}"
+            sym_mt5 = "XAUUSD" if "GC" in symbol.upper() else symbol
+            cursor.execute(
+                """
+                INSERT INTO webhook_actions (
+                    action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 505001, ?, 'PENDING', ?)
+                """,
+                (
+                    action_type,
+                    trade_id,
+                    sym_mt5,
+                    round(lots, 4),
+                    round(entry_price, 5),
+                    round(stop_loss, 5),
+                    round(take_profit, 5),
+                    f"FundedNext {strategy}",
+                    dt.isoformat(),
+                ),
+            )
             conn.commit()
         return trade_id
 
@@ -354,6 +399,17 @@ class TradingDatabase:
                 (trade["phase"], trade["trading_date"], net_pnl, net_pnl),
             )
 
+            # Encolar cierre para EA Webhook MT5
+            sym_mt5 = "XAUUSD" if "GC" in trade["symbol"].upper() else trade["symbol"]
+            cursor.execute(
+                """
+                INSERT INTO webhook_actions (
+                    action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
+                ) VALUES ('CLOSE_POSITION', ?, ?, 0.0, ?, 0.0, 0.0, 505001, ?, 'PENDING', ?)
+                """,
+                (trade_id, sym_mt5, round(exit_price, 5), notes or "Cierre Algorítmico", dt.isoformat()),
+            )
+
             conn.commit()
             cursor.execute("SELECT * FROM trades WHERE id = ?", (trade_id,))
             updated = cursor.fetchone()
@@ -387,6 +443,19 @@ class TradingDatabase:
                 """,
                 (round(new_sl, 5), is_break_even, merged_notes, trade_id),
             )
+
+            # Encolar modificación de Stop Loss (Break-Even) para EA Webhook MT5
+            if is_break_even:
+                sym_mt5 = "XAUUSD" if "GC" in trade["symbol"].upper() else trade["symbol"]
+                cursor.execute(
+                    """
+                    INSERT INTO webhook_actions (
+                        action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
+                    ) VALUES ('MODIFY_SL', ?, ?, 0.0, 0.0, ?, 0.0, 505001, 'Break-Even 1R', 'PENDING', ?)
+                    """,
+                    (trade_id, sym_mt5, round(new_sl, 5), datetime.now(timezone.utc).isoformat()),
+                )
+
             conn.commit()
             return True
 
@@ -464,3 +533,66 @@ class TradingDatabase:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM audit_events ORDER BY id DESC LIMIT ?", (limit,))
             return [dict(r) for r in cursor.fetchall()]
+
+    # -------------------------------------------------------------------------
+    # Métodos de Soporte para EA Webhook de MetaTrader 5 (MT5)
+    # -------------------------------------------------------------------------
+    def queue_webhook_action(
+        self,
+        action: str,
+        symbol: str,
+        lots: float,
+        sl: float,
+        tp: float,
+        price: float = 0.0,
+        trade_id: int = 0,
+        magic: int = 505001,
+        comment: str = "FundedNext NY_ORB",
+    ) -> int:
+        """Encola una orden o modificación para que el EA de MT5 la ejecute."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO webhook_actions (
+                    action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
+                """,
+                (action, trade_id, symbol, lots, price, sl, tp, magic, comment, now_iso),
+            )
+            act_id = int(cursor.lastrowid)
+            conn.commit()
+            return act_id
+
+    def get_pending_webhook_action(self) -> Optional[Dict[str, Any]]:
+        """Obtiene la acción pendiente más antigua para enviar al EA de MT5."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM webhook_actions WHERE status = 'PENDING' ORDER BY id ASC LIMIT 1"
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def confirm_webhook_action(
+        self,
+        action_id: int,
+        mt5_ticket: int,
+        executed_price: float,
+        status: str = "CONFIRMED",
+    ) -> bool:
+        """Confirma la ejecución de una acción por parte del EA de MT5."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE webhook_actions
+                SET status = ?, mt5_ticket = ?, executed_price = ?, executed_at = ?
+                WHERE id = ?
+                """,
+                (status, mt5_ticket, executed_price, now_iso, action_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0

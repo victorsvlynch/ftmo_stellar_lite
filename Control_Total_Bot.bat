@@ -22,29 +22,35 @@ echo    1. Abrir Dashboard en Vivo: Estrategia Ganadora NY_OPEN (Local)
 echo    2. Abrir Dashboard en Vivo: Desde Oracle Cloud VPS (Remoto 24/7)
 echo    3. Abrir Tablero Multi-Estrategia Detallado (Operaciones Hoy)
 echo.
+echo   [OPCION B.2: ENLACE WEBHOOK METATRADER 5 (MT5)]
+echo    4. Iniciar Puente Webhook Seguro MT5 (Tunel Puerto 8000)
+echo    5. Disparar Senal de Prueba Webhook hacia MT5 (Test Micro-Orden)
+echo.
 echo   [GESTION DEL SERVIDOR 24/7 EN LA NUBE]
-echo    4. Verificar Estado del Servicio en Oracle Cloud (Uptime y Memoria)
-echo    5. Ver Streaming de Logs en Tiempo Real (Segundo a Segundo)
-echo    6. Reiniciar Servicio en la Nube (sudo systemctl restart stellar_ny_open)
+echo    6. Verificar Estado del Servicio en Oracle Cloud (Uptime y Memoria)
+echo    7. Ver Streaming de Logs en Tiempo Real (Segundo a Segundo)
+echo    8. Reiniciar Servicios en la Nube (Bot NY_OPEN + Webhook Server)
 echo.
 echo   [PRUEBAS Y SIMULACION]
-echo    7. Ejecutar Prueba Interactiva con MetaTrader 5 (MT5 en PC)
-echo    8. Correr Suite de Verificacion Automatizada (9 Pruebas 100%% OK)
+echo    9. Ejecutar Prueba Interactiva con MetaTrader 5 (MT5 en PC)
+echo   10. Correr Suite de Verificacion Automatizada (9 Pruebas 100%% OK)
 echo.
-echo    9. Salir
+echo   11. Salir
 echo ==============================================================================
 set "opt=1"
-set /p opt="Seleccione una opcion [1-9] (Por defecto 1): "
+set /p opt="Seleccione una opcion [1-11] (Por defecto 1): "
 
 if "%opt%"=="1" goto DASH_LOCAL
 if "%opt%"=="2" goto DASH_REMOTE
 if "%opt%"=="3" goto DASH_MULTI
-if "%opt%"=="4" goto STATUS_VPS
-if "%opt%"=="5" goto LOGS_STREAM
-if "%opt%"=="6" goto RESTART_VPS
-if "%opt%"=="7" goto PRUEBA_MT5
-if "%opt%"=="8" goto TESTS
-if "%opt%"=="9" goto SALIR
+if "%opt%"=="4" goto WEBHOOK_TUNNEL
+if "%opt%"=="5" goto WEBHOOK_TEST
+if "%opt%"=="6" goto STATUS_VPS
+if "%opt%"=="7" goto LOGS_STREAM
+if "%opt%"=="8" goto RESTART_VPS
+if "%opt%"=="9" goto PRUEBA_MT5
+if "%opt%"=="10" goto TESTS
+if "%opt%"=="11" goto SALIR
 goto MENU
 
 :DASH_LOCAL
@@ -62,6 +68,16 @@ cls
 start "Dashboard Multi Detallado" cmd /c "%~dp0Dashboard_Multi_Detallado.bat"
 goto MENU
 
+:WEBHOOK_TUNNEL
+cls
+start "Puente Webhook MT5" cmd /c "%~dp0Conectar_Puente_Webhook_MT5.bat"
+goto MENU
+
+:WEBHOOK_TEST
+cls
+call "%~dp0Probar_Senal_Webhook.bat"
+goto MENU
+
 :STATUS_VPS
 cls
 call "%~dp0Verificar_Servicio_24_7.bat"
@@ -76,8 +92,8 @@ goto MENU
 
 :RESTART_VPS
 cls
-echo Reiniciando servicio stellar_ny_open.service en Oracle Cloud VPS...
-ssh -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "sudo systemctl restart stellar_ny_open.service && systemctl status stellar_ny_open --no-pager"
+echo Reiniciando servicios en Oracle Cloud VPS...
+ssh -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "sudo systemctl restart stellar_ny_open.service stellar_webhook.service && systemctl status stellar_ny_open stellar_webhook --no-pager"
 echo.
 pause
 goto MENU
