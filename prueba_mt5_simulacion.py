@@ -145,9 +145,74 @@ def run_realistic_simulation():
         print(f"         * {k:<15} : {v}")
 
     if mt5_live_connected:
-        print("\n[PASO 6] ¿Deseas enviar esta micro-orden real de prueba a tu cuenta demo de MT5? (S/N): ")
-        # En modo script automatizado no bloqueamos
-        print("         (Omitido automáticamente para mantener la cuenta intacta. Para ejecutar, usa mt5_bridge.py)")
+        print("\n" + "-" * 85)
+        print(" [PASO 6: PRUEBA DE EJECUCIÓN EN VIVO EN METATRADER 5]")
+        print(" Podrás ver con tus propios ojos cómo Python coloca una orden real en tu terminal MT5.")
+        user_choice = ""
+        try:
+            if sys.stdin and sys.stdin.isatty():
+                user_choice = input(" ¿Deseas enviar una micro-orden demo de prueba (0.01 lotes) a MT5 ahora? [S/N] (Por defecto S): ").strip().upper()
+            else:
+                user_choice = "N"
+        except Exception:
+            user_choice = "N"
+
+        if user_choice in ("S", "SI", "Y", "YES", ""):
+            print(" Enviando micro-orden de prueba (0.01 lotes en Oro) a MetaTrader 5...")
+            order_res = bridge.send_market_order(
+                symbol=gold_sym,
+                side="BUY",
+                lots=0.01,
+                stop_loss=sl_sim,
+                take_profit=tp_sim,
+                comment="Prueba FundedNext Python",
+            )
+            if order_res.get("success"):
+                ticket = order_res.get("order_ticket")
+                fill_price = order_res.get("price")
+                print("\n [ÉXITO TOTAL] ¡ORDEN EJECUTADA EN METATRADER 5!")
+                print(f"  Ticket de Orden : #{ticket}")
+                print(f"  Volumen         : 0.01 lotes @ ${fill_price:,.2f}")
+                print(f"  Stop Loss (SL)  : ${order_res.get('sl'):,.2f}")
+                print(f"  Take Profit (TP): ${order_res.get('tp'):,.2f}")
+                print("  >> Abre tu pantalla de MetaTrader 5: verás la posición abierta en la pestaña 'Operaciones'")
+                print("     con sus líneas verdes de entrada y rojas de Stop Loss/Take Profit.")
+
+                # Preguntar por Break-Even
+                be_choice = ""
+                try:
+                    if sys.stdin and sys.stdin.isatty():
+                        be_choice = input("\n ¿Deseas probar la función de Break-Even blindando el SL al precio de entrada? [S/N] (Por defecto S): ").strip().upper()
+                except Exception:
+                    be_choice = "N"
+
+                if be_choice in ("S", "SI", "Y", "YES", ""):
+                    print(f" Modificando Stop Loss a precio de entrada (${fill_price:,.2f})...")
+                    be_ok = bridge.modify_sl_tp(position_ticket=ticket, new_sl=fill_price, symbol=gold_sym)
+                    if be_ok:
+                        print(f" [OK] ¡Posición #{ticket} blindada con éxito a Break-Even! Riesgo: $0.00.")
+                    else:
+                        print(" [AVISO] No se pudo modificar el SL a Break-Even.")
+
+                # Preguntar por cierre
+                close_choice = ""
+                try:
+                    if sys.stdin and sys.stdin.isatty():
+                        close_choice = input("\n ¿Deseas cerrar la posición de prueba ahora para dejar tu cuenta limpia? [S/N] (Por defecto S): ").strip().upper()
+                except Exception:
+                    close_choice = "N"
+
+                if close_choice in ("S", "SI", "Y", "YES", ""):
+                    print(f" Cerrando posición #{ticket} a precio de mercado...")
+                    close_ok = bridge.close_position(position_ticket=ticket)
+                    if close_ok:
+                        print(f" [OK] ¡Posición #{ticket} cerrada correctamente en MT5!")
+                    else:
+                        print(" [AVISO] No se pudo cerrar la posición automáticamente.")
+            else:
+                print(f" [AVISO MT5]: {order_res.get('error', 'Error al enviar orden')}")
+        else:
+            print(" Micro-orden omitida. La cuenta permanece intacta sin cambios.")
     else:
         print("\n[PASO 6] Respuesta Simulada de MetaTrader 5 Broker Gateway:")
         print("         Retcode: 10009 (TRADE_RETCODE_DONE) -> ORDEN EJECUTADA CON ÉXITO")

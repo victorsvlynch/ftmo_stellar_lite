@@ -247,11 +247,11 @@ class MT5Bridge:
         norm_lots = round(round(lots / vol_step) * vol_step, 2)
         norm_lots = max(symbol_info.volume_min, min(symbol_info.volume_max, norm_lots))
 
-        # Determinar filling type permitido por el broker
+        # Determinar filling type permitido por el broker (bitmask: 1=FOK, 2=IOC, 4=RETURN)
         filling_type = mt5.ORDER_FILLING_IOC
-        if symbol_info.filling_mode & mt5.ORDER_FILLING_IOC:
+        if symbol_info.filling_mode & 2:
             filling_type = mt5.ORDER_FILLING_IOC
-        elif symbol_info.filling_mode & mt5.ORDER_FILLING_FOK:
+        elif symbol_info.filling_mode & 1:
             filling_type = mt5.ORDER_FILLING_FOK
         else:
             filling_type = mt5.ORDER_FILLING_RETURN
