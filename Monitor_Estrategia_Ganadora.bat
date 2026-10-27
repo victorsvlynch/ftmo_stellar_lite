@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0"
 title Monitor Estrategia Ganadora NY_OPEN - FundedNext Stellar Lite
 mode con: cols=125 lines=32
 cls
