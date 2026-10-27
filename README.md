@@ -315,6 +315,15 @@ Para una operación centralizada, cómoda y sin necesidad de escribir comandos e
 
 ## 💻 Guía Paso a Paso: ¿Cómo Mover o Clonar Todo el Sistema a Otra PC?
 
+El proyecto se encuentra **100% listo, portátil y automatizado para utilizarse en cualquier PC** (Windows 10 o Windows 11).
+
+> [!TIP]
+> **Diseño Plug & Play y Portabilidad Total:**
+> - **Rutas 100% Relativas (`%~dp0`):** Puedes ubicar la carpeta en cualquier disco (`C:\`, `D:\`), memoria USB o subcarpeta; los scripts resuelven todas las rutas de forma automática.
+> - **Auto-Instalación de la Clave SSH:** Al ejecutar cualquier script en una nueva PC, este detecta la clave en `VPS-Oracle\` y la copia automáticamente a `%USERPROFILE%\.ssh\oracle_vps.key`.
+> - **Asesor Experto Precompilado:** El archivo [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) está listo para copiar a MT5 sin necesidad de abrir MetaEditor.
+> - **Credenciales de Telegram Portables:** [`telegram_config.json`](telegram_config.json) viaja pre-configurado con tu bot y tu Chat ID para recibir alertas de inmediato.
+
 Si deseas cambiar de computadora o tener el sistema listo para operar en una laptop secundaria o de respaldo, sigue este procedimiento ordenado:
 
 ### 1. Requisitos Previos en la Nueva PC
