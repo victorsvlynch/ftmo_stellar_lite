@@ -406,19 +406,26 @@ class MT5Bridge:
         close_type = mt5.ORDER_TYPE_SELL if pos.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
         price = tick.bid if pos.type == mt5.ORDER_TYPE_BUY else tick.ask
 
-        request = {
-            "action": mt5.TRADE_ACTION_DEAL,
-            "position": pos.ticket,
-            "symbol": pos.symbol,
-            "volume": pos.volume,
-            "type": close_type,
-            "price": float(round(price, sym_info.digits)),
-            "deviation": 20,
-            "magic": self.MAGIC_NUMBER,
-            "comment": "Cierre Algorítmico FundedNext",
-        }
-        res = mt5.order_send(request)
-        return res is not None and res.retcode == mt5.TRADE_RETCODE_DONE
+        filling_candidates = [mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_RETURN]
+        for fill_mode in filling_candidates:
+            request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "position": pos.ticket,
+                "symbol": pos.symbol,
+                "volume": pos.volume,
+                "type": close_type,
+                "price": float(round(price, sym_info.digits)),
+                "deviation": 50,
+                "magic": self.MAGIC_NUMBER,
+                "comment": "Cierre Algorítmico FundedNext",
+                "type_time": mt5.ORDER_TIME_GTC,
+                "type_filling": fill_mode,
+            }
+            res = mt5.order_send(request)
+            if res and res.retcode == mt5.TRADE_RETCODE_DONE:
+                return True
+
+        return False
 
     def shutdown(self) -> None:
         """Cierra la conexión con el terminal MT5."""
