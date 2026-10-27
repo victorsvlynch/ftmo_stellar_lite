@@ -139,8 +139,10 @@ class MT5Bridge:
             return {}
         mt5 = self._ensure_mt5_module()
         acc = mt5.account_info()
+        term = mt5.terminal_info()
         if acc:
             self.account_info = acc._asdict()
+        terminal_trade_allowed = bool(term.trade_allowed) if term else False
         return {
             "login": self.account_info.get("login"),
             "server": self.account_info.get("server"),
@@ -152,6 +154,7 @@ class MT5Bridge:
             "currency": self.account_info.get("currency", "USD"),
             "trade_allowed": bool(self.account_info.get("trade_allowed", False)),
             "trade_expert": bool(self.account_info.get("trade_expert", False)),
+            "terminal_trade_allowed": terminal_trade_allowed,
         }
 
     def detect_gold_symbol(self) -> str:
@@ -262,6 +265,15 @@ class MT5Bridge:
         Detecta automáticamente el tipo de filling aceptado por el broker (FOK, IOC, RETURN).
         """
         mt5 = self._ensure_mt5_module()
+
+        term = mt5.terminal_info()
+        if term and not term.trade_allowed:
+            return {
+                "success": False,
+                "retcode": 10027,
+                "error": "El botón 'Trading Algorítmico' (Algo Trading) está apagado en tu terminal MT5. Presiona Ctrl + E en MetaTrader 5 para activarlo (el botón debe estar en verde con el icono de Play).",
+            }
+
         symbol_info = mt5.symbol_info(symbol)
         if symbol_info is None:
             return {"success": False, "error": f"Símbolo {symbol} no encontrado en MT5"}

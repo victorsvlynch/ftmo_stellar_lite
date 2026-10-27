@@ -59,7 +59,13 @@ def run_realistic_simulation():
         print(f"  Balance Broker : ${summary.get('balance'):,.2f} {summary.get('currency')}")
         print(f"  Equidad Actual : ${summary.get('equity'):,.2f} | Margen Libre: ${summary.get('free_margin'):,.2f}")
         print(f"  Apalancamiento : 1:{summary.get('leverage')}")
-        print(f"  Trading Auto   : {'PERMITIDO (Algorithmic Trading ON)' if summary.get('trade_expert') else 'DESHABILITADO (Activa Algo Trading en MT5)'}")
+        term_ok = summary.get("terminal_trade_allowed", False)
+        algo_status = (
+            "PERMITIDO (Algorithmic Trading ON) [OK]"
+            if term_ok
+            else "DESHABILITADO EN TERMINAL (Presiona Ctrl + E en MT5 para activar el botón en verde)"
+        )
+        print(f"  Trading Auto   : {algo_status}")
         print("-" * 85)
 
         gold_sym = bridge.detect_gold_symbol()
