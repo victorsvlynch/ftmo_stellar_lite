@@ -269,3 +269,42 @@ Menú interactivo para:
    ```bash
    python3 main.py reset
    ```
+
+
+---
+
+## 🛠️ DevOps, Diagramas de Arquitectura & Respaldos (Archify)
+
+El repositorio incorpora la misma arquitectura de automatización profesional de proyectos de grado institucional:
+
+### 1. Diagramas de Arquitectura & Flujo Operativo (scripts/diagramas/)
+- **Renderizado Interactivo 4K (rquitectura.html):** Generado mediante **Archify CLI** a partir de rquitectura.json, visualizando los componentes de trading, reglas de riesgo, bases de datos y la nube de Oracle.
+  `powershell
+  .\scripts\diagramas\render_arquitectura.bat
+  # O en PowerShell:
+  .\scripts\diagramas\render_arquitectura.ps1 -Open
+  `
+- **Diagrama de Secuencia y Flujo (lujo_trading_orb.html):** Diagrama interactivo Mermaid.js que detalla el ciclo completo de análisis, gestión de break-even, filtros anti-fakeout y notificaciones push.
+
+### 2. Auto-Push con IA & Conventional Commits (scripts/auto_push/)
+- Analiza automáticamente el git diff mediante la API de **Google Gemini**, redacta un mensaje en español con el estándar de Conventional Commits (eat:, ix:, 
+efactor:, chore:) y sube los cambios a GitHub.
+  `cmd
+  auto_push.bat
+  `
+
+### 3. Respaldos y Snapshots con Archify (scripts/auto_push/archify.bat)
+- Empaqueta copias de seguridad de alta compresión en la carpeta rchives/ con manifiesto JSON de auditoría:
+  - **Modo Databases (por defecto):** Respalda todas las bases de datos SQLite (*.db).
+  - **Modo Full:** Genera un snapshot completo del código fuente limpio (excluyendo claves, caches y temporales).
+  - **Modo All:** Genera ambos respaldos.
+  `cmd
+  archify.bat Databases
+  archify.bat Full v1.2.0
+  `
+
+### 4. GitHub Actions CI/CD (.github/workflows/release.yml)
+- Al realizar push a la rama main, GitHub Actions:
+  1. Instala el entorno Python y dependencias.
+  2. Ejecuta la suite de pruebas automatizada 	est_verification.py.
+  3. Si todas las pruebas pasan (100% OK), incrementa la versión SemVer y crea un nuevo **GitHub Release** con su changelog detallado.

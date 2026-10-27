@@ -1,0 +1,93 @@
+# ==============================================================================
+# .gitignore - FundedNext Stellar Lite ($5,000) Trading Engine & Risk Manager
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Entornos Virtuales y Gestores Python
+# ------------------------------------------------------------------------------
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ------------------------------------------------------------------------------
+# 2. Caché de Python y Compilación Bytecode
+# ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ------------------------------------------------------------------------------
+# 3. Credenciales y Secretos Sensibles
+# ------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.template
+secrets.json
+credentials.json
+api_keys.txt
+telegram_config.json
+!telegram_config.json.example
+*.pem
+*.key
+*.cert
+*.p12
+*.pub
+
+# ------------------------------------------------------------------------------
+# 4. Respaldos, Snapshots y Paquetes de Archify
+# ------------------------------------------------------------------------------
+archives/
+*/archives/
+backups/
+snapshot-manifest*.json
+manifest*.json
+*.zip
+*.tar
+*.gz
+*.rar
+
+# ------------------------------------------------------------------------------
+# 5. Archivos Temporales, Logs y Bases de Datos de Prueba
+# ------------------------------------------------------------------------------
+temp/
+tmp/
+*.tmp
+*.temp
+*.log
+test_*.db
+test_qa_suite.db
+
+# ------------------------------------------------------------------------------
+# 6. IDEs y Sistema Operativo
+# ------------------------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Arquitectura del Sistema - FundedNext / FTMO Stellar Lite ($5,000)",
+    "output": "arquitectura.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "cli_shell", "type": "frontend", "label": "CLI & Shell Interactivo", "sublabel": "main.py / terminal", "pos": [60, 180], "size": [160, 60] },
+    { "id": "multi_dash", "type": "frontend", "label": "Tablero Multi-Modalidad", "sublabel": "5 Estrategias en Vivo", "pos": [60, 320], "size": [160, 60] },
+    { "id": "orb_strategy", "type": "backend", "label": "Estrategia ORB 15m", "sublabel": "Anti-Fakeout + EMA 200 1H", "pos": [330, 80], "size": [170, 60] },
+    { "id": "trading_engine", "type": "backend", "label": "Automated Trading Engine", "sublabel": "run_single_cycle / R:R 1:2", "pos": [330, 200], "size": [170, 60] },
+    { "id": "risk_manager", "type": "backend", "label": "Risk Manager Institucional", "sublabel": "0.5% Risk / 2% Cap / Tilt 3", "pos": [330, 320], "size": [170, 60] },
+    { "id": "rules_engine", "type": "backend", "label": "Validador Stellar Lite", "sublabel": "Daily 4% / Max DD 8% ($4.6K)", "pos": [330, 440], "size": [170, 60] },
+    { "id": "market_yfinance", "type": "external", "label": "Mercado Oro (yfinance)", "sublabel": "XAU/USD (GC=F)", "pos": [610, 80], "size": [170, 60] },
+    { "id": "sqlite_dbs", "type": "database", "label": "Persistencia SQLite", "sublabel": "6 BDs Multi-Cuenta", "pos": [610, 200], "size": [170, 60] },
+    { "id": "audit_logger", "type": "database", "label": "Auditoría Forense", "sublabel": "audit_events & Rollover", "pos": [610, 320], "size": [170, 60] },
+    { "id": "telegram_bot", "type": "external", "label": "Telegram Notifier", "sublabel": "Push Alertas & Ascensos", "pos": [610, 440], "size": [170, 60] },
+    { "id": "market_ccxt", "type": "external", "label": "Mercado Cripto (ccxt)", "sublabel": "Bitcoin (BTC/USDT)", "pos": [880, 80], "size": [170, 60] },
+    { "id": "oracle_vps", "type": "cloud", "label": "Oracle Cloud VPS", "sublabel": "Ubuntu ARM64 / Linux OCI", "pos": [880, 200], "size": [170, 60] },
+    { "id": "systemd_units", "type": "cloud", "label": "Servicios 24/7 Systemd", "sublabel": "5 Demonios Autónomos", "pos": [880, 320], "size": [170, 60] },
+    { "id": "devops_github", "type": "external", "label": "GitHub Actions CI/CD", "sublabel": "release.yml / SemVer Release", "pos": [1150, 180], "size": [170, 60] },
+    { "id": "archify_tool", "type": "backend", "label": "Archify Packager", "sublabel": "Snapshots & Backups ZIP", "pos": [1150, 320], "size": [170, 60] },
+    { "id": "autopush_git", "type": "backend", "label": "Auto-Push Git con IA", "sublabel": "Gemini API Conventional", "pos": [1150, 440], "size": [170, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Consolas Locales & Monitoreo (Windows)", "wraps": ["cli_shell", "multi_dash"] },
+    { "kind": "security-group", "label": "Núcleo Cuantitativo & Reglas de Fondeo (Python Puro)", "wraps": ["orb_strategy", "trading_engine", "risk_manager", "rules_engine"] },
+    { "kind": "region", "label": "Capa de Datos, Persistencia & Notificaciones", "wraps": ["sqlite_dbs", "audit_logger", "telegram_bot"] },
+    { "kind": "security-group", "label": "Infraestructura Cloud 24/7 (Oracle Cloud OCI)", "wraps": ["market_yfinance", "market_ccxt", "oracle_vps", "systemd_units"] },
+    { "kind": "region", "label": "DevOps, CI/CD & Respaldos", "wraps": ["devops_github", "archify_tool", "autopush_git"] }
+  ],
+  "connections": [
+    { "id": "cli-to-engine", "from": "cli_shell", "to": "trading_engine", "label": "Inicia Ciclo / Status", "variant": "emphasis" },
+    { "id": "dash-to-engine", "from": "multi_dash", "to": "trading_engine", "label": "Snapshot 5 Cuentas" },
+    { "id": "engine-to-strategy", "from": "trading_engine", "to": "orb_strategy", "label": "Evalúa ORB 15m", "variant": "emphasis" },
+    { "id": "strategy-to-yf", "from": "orb_strategy", "to": "market_yfinance", "label": "Velas Oro GC=F", "variant": "emphasis" },
+    { "id": "strategy-to-ccxt", "from": "orb_strategy", "to": "market_ccxt", "label": "Velas BTC/USDT" },
+    { "id": "engine-to-risk", "from": "trading_engine", "to": "risk_manager", "label": "Sizing & Freno 2%", "variant": "emphasis" },
+    { "id": "risk-to-rules", "from": "risk_manager", "to": "rules_engine", "label": "Pisos 4% & 8% DD", "variant": "emphasis" },
+    { "id": "engine-to-db", "from": "trading_engine", "to": "sqlite_dbs", "label": "Registra Órdenes", "variant": "emphasis" },
+    { "id": "db-to-audit", "from": "sqlite_dbs", "to": "audit_logger", "label": "Eventos de Auditoría" },
+    { "id": "rules-to-telegram", "from": "rules_engine", "to": "telegram_bot", "label": "Alertas & Ascensos", "variant": "emphasis" },
+    { "id": "engine-to-vps", "from": "trading_engine", "to": "oracle_vps", "label": "Servicio OCI 24/7", "variant": "emphasis" },
+    { "id": "vps-to-systemd", "from": "oracle_vps", "to": "systemd_units", "label": "Supervisa Demonios" },
+    { "id": "autopush-to-gh", "from": "autopush_git", "to": "devops_github", "label": "Git Push Origin", "variant": "emphasis" },
+    { "id": "archify-to-db", "from": "archify_tool", "to": "sqlite_dbs", "label": "Empaqueta Backups", "fromSide": "left", "toSide": "right" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Estrategia Principal: New York ORB 15m",
+      "items": [
+        "Activo: Oro XAU/USD (GC=F vía yfinance) y Bitcoin (BTC/USDT vía ccxt).",
+        "Rango de Apertura: Vela de 15 minutos en apertura de New York (08:30 a 08:45 EST).",
+        "Anti-Fakeout: Requiere confirmación con vela de 15m cerrada fuera del rango (rechaza mechas falsas).",
+        "Filtro Tendencial Macro: Solo compras si Cierre > EMA 200 en 1H; solo ventas si Cierre < EMA 200 en 1H.",
+        "Blindaje Institucional: Break-Even automático a precio de entrada al alcanzar +1R de beneficio."
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Gestión de Riesgo & Reglas FundedNext Stellar Lite",
+      "items": [
+        "Fase 1 (+8% Target): Meta de $5,400.00 con mínimo 2 días operativos completados.",
+        "Fase 2 (+4% Target): Meta de $5,200.00 con mínimo 2 días operativos para pase a Fondeada.",
+        "Cuenta Fondeada: Sin target obligatorio, 80% Profit Split escalable al 90% con +10% de ganancia.",
+        "Límite de Pérdida Diaria: 4% estático ($200 en $5K) reseteado a las 00:00 UTC cada jornada.",
+        "Máximo Drawdown: 8% estático inamovible ($400 en $5K, piso fijo en $4,600.00).",
+        "Blindaje Anti-Sobreoperación: Bloquea nuevas órdenes agresivas si la meta de la fase ya fue alcanzada hoy.",
+        "Modo Micro-Lote: Opera 0.01 lotes en el día 2 para cumplir el día mínimo reglamentario con riesgo casi cero."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Arquitectura Cloud 24/7 & Systemd en Oracle Cloud",
+      "items": [
+        "Infraestructura: Instancia OCI Ubuntu Always Free (ARM64 o x86_64) con Python 3 puro.",
+        "5 Servicios Autónomos: stellar_ny_open, stellar_london_open, stellar_crypto_24h, stellar_ny_london, stellar_combo_trio.",
+        "Persistencia Aislada: 5 bases de datos SQLite independientes para auditoría forense sin interferencia.",
+        "Monitoreo 1-Clic: Acceso desde Windows mediante scripts .BAT y streaming vía SSH en vivo."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "DevOps, Versionado SemVer & Archify",
+      "items": [
+        "Auto-Push con IA: Generación de Conventional Commits en español usando Google Gemini API.",
+        "GitHub Actions CI/CD: Ejecuta test_verification.py, genera SemVer tags y crea releases con changelog.",
+        "Archify Packager: Snapshots de código fuente limpio y respaldos de bases de datos SQLite con manifest.json."
+      ]
+    }
+  ]
+}

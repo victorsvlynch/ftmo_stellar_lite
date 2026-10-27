@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagrama de Flujo — Motor Cuantitativo FTMO Stellar Lite ($5,000)</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --primary: #38bdf8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --purple: #a855f7;
+    }
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --primary: #0284c7;
+      --success: #059669;
+      --warning: #d97706;
+      --purple: #9333ea;
+    }
+    body {
+      margin: 0;
+      padding: 2rem;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      transition: background 0.3s, color 0.3s;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .badge {
+      background: var(--primary);
+      color: white;
+      font-size: 0.75rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+    .theme-toggle {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .theme-toggle:hover {
+      border-color: var(--primary);
+    }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .card-title {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card ul {
+      margin: 0;
+      padding-left: 1.25rem;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .diagram-container {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      overflow-x: auto;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        darkMode: true,
+        background: '#1e293b',
+        primaryColor: '#38bdf8',
+        primaryBorderColor: '#0284c7',
+        primaryTextColor: '#f8fafc',
+        lineColor: '#94a3b8'
+      }
+    });
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      
+      const isDark = next === 'dark';
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: isDark ? 'dark' : 'default',
+        themeVariables: {
+          darkMode: isDark
+        }
+      });
+      location.reload();
+    }
+  </script>
+</head>
+<body>
+  <div class="header">
+    <div class="title">
+      <span>Motor Cuantitativo & Reglas de Fondeo</span>
+      <span class="badge">FTMO / FundedNext Stellar Lite $5K</span>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()">🌓 Alternar Tema</button>
+  </div>
+
+  <div class="cards-grid">
+    <div class="card">
+      <div class="card-title">🎯 Estrategia New York ORB 15m</div>
+      <ul>
+        <li>Rango de apertura de 08:30 a 08:45 EST.</li>
+        <li>Filtro Anti-Fakeouts: Cierre confirmado fuera de rango.</li>
+        <li>Filtro Macro: Confirmación con EMA 200 en temporalidad 1H.</li>
+        <li>Relación Riesgo/Beneficio: 1:2 estricto.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">🛡️ Gestión de Riesgo Institucional</div>
+      <ul>
+        <li>Riesgo por trade: 0.5% ($25 USD sobre cuenta $5,000).</li>
+        <li>Freno diario personal: 2.0% ($100 USD máx pérdida/día).</li>
+        <li>Alerta Anti-Tilt: Bloqueo tras 3 pérdidas consecutivas.</li>
+        <li>Break-Even automático a precio de entrada al tocar +1R.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">⚖️ Reglas Oficiales FundedNext</div>
+      <ul>
+        <li>Daily Loss: 4% estático ($200) sobre balance inicio día.</li>
+        <li>Max Drawdown: 8% estático inamovible (piso fijo $4,600).</li>
+        <li>Fase 1 (+8% = $5,400) | Fase 2 (+4% = $5,200).</li>
+        <li>Mínimo 2 días operativos requeridos por fase.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="diagram-container">
+    <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Cron as Systemd / Cron (60s)
+    participant Eng as AutomatedTradingEngine
+    participant Mkt as Market Connector (yfinance/ccxt)
+    participant Strat as OpeningRangeBreakoutStrategy
+    participant Risk as RiskManager
+    participant Rules as StellarLiteRulesEngine
+    participant DB as TradingDatabase (SQLite)
+    participant TG as TelegramNotifier
+
+    Note over Cron, Eng: Inicio de Ciclo Cuantitativo (08:30-11:30 EST)
+    Cron->>Eng: run_single_cycle()
+    
+    rect rgb(20, 35, 60)
+        Note over Eng, DB: Fase 1: Gestión de Posiciones Abiertas
+        Eng->>Mkt: get_latest_price(GC=F)
+        Mkt-->>Eng: Mark Price Actual ($2672.23)
+        Eng->>Eng: calculate_open_positions_floating_pnl()
+        Eng->>Rules: evaluate_account(floating_pnl)
+        Rules-->>Eng: RuleCheckResult (Piso Diario, Max DD $4,600)
+        
+        alt Equidad toca Piso Diario (4%) o Max DD (8%)
+            Eng->>DB: record_trade_close(LIQUIDACION_FORZOSA_HARD_BREACH)
+            Eng->>TG: notify_risk_alert("HARD_BREACH")
+            Note over Eng: Bloqueo de Emergencia: Cuenta FALLADA
+        else Operación alcanza +1R en Beneficio
+            Eng->>DB: update_trade_stop_loss(Nuevo SL = Precio Entrada)
+            Eng->>TG: notify_break_even(trade_id, +1R Blindado)
+        else Operación toca TP (1:2) o SL
+            Eng->>DB: record_trade_close(TAKE_PROFIT_HIT)
+            Eng->>TG: notify_trade_closed(net_pnl, balance, equity)
+        end
+    end
+
+    rect rgb(30, 45, 30)
+        Note over Eng, Rules: Fase 2: Blindaje de Ganancias & Reglas de Fondeo
+        alt Target de Fase alcanzado y hoy ya hay operaciones registradas
+            Eng->>Eng: TARGET_REACHED_TODAY_SECURED
+            Note over Eng: Freno Anti-Sobreoperación Activo (Capital Protegido)
+        else Target alcanzado en día previo y esperando día 2 mínimo
+            Eng->>Risk: calculate_position_size(Modo Micro-Lote 0.01 lotes)
+            Note over Eng: Modo Micro-Lote de Seguridad (Riesgo < $1.00)
+        end
+    end
+
+    rect rgb(45, 30, 50)
+        Note over Eng, Strat: Fase 3: Análisis Técnico & Filtros Anti-Fakeout
+        Eng->>Risk: validate_pre_trade()
+        Risk-->>Eng: PreTradeRiskCheck (Sesión OK, Tilt < 3, Cap 2% OK)
+        Eng->>Mkt: fetch_ohlcv_15m() & fetch_ohlcv_1h()
+        Mkt-->>Eng: Velas 15m y 1H
+        Eng->>Strat: evaluate(df_15m, df_1h)
+        Strat->>Strat: Identifica Rango ORB (08:30 a 08:45 EST)
+        Strat->>Strat: Anti-Fakeout: Cierre de vela > High o < Low (rechaza mechas)
+        Strat->>Strat: Filtro Macro: Tendencia 1H con EMA 200
+        Strat-->>Eng: Signal (BUY / SELL / NONE)
+    end
+
+    rect rgb(35, 40, 20)
+        Note over Eng, TG: Fase 4: Ejecución Institucional & Notificación
+        alt Señal Válida Confirmada
+            Eng->>Risk: calculate_position_size(balance, entry, sl, risk=0.5%)
+            Risk-->>Eng: PositionSizeResult (Lots, Units, SL, TP 1:2)
+            Eng->>DB: record_trade_open(symbol, side, lots, SL, TP)
+            DB-->>Eng: Trade #ID Registrado
+            Eng->>TG: notify_trade_opened(Trade #ID, Lots, SL, TP, Risk USD)
+        end
+    end
+    </div>
+  </div>
+</body>
+</html>
