@@ -29,13 +29,41 @@ except ImportError:
             return pytz.timezone(key)
 
 
+def find_mt5_terminal_path() -> Optional[str]:
+    """Localiza automáticamente la ruta del ejecutable terminal64.exe en Windows."""
+    # 1. Comprobar si hay un proceso terminal64 en ejecución
+    try:
+        import subprocess
+        out = subprocess.check_output(
+            ["powershell", "-NoProfile", "-Command", "Get-Process -Name terminal64 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -First 1"],
+            text=True,
+            timeout=3,
+        ).strip()
+        if out and os.path.exists(out):
+            return out
+    except Exception:
+        pass
+
+    # 2. Rutas estándar conocidas
+    common_paths = [
+        r"C:\Program Files\MetaTrader 5\terminal64.exe",
+        r"C:\Program Files\FundedNext MetaTrader 5\terminal64.exe",
+        r"C:\Program Files (x86)\MetaTrader 5\terminal.exe",
+        os.path.expandvars(r"%APPDATA%\MetaQuotes\Terminal\terminal64.exe"),
+    ]
+    for p in common_paths:
+        if os.path.exists(p):
+            return p
+    return None
+
+
 class MT5Bridge:
     """Controlador de bajo nivel para MetaTrader 5 vía Python IPC."""
 
     MAGIC_NUMBER = 505001  # Magic Number único para identificar operaciones del algoritmo
 
     def __init__(self, terminal_path: Optional[str] = None) -> None:
-        self.terminal_path = terminal_path
+        self.terminal_path = terminal_path or find_mt5_terminal_path()
         self._mt5 = None
         self.connected = False
         self.account_info = None
@@ -71,8 +99,15 @@ class MT5Bridge:
         if self.terminal_path and os.path.exists(self.terminal_path):
             init_kwargs["path"] = self.terminal_path
 
-        # 1. Inicializar comunicación con MT5
-        if not mt5.initialize(**init_kwargs):
+        # 1. Inicializar comunicación con MT5 (reintentar con o sin path si es necesario)
+        success = mt5.initialize(**init_kwargs)
+        if not success:
+            if "path" in init_kwargs:
+                success = mt5.initialize()
+            elif self.terminal_path and os.path.exists(self.terminal_path):
+                success = mt5.initialize(path=self.terminal_path)
+
+        if not success:
             err_code, err_msg = mt5.last_error()
             print(f"[ERROR MT5] Fallo al inicializar terminal: {err_code} - {err_msg}")
             return False
