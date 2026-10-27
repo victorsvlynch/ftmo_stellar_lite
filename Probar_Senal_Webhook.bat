@@ -3,6 +3,12 @@ cd /d "%~dp0"
 title Disparar Senal de Prueba hacia MT5 - FundedNext Stellar Lite
 cls
 
+:: Resolver clave SSH
+set "KEY=%USERPROFILE%\.ssh\ssh-key-2026-10-26.key"
+if not exist "%KEY%" set "KEY=%USERPROFILE%\.ssh\oracle_vps.key"
+if not exist "%KEY%" set "KEY=%~dp0VPS-Oracle\ssh-key-2026-10-26.key"
+if not exist "%KEY%" set "KEY=%~dp0VPS-Oracle\ssh-key-2026-10-22-vps-oracle.key"
+
 echo ==============================================================================
 echo   DISPARADOR DE SENAL DE PRUEBA WEBHOOK HACIA METATRADER 5 (MT5)
 echo ==============================================================================
@@ -20,18 +26,26 @@ if /i "%confirm%"=="N" (
 )
 
 echo.
-echo Enviando senal al servidor Webhook en Oracle Cloud...
-python -c "import urllib.request, json; data = json.dumps({'action':'OPEN_BUY','lots':0.01,'symbol':'XAUUSD'}).encode(); req = urllib.request.Request('http://127.0.0.1:8000/api/test_order', data=data, headers={'Content-Type':'application/json'}); res = urllib.request.urlopen(req).read().decode(); print('[RESPUESTA SERVIDOR]:', res); print('\n>> Mira tu MetaTrader 5: el EA capturo la senal y abrio la orden en 1 segundo.')" 2>nul
-
-if %ERRORLEVEL% NEQ 0 (
+echo [1/2] Verificando conexion local (http://127.0.0.1:8000)...
+python -c "import socket; s = socket.socket(); s.settimeout(1); res = s.connect_ex(('127.0.0.1', 8000)); s.close(); exit(0 if res == 0 else 1)" 2>nul
+if %ERRORLEVEL% EQU 0 (
+    echo [OK] Tunel local activo en puerto 8000.
+    echo [2/2] Enviando senal via tunel local...
+    python -c "import urllib.request, json; data = json.dumps({'action':'OPEN_BUY','lots':0.01,'symbol':'XAUUSD'}).encode(); req = urllib.request.Request('http://127.0.0.1:8000/api/test_order', data=data, headers={'Content-Type':'application/json'}); res = urllib.request.urlopen(req, timeout=5).read().decode(); print('\n[RESPUESTA SERVIDOR]:', res); print('\n>> Mira tu MetaTrader 5: el EA capturo la senal y abrio la orden en 1 segundo.')"
+) else (
+    echo [AVISO] El tunel local no esta abierto en tu PC.
+    echo [2/2] Enviando senal directamente al servidor en Oracle Cloud via SSH...
+    ssh -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "curl -s -X POST http://localhost:8000/api/test_order -H 'Content-Type: application/json' -d '{\"action\":\"OPEN_BUY\",\"lots\":0.01,\"symbol\":\"XAUUSD\"}'"
     echo.
-    echo [AVISO] No se pudo conectar a http://127.0.0.1:8000.
-    echo Intentando enviar directamente a la IP publica del servidor...
-    python -c "import urllib.request, json; data = json.dumps({'action':'OPEN_BUY','lots':0.01,'symbol':'XAUUSD'}).encode(); req = urllib.request.Request('http://157.137.225.144:8000/api/test_order', data=data, headers={'Content-Type':'application/json'}); res = urllib.request.urlopen(req).read().decode(); print('[RESPUESTA SERVIDOR]:', res)" 2>nul
+    echo ==============================================================================
+    echo  >> SENAL ENCOLADA EN ORACLE CLOUD CON EXITO.
+    echo  >> ATENCION: Para que MetaTrader 5 pueda recibirla y ejecutarla en el broker,
+    echo     debes tener ABIERTO el archivo 'Conectar_Puente_Webhook_MT5.bat'.
+    echo ==============================================================================
 )
 
 echo.
 echo ==============================================================================
-echo  Prueba completada con exito.
+echo  Prueba completada.
 echo ==============================================================================
 pause
