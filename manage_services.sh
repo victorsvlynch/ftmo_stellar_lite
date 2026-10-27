@@ -11,18 +11,35 @@
 
 set -e
 
-SERVICES=(
-    "stellar_ny_open.service"
+WINNER_SERVICE="stellar_ny_open.service"
+RETIRED_SERVICES=(
     "stellar_london_open.service"
     "stellar_crypto_24h.service"
     "stellar_ny_london.service"
     "stellar_combo_trio.service"
+)
+SERVICES=(
+    "$WINNER_SERVICE"
+    "${RETIRED_SERVICES[@]}"
 )
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ACTION="${1:-status}"
 
 case "${ACTION}" in
+    winner|solo-ganadora|winner-only)
+        echo "=============================================================================="
+        echo " [MODO EXCLUSIVO] Activando unicamente Estrategia Ganadora: NY_OPEN"
+        echo "=============================================================================="
+        echo "[1/2] Deteniendo y deshabilitando las 4 modalidades retiradas..."
+        sudo systemctl stop "${RETIRED_SERVICES[@]}" 2>/dev/null || true
+        sudo systemctl disable "${RETIRED_SERVICES[@]}" 2>/dev/null || true
+        echo "[2/2] Iniciando y habilitando servicio ganador ($WINNER_SERVICE)..."
+        sudo systemctl enable "$WINNER_SERVICE" 2>/dev/null || true
+        sudo systemctl restart "$WINNER_SERVICE"
+        echo "[OK] Estrategia ganadora NY_OPEN activa y en ejecucion."
+        python3 "${APP_DIR}/main.py" winner
+        ;;
     start-all)
         echo "[*] Iniciando todos los servicios de trading..."
         sudo systemctl start "${SERVICES[@]}"

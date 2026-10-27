@@ -87,5 +87,5 @@ jobs:
           rsync -avz --exclude='*.db' --exclude='archives' --exclude='__pycache__' --exclude='.git' \
             ./ $SSH_USER@$SSH_HOST:/home/$SSH_USER/FTMO_Stellar_Lite/
 
-          # Reiniciar y verificar servicios
-          ssh $SSH_USER@$SSH_HOST "cd /home/$SSH_USER/FTMO_Stellar_Lite && chmod +x *.sh *.py 2>/dev/null && sudo systemctl restart stellar_ny_open.service stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service && sudo systemctl is-active stellar_ny_open stellar_london_open stellar_crypto_24h stellar_ny_london stellar_combo_trio"
+          # Reiniciar y verificar servicios (Aislar únicamente la estrategia ganadora NY_OPEN)
+          ssh $SSH_USER@$SSH_HOST "cd /home/$SSH_USER/FTMO_Stellar_Lite && chmod +x *.sh *.py 2>/dev/null && sudo systemctl stop stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service 2>/dev/null || true && sudo systemctl disable stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service 2>/dev/null || true && sudo systemctl restart stellar_ny_open.service fundednext_bot.service && sudo systemctl is-active stellar_ny_open"

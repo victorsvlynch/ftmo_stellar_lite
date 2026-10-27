@@ -154,7 +154,7 @@ def print_console_report(
         f"(Margen restante: ${state.daily_loss_remaining:>7,.2f})"
     )
     print(
-        f"  Piso Max Drawdown   (8% Estático) : ${state.max_loss_floor:>8,.2f} "
+        f"  Piso Max Drawdown   ({rules.max_drawdown_limit_pct * 100:.0f}% Estático) : ${state.max_loss_floor:>8,.2f} "
         f"(Margen restante: ${state.max_loss_remaining:>7,.2f})"
     )
     personal_cap_pct = float(acc.get("personal_daily_cap_pct", risk.personal_daily_cap_pct))
@@ -568,57 +568,62 @@ MODALITIES_METADATA = [
     {
         "id": "1_NY_OPEN",
         "num": "1",
-        "label": "NY_OPEN (Apertura NY)",
+        "label": "NY_OPEN [GANADORA]",
         "db": "trading_ny_open.db",
         "symbol": "GC=F",
         "provider": "yfinance",
         "session": "NY_OPEN",
         "hours": "08:30-11:30 EST",
         "service": "stellar_ny_open.service",
+        "active_portfolio": True,
     },
     {
         "id": "2_LONDON_OPEN",
         "num": "2",
-        "label": "LONDON_OPEN (Apertura)",
+        "label": "LONDON [RETIRADA]",
         "db": "trading_london_open.db",
         "symbol": "GC=F",
         "provider": "yfinance",
         "session": "LONDON_OPEN",
         "hours": "03:00-06:00 EST",
         "service": "stellar_london_open.service",
+        "active_portfolio": False,
     },
     {
         "id": "3_CRYPTO_24H",
         "num": "3",
-        "label": "CRYPTO_24H (24/7)",
+        "label": "CRYPTO [RETIRADA]",
         "db": "trading_crypto_24h.db",
         "symbol": "BTC/USDT",
         "provider": "ccxt",
         "session": "ALL",
         "hours": "24h Continuo",
         "service": "stellar_crypto_24h.service",
+        "active_portfolio": False,
     },
     {
         "id": "4_NY_LONDON",
         "num": "4",
-        "label": "NY_OPEN + LONDON",
+        "label": "DUAL [RETIRADA]",
         "db": "trading_ny_london.db",
         "symbol": "GC=F",
         "provider": "yfinance",
         "session": "COMBO_DUAL",
         "hours": "03-06 & 08:30-11",
         "service": "stellar_ny_london.service",
+        "active_portfolio": False,
     },
     {
         "id": "5_COMBO_TRIO",
         "num": "5",
-        "label": "NY + LDN + CRYPTO 24H",
+        "label": "TRIO [RETIRADA]",
         "db": "trading_combo_trio.db",
         "symbol": "GC=F,BTC/USDT",
         "provider": "multi",
         "session": "COMBO_TRIO",
         "hours": "24h (Dual+Crpt)",
         "service": "stellar_combo_trio.service",
+        "active_portfolio": False,
     },
 ]
 
@@ -695,10 +700,14 @@ def get_modality_snapshot(cfg: dict, now_utc: datetime, cached_prices: Optional[
     consec_losses = risk.get_consecutive_losses_today(t_date)
     is_tilt = consec_losses >= 3
 
-    if is_tilt:
+    if not cfg.get("active_portfolio", True):
+        status_str = "RETIRADA"
+    elif is_tilt:
         status_str = "BLOQ_TILT"
     elif open_pos:
         status_str = f"TRADE({len(open_pos)})"
+    elif rule_res.phase == "FONDEADA":
+        status_str = "FONDEADA"
     elif rule_res.target_reached and rule_res.waiting_min_days and len(closed_today) > 0:
         status_str = "META_OK"
     elif rule_res.can_pass_phase:
@@ -975,13 +984,15 @@ def parse_args() -> argparse.Namespace:
             "simulate",
             "reset",
             "live",
+            "winner",
+            "winner-live",
             "multi",
             "multi-status",
             "multi-detail",
             "multi-detail-status",
             "reset-all",
         ],
-        help="Comando a ejecutar: 'status', 'live', 'multi', 'multi-detail' (tablero con detalle de operaciones), 'multi-status', 'multi-detail-status', 'reset-all', 'run', 'interactive', 'simulate', 'reset'.",
+        help="Comando a ejecutar: 'status', 'live', 'winner' (solo estrategia ganadora NY_OPEN), 'winner-live', 'multi', 'multi-detail', 'multi-status', 'multi-detail-status', 'reset-all', 'run', 'interactive', 'simulate', 'reset'.",
     )
     parser.add_argument(
         "--detailed",
@@ -990,6 +1001,24 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Activa el modo detallado con desglose de operaciones abiertas y cerradas de cada modalidad.",
+    )
+    parser.add_argument(
+        "--max-loss-pct",
+        type=float,
+        default=0.10,
+        help="Límite de pérdida máxima (por defecto 0.10 = 10%% según Add-on Maximum Loss Limit 10%% en cloud.png).",
+    )
+    parser.add_argument(
+        "--min-trading-days",
+        type=int,
+        default=0,
+        help="Días mínimos operativos requeridos por fase (por defecto 0 según Add-on No Minimum Trading Days en cloud.png).",
+    )
+    parser.add_argument(
+        "--profit-split",
+        type=float,
+        default=0.95,
+        help="Porcentaje de Profit Split en cuenta fondeada (por defecto 0.95 = 95%% según Add-on Lifetime Reward 95%% en cloud.png).",
     )
     parser.add_argument(
         "--symbol",
@@ -1065,33 +1094,46 @@ def main() -> None:
     if args.telegram_chat:
         os.environ["TELEGRAM_CHAT_ID"] = args.telegram_chat
 
-    db = TradingDatabase(db_path=args.db)
+    db_target = "trading_ny_open.db" if args.command in ("winner", "winner-live") else args.db
+    db = TradingDatabase(db_path=db_target)
 
-    # Sincronizar parámetros de riesgo con la base de datos
+    # Sincronizar parámetros de riesgo y Add-ons (cloud.png) con la base de datos
     db.update_account_state(
         personal_daily_cap_pct=args.personal_cap,
         risk_per_trade_pct=args.risk,
+        max_drawdown_limit_pct=args.max_loss_pct,
+        min_trading_days=args.min_trading_days,
+        funded_profit_split=args.profit_split,
     )
 
-    rules = StellarLiteRulesEngine(db=db)
+    rules = StellarLiteRulesEngine(
+        db=db,
+        max_drawdown_limit_pct=args.max_loss_pct,
+        min_trading_days=args.min_trading_days,
+        funded_profit_split=args.profit_split,
+    )
+    session_target = "NY_OPEN" if args.command in ("winner", "winner-live") else args.session
+    symbol_target = "GC=F" if args.command in ("winner", "winner-live") else args.symbol
+    provider_target = "yfinance" if args.command in ("winner", "winner-live") else args.provider
+
     risk = RiskManager(
         db=db,
         default_risk_pct=args.risk,
         personal_daily_cap_pct=args.personal_cap,
         rr_ratio=2.0,
-        session_mode=args.session,
+        session_mode=session_target,
     )
     engine = AutomatedTradingEngine(
         db=db,
         rules_engine=rules,
         risk_manager=risk,
-        symbol=args.symbol,
-        provider=args.provider,
+        symbol=symbol_target,
+        provider=provider_target,
     )
 
-    if args.command == "status":
+    if args.command in ("status", "winner"):
         print_console_report(db, rules, risk, engine)
-    elif args.command == "live":
+    elif args.command in ("live", "winner-live"):
         run_live_dashboard(db, rules, risk, engine, refresh_rate=args.refresh)
     elif args.command in ("multi", "multi-detail"):
         is_det = (args.command == "multi-detail") or args.detailed

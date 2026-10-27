@@ -57,15 +57,63 @@ class StellarLiteRulesEngine:
     PHASE_1_TARGET_PCT = 0.08          # +8% ($400 en $5,000)
     PHASE_2_TARGET_PCT = 0.04          # +4% ($200 en $5,000)
     DAILY_LOSS_LIMIT_PCT = 0.04        # 4% ($200 en $5,000 sobre balance inicio del día)
-    MAX_DRAWDOWN_LIMIT_PCT = 0.08      # 8% ($400 en $5,000 -> piso fijo $4,600)
-    MIN_TRADING_DAYS = 2               # 2 días mínimos por fase de evaluación
+    MAX_DRAWDOWN_LIMIT_PCT = 0.08      # 8% Estándar ($400 en $5,000 -> piso fijo $4,600)
+    MIN_TRADING_DAYS = 2               # 2 días mínimos estándar por fase de evaluación
     NEWS_PROFIT_CAP_PCT = 0.40         # Máximo 40% del profit proveniente de noticias
-    DEFAULT_FUNDED_SPLIT = 0.80        # 80% split inicial
+    DEFAULT_FUNDED_SPLIT = 0.80        # 80% split estándar inicial
     SCALED_FUNDED_SPLIT = 0.90         # 90% split tras escalado (+10% en cuenta fondeada)
     ALLOW_OVERNIGHT_WEEKEND = True     # Permitido mantener operaciones overnight y fin de semana
 
-    def __init__(self, db: TradingDatabase) -> None:
+    def __init__(
+        self,
+        db: TradingDatabase,
+        max_drawdown_limit_pct: Optional[float] = None,
+        min_trading_days: Optional[int] = None,
+        funded_profit_split: Optional[float] = None,
+        daily_loss_limit_pct: Optional[float] = None,
+        use_cloud_addons: bool = True,
+    ) -> None:
         self.db = db
+        acc = self.db.get_account_state()
+
+        # Add-ons seleccionados en FundedNext Checkout (cloud.png):
+        # 1. Maximum Loss Limit 10% (+25%) -> max_drawdown = 10% ($500 pérdida permitida, piso $4,500 en vez de $4,600)
+        # 2. No Minimum Trading Days (+20%) -> min_trading_days = 0 (aprobación inmediata al alcanzar el target)
+        # 3. Lifetime Reward 95% (+30%) -> funded_profit_split = 0.95 (95% de participación vitalicia)
+        # 4. EA (+ $5.00) -> ea_enabled = True (Trading algorítmico / Python bot formalmente autorizado)
+
+        if max_drawdown_limit_pct is not None:
+            self.max_drawdown_limit_pct = float(max_drawdown_limit_pct)
+        elif acc.get("max_drawdown_limit_pct") is not None:
+            self.max_drawdown_limit_pct = float(acc["max_drawdown_limit_pct"])
+        elif use_cloud_addons:
+            self.max_drawdown_limit_pct = 0.10
+        else:
+            self.max_drawdown_limit_pct = self.MAX_DRAWDOWN_LIMIT_PCT
+
+        if min_trading_days is not None:
+            self.min_trading_days = int(min_trading_days)
+        elif acc.get("min_trading_days") is not None:
+            self.min_trading_days = int(acc["min_trading_days"])
+        elif use_cloud_addons:
+            self.min_trading_days = 0
+        else:
+            self.min_trading_days = self.MIN_TRADING_DAYS
+
+        if funded_profit_split is not None:
+            self.funded_profit_split = float(funded_profit_split)
+        elif acc.get("funded_profit_split") is not None:
+            self.funded_profit_split = float(acc["funded_profit_split"])
+        elif use_cloud_addons:
+            self.funded_profit_split = 0.95
+        else:
+            self.funded_profit_split = self.DEFAULT_FUNDED_SPLIT
+
+        self.daily_loss_limit_pct = (
+            float(daily_loss_limit_pct)
+            if daily_loss_limit_pct is not None
+            else self.DAILY_LOSS_LIMIT_PCT
+        )
 
     def check_daily_rollover(self, now_server: Optional[datetime] = None) -> Dict[str, Any]:
         """
@@ -166,10 +214,10 @@ class StellarLiteRulesEngine:
         equity = round(balance + floating_pnl, 2)
         self.db.update_account_state(equity=equity)
 
-        # Cálculos de límites estáticos FundedNext Stellar Lite
-        daily_max_loss_allowance = round(initial_balance * self.DAILY_LOSS_LIMIT_PCT, 2)  # $200 en $5,000
+        # Cálculos de límites estáticos FundedNext Stellar Lite (ajustados con Add-ons si aplican)
+        daily_max_loss_allowance = round(initial_balance * self.daily_loss_limit_pct, 2)  # $200 en $5,000 (4%)
         daily_loss_floor = round(day_start_balance - daily_max_loss_allowance, 2)
-        max_loss_floor = round(initial_balance * (1.0 - self.MAX_DRAWDOWN_LIMIT_PCT), 2)  # $4,600 en $5,000
+        max_loss_floor = round(initial_balance * (1.0 - self.max_drawdown_limit_pct), 2)  # $4,500 en $5,000 (10% Add-on) o $4,600 (8%)
 
         daily_loss_remaining = round(max(0.0, equity - daily_loss_floor), 2)
         max_loss_remaining = round(max(0.0, equity - max_loss_floor), 2)
@@ -183,10 +231,10 @@ class StellarLiteRulesEngine:
                 alerts.append(f"CUENTA FALLADA: {acc['fail_reason']}")
             hard_breach = True
         else:
-            # 1. Verificación de Límite de Pérdida Máxima (8% Estático -> $4,600)
+            # 1. Verificación de Límite de Pérdida Máxima (10% o 8% Estático)
             if equity <= max_loss_floor or balance <= max_loss_floor:
                 reason = (
-                    f"Hard Breach: Max Drawdown Limit (8%) alcanzado. "
+                    f"Hard Breach: Max Drawdown Limit ({self.max_drawdown_limit_pct * 100:.0f}%) alcanzado. "
                     f"Equidad (${equity:,.2f}) tocó o perforó el piso fijo de ${max_loss_floor:,.2f}."
                 )
                 self._fail_account(phase, reason)
@@ -198,7 +246,7 @@ class StellarLiteRulesEngine:
             # 2. Verificación de Límite de Pérdida Diaria (4% Estático -> $200 desde day_start_balance)
             elif equity <= daily_loss_floor or balance <= daily_loss_floor:
                 reason = (
-                    f"Hard Breach: Daily Loss Limit (4% = ${daily_max_loss_allowance:,.2f}) alcanzado. "
+                    f"Hard Breach: Daily Loss Limit ({self.daily_loss_limit_pct * 100:.0f}% = ${daily_max_loss_allowance:,.2f}) alcanzado. "
                     f"Equidad (${equity:,.2f}) tocó el piso diario de ${daily_loss_floor:,.2f} "
                     f"(Balance inicial del día: ${day_start_balance:,.2f})."
                 )
@@ -221,7 +269,7 @@ class StellarLiteRulesEngine:
 
         # Días operativos completados en la fase actual
         trading_days = self.db.get_active_trading_days_count(phase)
-        min_days_req = self.MIN_TRADING_DAYS if phase in (self.PHASE_1, self.PHASE_2) else 0
+        min_days_req = self.min_trading_days if phase in (self.PHASE_1, self.PHASE_2) else 0
 
         # Targets por Fase y Promoción Automática (solo sobre balance cerrado y sin Hard Breach)
         profit_target_amount: Optional[float] = None
@@ -238,7 +286,7 @@ class StellarLiteRulesEngine:
                 profit_target_balance = round(initial_balance + profit_target_amount, 2)    # $5,400.00
                 if balance >= profit_target_balance:
                     target_reached = True
-                    if trading_days >= self.MIN_TRADING_DAYS:
+                    if trading_days >= self.min_trading_days:
                         can_pass_phase = True
                         self._promote_phase(
                             from_phase=self.PHASE_1,
@@ -246,16 +294,17 @@ class StellarLiteRulesEngine:
                             initial_balance=initial_balance,
                             new_split=0.0,
                         )
+                        day_msg = f"{trading_days} días cumplidos" if self.min_trading_days > 0 else "Sin requisito de días mínimos [Add-on]"
                         alerts.append(
-                            f"¡FASE 1 SUPERADA! Target +8% (${profit_target_amount:,.2f}) y "
-                            f"{trading_days} días operativos cumplidos. Cuenta promovida a FASE 2."
+                            f"¡FASE 1 SUPERADA! Target +8% (${profit_target_amount:,.2f}) alcanzado ({day_msg}). "
+                            f"Cuenta promovida a FASE 2."
                         )
                         return self.evaluate_account(floating_pnl=0.0, now_server=now_server)
                     else:
                         waiting_min_days = True
                         alerts.append(
                             f"Target de Fase 1 alcanzado (${balance:,.2f}), pero faltan días operativos: "
-                            f"{trading_days}/{self.MIN_TRADING_DAYS} días requeridos."
+                            f"{trading_days}/{self.min_trading_days} días requeridos."
                         )
 
             elif phase == self.PHASE_2:
@@ -263,34 +312,38 @@ class StellarLiteRulesEngine:
                 profit_target_balance = round(initial_balance + profit_target_amount, 2)    # $5,200.00
                 if balance >= profit_target_balance:
                     target_reached = True
-                    if trading_days >= self.MIN_TRADING_DAYS:
+                    if trading_days >= self.min_trading_days:
                         can_pass_phase = True
                         self._promote_phase(
                             from_phase=self.PHASE_2,
                             to_phase=self.FUNDED,
                             initial_balance=initial_balance,
-                            new_split=self.DEFAULT_FUNDED_SPLIT,
+                            new_split=self.funded_profit_split,
                         )
+                        day_msg = f"{trading_days} días cumplidos" if self.min_trading_days > 0 else "Sin requisito de días mínimos [Add-on]"
                         alerts.append(
-                            f"¡FASE 2 SUPERADA! Target +4% (${profit_target_amount:,.2f}) y "
-                            f"{trading_days} días operativos cumplidos. ¡CUENTA FONDEADA (Split 80%)!"
+                            f"¡FASE 2 SUPERADA! Target +4% (${profit_target_amount:,.2f}) alcanzado ({day_msg}). "
+                            f"¡CUENTA FONDEADA OFICIALMENTE! (Profit Split: {self.funded_profit_split * 100:.0f}%)."
                         )
                         return self.evaluate_account(floating_pnl=0.0, now_server=now_server)
                     else:
                         waiting_min_days = True
                         alerts.append(
                             f"Target de Fase 2 alcanzado (${balance:,.2f}), pero faltan días operativos: "
-                            f"{trading_days}/{self.MIN_TRADING_DAYS} días requeridos."
+                            f"{trading_days}/{self.min_trading_days} días requeridos."
                         )
 
             elif phase == self.FUNDED:
                 profit_target_amount = None
                 profit_target_balance = None
-                # Escalado automático del Profit Split de 80% a 90% si acumula >= +10% en Fondeada
+                if profit_split < self.funded_profit_split:
+                    profit_split = self.funded_profit_split
+                    self.db.update_account_state(profit_split=profit_split)
+                # Escalado adicional si aplicara
                 if current_profit >= initial_balance * 0.10 and profit_split < self.SCALED_FUNDED_SPLIT:
                     profit_split = self.SCALED_FUNDED_SPLIT
                     self.db.update_account_state(profit_split=profit_split)
-                    msg = "Profit Split escalado automáticamente del 80% al 90% por superar +10% de ganancia en cuenta Fondeada."
+                    msg = "Profit Split escalado automáticamente por superar +10% de ganancia en cuenta Fondeada."
                     self.db.log_event("PROFIT_SPLIT_SCALE", self.FUNDED, msg)
                     alerts.append(msg)
 
@@ -335,13 +388,13 @@ class StellarLiteRulesEngine:
             )
         elif phase == self.FUNDED:
             real_account_recommendations.append(
-                f"💎 [CUENTA FONDEADA ACTIVA]: Operando capital institucional con Profit Split al {profit_split * 100:.0f}%."
+                f"💎 [CUENTA FONDEADA ACTIVA]: Operando capital institucional con Profit Split al {profit_split * 100:.0f}% (Add-on Lifetime Reward 95% activo)."
             )
             real_account_recommendations.append(
                 f"🛡️ [PRESERVACIÓN DE CAPITAL]: Tu piso diario es ${daily_loss_floor:,.2f} y el piso inamovible de "
-                f"Max Drawdown es ${max_loss_floor:,.2f}. Retiros disponibles según el calendario oficial de FundedNext."
+                f"Max Drawdown ({self.max_drawdown_limit_pct * 100:.0f}%) es ${max_loss_floor:,.2f}. Retiros disponibles según calendario oficial FundedNext."
             )
-            if profit_split < self.SCALED_FUNDED_SPLIT:
+            if profit_split < 0.95:
                 needed = round(initial_balance * 0.10 - current_profit, 2)
                 real_account_recommendations.append(
                     f"📈 [ESCALADO A 90%]: Genera ${max(0.0, needed):,.2f} adicionales (+10% total) para escalar el "

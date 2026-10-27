@@ -238,10 +238,11 @@ def run_tests():
     print("  PASS: Modulo Telegram funciona con resiliencia ante ausencia de token.")
 
     # -------------------------------------------------------------------------
-    # TEST 8: Validacion de Target Alcanzado & Recomendaciones Cuenta Real
+    # TEST 8: Validacion de Target Alcanzado & Recomendaciones Cuenta Real (Regla Estándar 2 Días)
     # -------------------------------------------------------------------------
-    print("\n[TEST 8] Validacion de Target Alcanzado, Bloqueo Anti-Overtrading & Micro-Lote")
-    # Simular cuenta con $5,723.92 en Fase 2 (como la del usuario)
+    print("\n[TEST 8] Validacion de Target Alcanzado, Bloqueo Anti-Overtrading & Micro-Lote (Regla 2 Días)")
+    # Simular cuenta con $5,723.92 en Fase 2 bajo regla estándar de 2 días
+    rules_engine.min_trading_days = 2
     db.update_account_state(balance=5723.92, equity=5723.92, phase="FASE_2", status="ACTIVE")
     eval_res = rules_engine.evaluate_account()
     assert eval_res.target_reached is True, "Expected target_reached=True for $5723.92 in Fase 2"
@@ -260,6 +261,20 @@ def run_tests():
     cycle_res = engine.run_single_cycle(ignore_session_filter=True)
     assert cycle_res["action"] == "TARGET_REACHED_TODAY_SECURED", f"Expected TARGET_REACHED_TODAY_SECURED, got {cycle_res['action']}"
     print("  PASS: Bloqueo anti-overtrading activado: no permite abrir nuevas ordenes si el target ya fue alcanzado hoy.")
+
+    # -------------------------------------------------------------------------
+    # TEST 9: Validacion de Add-ons FundedNext Checkout (cloud.png)
+    # -------------------------------------------------------------------------
+    print("\n[TEST 9] Validacion de Add-ons FundedNext (cloud.png: No Min Days, 10% Max Loss, 95% Split)")
+    rules_engine.min_trading_days = 0
+    rules_engine.max_drawdown_limit_pct = 0.10
+    rules_engine.funded_profit_split = 0.95
+    db.update_account_state(balance=5723.92, equity=5723.92, phase="FASE_2", status="ACTIVE")
+    eval_addon = rules_engine.evaluate_account()
+    assert eval_addon.phase == "FONDEADA", f"Expected promotion to FONDEADA, got {eval_addon.phase}"
+    assert eval_addon.profit_split == 0.95, f"Expected 95% profit split, got {eval_addon.profit_split}"
+    assert eval_addon.max_loss_floor == 4500.0, f"Expected $4,500.00 floor (10% Max DD), got {eval_addon.max_loss_floor}"
+    print("  PASS: Aprobacion instantanea a FONDEADA con No Min Trading Days, Piso $4,500 (10% DD) y Split 95%.")
 
     del engine
     del rules_engine

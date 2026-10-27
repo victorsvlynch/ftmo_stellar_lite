@@ -89,39 +89,46 @@ if (Test-Path $scriptsPath) {
 
 Write-Host "   [OK] Codigo fuente sincronizado en el servidor." -ForegroundColor Green
 
-# 4. Ajustar permisos y reiniciar servicios systemd
-Write-Host "[3/4] Ajustando permisos de ejecucion y reiniciando servicios..." -ForegroundColor Yellow
+# 4. Ajustar permisos, detener servicios retirados y activar únicamente estrategia ganadora
+Write-Host "[3/4] Desactivando modalidades perdedoras y activando ESTRATEGIA GANADORA (NY_OPEN)..." -ForegroundColor Yellow
 $remoteCmds = @(
     "cd /home/$User/FTMO_Stellar_Lite",
     "chmod +x *.sh *.py 2>/dev/null",
-    "sudo systemctl restart stellar_ny_open.service stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service",
+    "sudo systemctl stop stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service 2>/dev/null || true",
+    "sudo systemctl disable stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service 2>/dev/null || true",
+    "sudo systemctl enable stellar_ny_open.service fundednext_bot.service 2>/dev/null || true",
+    "sudo systemctl restart stellar_ny_open.service fundednext_bot.service",
     "sleep 1"
 ) -join " && "
 
 & ssh -i "$sshKey" -o StrictHostKeyChecking=no "$User@$HostIp" "$remoteCmds"
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[AVISO] Hubo una advertencia al reiniciar servicios." -ForegroundColor Yellow
+    Write-Host "[AVISO] Hubo una advertencia al configurar servicios." -ForegroundColor Yellow
 } else {
-    Write-Host "   [OK] Los 5 servicios systemd fueron reiniciados correctamente." -ForegroundColor Green
+    Write-Host "   [OK] Modalidades retiradas detenidas. Estrategia ganadora NY_OPEN reiniciada con exito." -ForegroundColor Green
 }
 
 # 5. Consultar estado en vivo de los servicios y tablero
-Write-Host "[4/4] Verificando estado activo de las 5 estrategias en VPS..." -ForegroundColor Yellow
+Write-Host "[4/4] Verificando aislamiento de estrategia ganadora en VPS..." -ForegroundColor Yellow
 $statusCmd = "cd /home/$User/FTMO_Stellar_Lite && sudo systemctl is-active stellar_ny_open stellar_london_open stellar_crypto_24h stellar_ny_london stellar_combo_trio"
 $servicesStatus = & ssh -i "$sshKey" -o StrictHostKeyChecking=no "$User@$HostIp" "$statusCmd"
 
 Write-Host ""
-Write-Host "Estado de Servicios Systemd:" -ForegroundColor Cyan
+Write-Host "Estado de Servicios Systemd en VPS:" -ForegroundColor Cyan
 $lines = $servicesStatus -split "`n"
-$serviceNames = @("1_NY_OPEN", "2_LONDON_OPEN", "3_CRYPTO_24H", "4_COMBO_DUAL", "5_COMBO_TRIO")
+$serviceNames = @("1_NY_OPEN [GANADORA]", "2_LONDON_OPEN [RETIRADA]", "3_CRYPTO_24H [RETIRADA]", "4_COMBO_DUAL [RETIRADA]", "5_COMBO_TRIO [RETIRADA]")
 for ($i = 0; $i -lt [math]::Min($lines.Length, $serviceNames.Length); $i++) {
     $st = $lines[$i].Trim()
-    $col = if ($st -eq "active") { "Green" } else { "Red" }
+    if ($i -eq 0) {
+        $col = if ($st -eq "active") { "Green" } else { "Red" }
+    } else {
+        $col = if ($st -eq "inactive") { "DarkGray" } else { "Yellow" }
+    }
     Write-Host "   - $($serviceNames[$i]): $st" -ForegroundColor $col
 }
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Green
-Write-Host " [EXITO] DESPLIEGUE EN ORACLE CLOUD COMPLETADO AL 100%" -ForegroundColor Green
+Write-Host " [EXITO] SERVIDOR ACTUALIZADO: SOLO ESTRATEGIA GANADORA ACTIVA" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host "El motor se encuentra operando en vivo en la nube 24/7." -ForegroundColor White

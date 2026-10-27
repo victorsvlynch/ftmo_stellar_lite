@@ -95,6 +95,10 @@ class TradingDatabase:
                 "ALTER TABLE trades ADD COLUMN commission REAL DEFAULT 0.0",
                 "ALTER TABLE trades ADD COLUMN spread_cost REAL DEFAULT 0.0",
                 "ALTER TABLE trades ADD COLUMN is_break_even INTEGER DEFAULT 0",
+                "ALTER TABLE account_state ADD COLUMN max_drawdown_limit_pct REAL DEFAULT 0.10",
+                "ALTER TABLE account_state ADD COLUMN min_trading_days INTEGER DEFAULT 0",
+                "ALTER TABLE account_state ADD COLUMN funded_profit_split REAL DEFAULT 0.95",
+                "ALTER TABLE account_state ADD COLUMN ea_enabled INTEGER DEFAULT 1",
             ):
                 try:
                     cursor.execute(col_sql)
