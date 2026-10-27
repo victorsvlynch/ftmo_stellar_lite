@@ -138,7 +138,23 @@ Este es el método para comprobar con tus propios ojos cómo Python se conecta a
 
 ---
 
-### 2. Monitoreo en Tiempo Real de la Estrategia Ganadora
+### 2. Modalidades de Ejecución Disponibles
+
+#### 🟢 Opción B.2: Puente Webhook Automático (Oracle Cloud 24/7 + EA en MT5)
+- El bot en la nube de Oracle analiza el Oro minuto a minuto y encola las señales.
+- El Expert Advisor [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) en tu MT5 local sondea la nube cada segundo y ejecuta la orden al broker en milisegundos con Stop Loss y Take Profit exactos.
+- Usa [`Conectar_Puente_Webhook_MT5.bat`](Conectar_Puente_Webhook_MT5.bat) para activar el túnel seguro en segundo plano.
+
+#### 🟡 Opción C: Alertas Automáticas a tu Celular vía Telegram (@victorsvlynch)
+- El bot en la nube de Oracle calcula las oportunidades en la sesión de Nueva York y envía la señal instantáneamente a tu Telegram.
+- La alerta llega con el lotaje institucional calculado ($25 USD de riesgo = 0.5%), Stop Loss y Take Profit exactos.
+- Solo abres tu app de **MetaTrader 5 en tu teléfono móvil** y presionas **Comprar** o **Vender** en 1 clic.
+- **Configuración rápida:** Ejecuta [`Configurar_Telegram.bat`](Configurar_Telegram.bat) (o `python configurar_telegram.py`), introduce tu Token de `@BotFather` y presiona Start en tu bot. Se sincroniza de forma inmediata con el VPS en Oracle Cloud.
+- **Prueba de señal en celular:** Ejecuta [`Probar_Alerta_Telegram.bat`](Probar_Alerta_Telegram.bat) para recibir una señal simulada en tu móvil.
+
+---
+
+### 3. Monitoreo en Tiempo Real de la Estrategia Ganadora
 
 Para observar el motor cuantitativo operando en vivo, analizando el mercado segundo a segundo:
 
@@ -152,7 +168,7 @@ Para observar el motor cuantitativo operando en vivo, analizando el mercado segu
 
 ---
 
-### 3. Suite de Pruebas Automatizadas (100% OK)
+### 4. Suite de Pruebas Automatizadas (100% OK)
 
 El proyecto incluye una suite integral de 9 pruebas unitarias y de integración que validan matemáticamente todas las reglas del broker, filtros anti-trampas y cálculos de riesgo:
 
@@ -175,7 +191,7 @@ El proyecto incluye una suite integral de 9 pruebas unitarias y de integración 
 
 ---
 
-### 4. Consola Interactiva Avanzada (`stellar-cli>`)
+### 5. Consola Interactiva Avanzada (`stellar-cli>`)
 
 Permite ejecutar operaciones de diagnóstico, cálculos y simulaciones manuales:
 

@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from database import TradingDatabase
 from stellar_rules import StellarLiteRulesEngine
 from risk_manager import RiskManager
+from telegram_notifier import TelegramNotifier
 
 logging.basicConfig(
     level=logging.INFO,
@@ -129,6 +130,28 @@ def queue_action(
     act_id = cur.lastrowid
     conn.commit()
     conn.close()
+
+    # Opción C: Alerta Instantánea a Telegram Móvil (@victorsvlynch)
+    try:
+        side = "BUY" if "BUY" in action.upper() else ("SELL" if "SELL" in action.upper() else "")
+        if side:
+            tg = TelegramNotifier()
+            if tg.enabled:
+                tg.notify_signal_alert(
+                    symbol=symbol,
+                    side=side,
+                    lots=lots,
+                    price=price,
+                    sl=sl,
+                    tp=tp,
+                    risk_usd=25.0,
+                    risk_pct=0.005,
+                    strategy="NY_OPEN",
+                    comment=comment,
+                )
+    except Exception as e:
+        logger.warning(f"Aviso Telegram al encolar accion: {e}")
+
     return act_id
 
 

@@ -160,7 +160,7 @@ void UpdateChartDashboard()
    text += sep;
    text += StringFormat("  Servidor Oracle VPS: %s\n", InpServerUrl);
    text += StringFormat("  Estado Conexion    : %s\n", ExtServerStatus);
-   text += StringFormat("  Ultimo Sondeo      : %s (Cada %d seg)\n", TimeToString(TimeCurrent(), TIME_SECONDS), InpPollIntervalSec);
+   text += StringFormat("  Ultimo Sondeo      : %s (Cada %d seg)\n", TimeToString(TimeCurrent(), TIME_MINUTES|TIME_SECONDS), InpPollIntervalSec);
    text += StringFormat("  Magic Number       : %I64u | Slippage: %I64u pts\n", InpMagicNumber, InpDeviationPoints);
    text += StringFormat("  Simbolo Operado    : %s\n", ResolveBrokerSymbol(InpPreferredSymbol));
    text += sep;
@@ -204,10 +204,35 @@ void ProcessCloudAction(const string json)
       
       if(!alreadyOpen)
       {
-         PrintFormat("[EA MT5] Ejecutando COMPRA institucional: %s %.2f lotes | SL: %.2f | TP: %.2f", realSymbol, lots, sl, tp);
-         if(ExtTrade.Buy(lots, realSymbol, 0.0, sl, tp, comment))
+         MqlTick tick;
+         if(!SymbolInfoTick(realSymbol, tick))
          {
-            ulong dealTicket = ExtTrade.ResultDeal();
+            ExtLastActionMsg = "Error: SymbolInfoTick fallo para " + realSymbol;
+            ConfirmActionToCloud(actionId, 0, 0.0, false);
+            return;
+         }
+
+         double askPrice = tick.ask;
+         int digits = (int)SymbolInfoInteger(realSymbol, SYMBOL_DIGITS);
+         double slPrice = (sl > 0 && sl < askPrice) ? NormalizeDouble(sl, digits) : NormalizeDouble(askPrice - 6.50, digits);
+         double tpPrice = (tp > 0 && tp > askPrice) ? NormalizeDouble(tp, digits) : NormalizeDouble(askPrice + 13.00, digits);
+
+         PrintFormat("[EA MT5] Ejecutando COMPRA institucional: %s %.2f lotes @ %.2f | SL: %.2f | TP: %.2f", realSymbol, lots, askPrice, slPrice, tpPrice);
+
+         bool orderSuccess = false;
+         ENUM_ORDER_TYPE_FILLING fillModes[] = {ORDER_FILLING_IOC, ORDER_FILLING_FOK, ORDER_FILLING_RETURN};
+         for(int f = 0; f < ArraySize(fillModes); f++)
+         {
+            ExtTrade.SetTypeFilling(fillModes[f]);
+            if(ExtTrade.Buy(lots, realSymbol, askPrice, slPrice, tpPrice, comment))
+            {
+               orderSuccess = true;
+               break;
+            }
+         }
+
+         if(orderSuccess)
+         {
             ulong orderTicket = ExtTrade.ResultOrder();
             double fillPrice = ExtTrade.ResultPrice();
             ExtLastActionMsg = StringFormat("BUY #%I64u (%.2f Lotes) ejecutada @ %.2f", orderTicket, lots, fillPrice);
@@ -218,7 +243,7 @@ void ProcessCloudAction(const string json)
          {
             int err = GetLastError();
             ExtLastActionMsg = StringFormat("Error al abrir BUY: %d - %s", err, ExtTrade.ResultComment());
-            PrintFormat("[EA MT5] [FALLO] No se pudo abrir BUY: %d", err);
+            PrintFormat("[EA MT5] [FALLO] No se pudo abrir BUY: %d - %s", err, ExtTrade.ResultComment());
             ConfirmActionToCloud(actionId, 0, 0.0, false);
          }
       }
@@ -245,8 +270,34 @@ void ProcessCloudAction(const string json)
       
       if(!alreadyOpen)
       {
-         PrintFormat("[EA MT5] Ejecutando VENTA institucional: %s %.2f lotes | SL: %.2f | TP: %.2f", realSymbol, lots, sl, tp);
-         if(ExtTrade.Sell(lots, realSymbol, 0.0, sl, tp, comment))
+         MqlTick tick;
+         if(!SymbolInfoTick(realSymbol, tick))
+         {
+            ExtLastActionMsg = "Error: SymbolInfoTick fallo para " + realSymbol;
+            ConfirmActionToCloud(actionId, 0, 0.0, false);
+            return;
+         }
+
+         double bidPrice = tick.bid;
+         int digits = (int)SymbolInfoInteger(realSymbol, SYMBOL_DIGITS);
+         double slPrice = (sl > 0 && sl > bidPrice) ? NormalizeDouble(sl, digits) : NormalizeDouble(bidPrice + 6.50, digits);
+         double tpPrice = (tp > 0 && tp < bidPrice) ? NormalizeDouble(tp, digits) : NormalizeDouble(bidPrice - 13.00, digits);
+
+         PrintFormat("[EA MT5] Ejecutando VENTA institucional: %s %.2f lotes @ %.2f | SL: %.2f | TP: %.2f", realSymbol, lots, bidPrice, slPrice, tpPrice);
+
+         bool orderSuccess = false;
+         ENUM_ORDER_TYPE_FILLING fillModes[] = {ORDER_FILLING_IOC, ORDER_FILLING_FOK, ORDER_FILLING_RETURN};
+         for(int f = 0; f < ArraySize(fillModes); f++)
+         {
+            ExtTrade.SetTypeFilling(fillModes[f]);
+            if(ExtTrade.Sell(lots, realSymbol, bidPrice, slPrice, tpPrice, comment))
+            {
+               orderSuccess = true;
+               break;
+            }
+         }
+
+         if(orderSuccess)
          {
             ulong orderTicket = ExtTrade.ResultOrder();
             double fillPrice = ExtTrade.ResultPrice();
@@ -258,7 +309,7 @@ void ProcessCloudAction(const string json)
          {
             int err = GetLastError();
             ExtLastActionMsg = StringFormat("Error al abrir SELL: %d - %s", err, ExtTrade.ResultComment());
-            PrintFormat("[EA MT5] [FALLO] No se pudo abrir SELL: %d", err);
+            PrintFormat("[EA MT5] [FALLO] No se pudo abrir SELL: %d - %s", err, ExtTrade.ResultComment());
             ConfirmActionToCloud(actionId, 0, 0.0, false);
          }
       }
