@@ -294,31 +294,46 @@ class MT5Bridge:
         norm_lots = round(round(lots / vol_step) * vol_step, 2)
         norm_lots = max(symbol_info.volume_min, min(symbol_info.volume_max, norm_lots))
 
-        # Determinar filling type permitido por el broker (bitmask: 1=FOK, 2=IOC, 4=RETURN)
-        filling_type = mt5.ORDER_FILLING_IOC
-        if symbol_info.filling_mode & 2:
-            filling_type = mt5.ORDER_FILLING_IOC
-        elif symbol_info.filling_mode & 1:
-            filling_type = mt5.ORDER_FILLING_FOK
-        else:
-            filling_type = mt5.ORDER_FILLING_RETURN
+        # Validar y blindar coherencia de Stop Loss y Take Profit frente al precio de ejecución
+        sl_val = float(round(stop_loss, symbol_info.digits)) if stop_loss > 0 else 0.0
+        tp_val = float(round(take_profit, symbol_info.digits)) if take_profit > 0 else 0.0
 
-        request = {
-            "action": mt5.TRADE_ACTION_DEAL,
-            "symbol": symbol,
-            "volume": float(norm_lots),
-            "type": order_type,
-            "price": float(round(price, symbol_info.digits)),
-            "sl": float(round(stop_loss, symbol_info.digits)),
-            "tp": float(round(take_profit, symbol_info.digits)),
-            "deviation": 20,
-            "magic": self.MAGIC_NUMBER,
-            "comment": comment,
-            "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": filling_type,
-        }
+        if order_side == "BUY":
+            if sl_val >= price or sl_val == 0.0:
+                sl_val = round(price - 6.50, symbol_info.digits)
+            if tp_val <= price or tp_val == 0.0:
+                tp_val = round(price + 13.00, symbol_info.digits)
+        else:  # SELL
+            if sl_val <= price or sl_val == 0.0:
+                sl_val = round(price + 6.50, symbol_info.digits)
+            if tp_val >= price or tp_val == 0.0:
+                tp_val = round(price - 13.00, symbol_info.digits)
 
-        result = mt5.order_send(request)
+        # Probar modos de filling con auto-fallback inteligente (FOK -> IOC -> RETURN)
+        filling_candidates = [mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_RETURN]
+
+        result = None
+        for fill_mode in filling_candidates:
+            request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": symbol,
+                "volume": float(norm_lots),
+                "type": order_type,
+                "price": float(round(price, symbol_info.digits)),
+                "sl": sl_val,
+                "tp": tp_val,
+                "deviation": 50,
+                "magic": self.MAGIC_NUMBER,
+                "comment": comment,
+                "type_time": mt5.ORDER_TIME_GTC,
+                "type_filling": fill_mode,
+            }
+            res = mt5.order_send(request)
+            if res and res.retcode == mt5.TRADE_RETCODE_DONE:
+                result = res
+                break
+            result = res
+
         if result is None:
             err_code, err_msg = mt5.last_error()
             return {"success": False, "error": f"order_send retornó None: {err_code} - {err_msg}"}

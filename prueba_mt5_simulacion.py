@@ -101,13 +101,22 @@ def run_realistic_simulation():
     )
     connector = MarketDataConnector()
 
-    # Cotización y velas reales de Oro
-    latest_price = connector.get_latest_price(symbol="GC=F", provider="yfinance")
-    print(f"\n[PASO 3] Cotización de Referencia Oro Spot (XAU/USD): ${latest_price:,.2f}")
+    # 4. Obtener Cotización Real del Broker (MT5) o de Referencia
+    if mt5_live_connected:
+        tick = bridge._mt5.symbol_info_tick(gold_sym)
+        if tick and tick.ask > 0:
+            latest_price = float(tick.ask)
+            print(f"\n[PASO 3] Cotización en Vivo desde MetaTrader 5 ({gold_sym}): ${latest_price:,.2f} (Bid={tick.bid:,.2f} | Ask={tick.ask:,.2f})")
+        else:
+            latest_price = connector.get_latest_price(symbol="GC=F", provider="yfinance")
+            print(f"\n[PASO 3] Cotización de Referencia Oro Spot (XAU/USD): ${latest_price:,.2f}")
+    else:
+        latest_price = connector.get_latest_price(symbol="GC=F", provider="yfinance")
+        print(f"\n[PASO 3] Cotización de Referencia Oro Spot (XAU/USD): ${latest_price:,.2f}")
 
-    # 4. Cálculo de Dimensionamiento de Posición Institucional (Risk Management)
+    # 5. Cálculo de Dimensionamiento de Posición Institucional (Risk Management)
     account_balance = 5000.0
-    risk_pct = 0.005  # 0.5% de riesgo exacto
+    risk_pct = 0.005  # 0.5% de riesgo exacto ($25.00)
     sl_distance_usd = 6.50  # Distancia de Stop Loss en precio ($6.50 por onza)
     entry_sim = round(latest_price, 2)
     sl_sim = round(entry_sim - sl_distance_usd, 2)
@@ -126,8 +135,8 @@ def run_realistic_simulation():
     print("\n[PASO 4] Cálculo de Posición Institucional (Riesgo Exacto 0.5%):")
     print(f"         Balance Base       : ${account_balance:,.2f}")
     print(f"         Riesgo Monetario   : ${pos_size.risk_amount_usd:,.2f} (0.50% estricto)")
-    print(f"         Precio Entrada     : ${entry_sim:,.2f}")
-    print(f"         Stop Loss (SL)     : ${sl_sim:,.2f} (-${sl_distance_usd:,.2f})")
+    print(f"         Precio Entrada     : ${entry_sim:,.2f} (Ask en MT5)")
+    print(f"         Stop Loss (SL)     : ${sl_sim:,.2f} (-${sl_distance_usd:,.2f} por debajo)")
     print(f"         Take Profit (TP)   : ${tp_sim:,.2f} (+${sl_distance_usd * 2:,.2f} | R:R 1:2)")
     print(f"         Lotaje Calculado   : {pos_size.lots} lotes ({pos_size.units} onzas troy)")
     print(f"         Beneficio Esperado : +${pos_size.expected_reward_usd:,.2f}")
