@@ -49,3 +49,43 @@ jobs:
           body: ${{ steps.tag_version.outputs.changelog }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy_oracle_vps:
+    name: Despliegue Continuo (CD) a Oracle Cloud VPS
+    needs: test_and_release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Verificar si existen credenciales de Oracle en Secrets
+        id: check_keys
+        run: |
+          if [ -n "${{ secrets.ORACLE_SSH_KEY }}" ] && [ -n "${{ secrets.ORACLE_HOST }}" ]; then
+            echo "has_keys=true" >> $GITHUB_OUTPUT
+            echo "Secretos de conexión detectados. Iniciando despliegue a VPS..."
+          else
+            echo "has_keys=false" >> $GITHUB_OUTPUT
+            echo "Aviso: Secretos ORACLE_SSH_KEY y/o ORACLE_HOST no configurados en GitHub Secrets. Se omite despliegue remoto."
+          fi
+
+      - name: Iniciar Agente SSH con Clave Privada
+        if: steps.check_keys.outputs.has_keys == 'true'
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.ORACLE_SSH_KEY }}
+
+      - name: Sincronizar archivos y reiniciar servicios en Oracle VPS
+        if: steps.check_keys.outputs.has_keys == 'true'
+        run: |
+          SSH_HOST="${{ secrets.ORACLE_HOST }}"
+          SSH_USER="${{ secrets.ORACLE_USER || 'ubuntu' }}"
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+          # Sincronizar archivos excluyendo bases de datos SQLite y archives para no alterar datos en vivo
+          rsync -avz --exclude='*.db' --exclude='archives' --exclude='__pycache__' --exclude='.git' \
+            ./ $SSH_USER@$SSH_HOST:/home/$SSH_USER/FTMO_Stellar_Lite/
+
+          # Reiniciar y verificar servicios
+          ssh $SSH_USER@$SSH_HOST "cd /home/$SSH_USER/FTMO_Stellar_Lite && chmod +x *.sh *.py 2>/dev/null && sudo systemctl restart stellar_ny_open.service stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service && sudo systemctl is-active stellar_ny_open stellar_london_open stellar_crypto_24h stellar_ny_london stellar_combo_trio"

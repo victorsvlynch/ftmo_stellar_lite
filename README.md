@@ -303,8 +303,19 @@ efactor:, chore:) y sube los cambios a GitHub.
   archify.bat Full v1.2.0
   `
 
-### 4. GitHub Actions CI/CD (.github/workflows/release.yml)
+### 4. Despliegue Local de 1-Clic a Oracle Cloud VPS (desplegar_a_vps.bat)
+- Sincroniza en segundos todo el código hacia tu VPS en Oracle Cloud (157.137.225.144), protege las bases de datos activas en el servidor y reinicia automáticamente los 5 servicios stellar_*.service:
+  `cmd
+  desplegar_a_vps.bat
+  `
+
+### 5. GitHub Actions CI/CD & Despliegue Continuo (.github/workflows/release.yml)
 - Al realizar push a la rama main, GitHub Actions:
   1. Instala el entorno Python y dependencias.
   2. Ejecuta la suite de pruebas automatizada 	est_verification.py.
   3. Si todas las pruebas pasan (100% OK), incrementa la versión SemVer y crea un nuevo **GitHub Release** con su changelog detallado.
+  4. **Despliegue Continuo a Oracle Cloud (Opcional):** Si configuras los siguientes **Repository Secrets** en GitHub (Settings > Secrets and variables > Actions):
+     - ORACLE_HOST: 157.137.225.144
+     - ORACLE_USER: ubuntu
+     - ORACLE_SSH_KEY: El contenido de tu clave SSH privada (ssh-key-2026-10-26.key)
+     GitHub Actions se conectará automáticamente a tu VPS por SSH tras cada release, desplegará el nuevo código y reiniciará los 5 servicios en Linux de forma desatendida.
