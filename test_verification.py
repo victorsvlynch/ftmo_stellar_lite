@@ -216,22 +216,23 @@ def run_tests():
     # TEST 7: Telegram Notifier Test
     # -------------------------------------------------------------------------
     print("\n[TEST 7] Telegram Notifier Verificacion Estructural")
-    notifier = TelegramNotifier()
-    res = notifier.send_message("Test message")
+    dummy_notifier = TelegramNotifier(bot_token="", chat_id="")
+    dummy_notifier.enabled = False
+    res = dummy_notifier.send_message("Test message")
     assert res is False
-    notifier.notify_trade_opened(
+    dummy_notifier.notify_trade_opened(
         trade_id=99, symbol="GC=F", side="BUY", lots=0.1,
         entry_price=2000.0, stop_loss=1990.0, take_profit=2020.0,
         risk_usd=100.0, risk_pct=0.005, strategy="NY_ORB_15M", phase="FASE_1"
     )
-    notifier.notify_break_even(trade_id=99, symbol="GC=F", side="BUY", entry_price=2000.0, new_sl=2000.0)
-    notifier.notify_trade_closed(
+    dummy_notifier.notify_break_even(trade_id=99, symbol="GC=F", side="BUY", entry_price=2000.0, new_sl=2000.0)
+    dummy_notifier.notify_trade_closed(
         trade_id=99, symbol="GC=F", side="BUY", lots=0.1, exit_price=2020.0,
         gross_pnl=200.0, net_pnl=197.0, commission=3.0, reason="TAKE_PROFIT",
         balance=5197.0, equity=5197.0
     )
-    notifier.notify_weekend_close(closed_count=1, realized_pnl=20.0)
-    notifier.notify_target_reached_waiting_days(
+    dummy_notifier.notify_weekend_close(closed_count=1, realized_pnl=20.0)
+    dummy_notifier.notify_target_reached_waiting_days(
         phase="FASE_2", balance=5723.92, target_balance=5200.0,
         trading_days=1, min_days_required=2, recommendations=["Recomendacion 1"]
     )

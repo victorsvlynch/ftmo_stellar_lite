@@ -12,15 +12,18 @@ Desarrollado en **Python Puro de Alto Rendimiento (sin interfaces web innecesari
 2. [Estrategia Ganadora Seleccionada: NY_OPEN (Oro / XAUUSD)](#-estrategia-ganadora-seleccionada-ny_open-oro--xauusd)
 3. [Arquitectura del Motor Cuantitativo y Reglas de Riesgo](#-arquitectura-del-motor-cuantitativo-y-reglas-de-riesgo)
 4. [Puente Institucional con MetaTrader 5 (`mt5_bridge.py`)](#-puente-institucional-con-metatrader-5-mt5_bridgepy)
-5. [Guía de Ejecución Rápida: ¿Cómo Ejecuto?](#-guía-de-ejecución-rápida-cómo-ejecuto)
+5. [Guía de Ejecución Rápida y Modalidades de Trading](#-guía-de-ejecución-rápida-y-modalidades-de-trading)
    - [Prueba Interactiva en Vivo con MetaTrader 5 (`Ejecutar_Prueba_MT5.bat`)](#1-prueba-interactiva-en-vivo-con-metatrader-5)
-   - [Monitoreo en Tiempo Real de la Estrategia Ganadora (`Monitor_Estrategia_Ganadora.bat`)](#2-monitoreo-en-tiempo-real-de-la-estrategia-ganadora)
-   - [Suite de Pruebas Automatizadas 100% OK (`Ejecutar_Tests_Verificacion.bat`)](#3-suite-de-pruebas-automatizadas-100-ok)
-   - [Consola Interactiva Avanzada (`stellar-cli>`)](#4-consola-interactiva-avanzada-stellar-cli)
+   - [Modalidades de Operación: Opción B.2 (MT5 Automático) y Opción C (Telegram Celular)](#2-modalidades-de-ejecución-disponibles)
+   - [Monitoreo en Tiempo Real de la Estrategia Ganadora (`Dashboard_Operaciones_En_Vivo.bat`)](#3-monitoreo-en-tiempo-real-de-la-estrategia-ganadora)
+   - [Suite de Pruebas Automatizadas 100% OK (`test_verification.py`)](#4-suite-de-pruebas-automatizadas-100-ok)
+   - [Consola Interactiva Avanzada (`stellar-cli>`)](#5-consola-interactiva-avanzada-stellar-cli)
 6. [Operación y Despliegue 24/7 en Servidor Oracle Cloud (OCI)](#-operación-y-despliegue-247-en-servidor-oracle-cloud-oci)
-7. [Estructura del Proyecto y Archivos Clave](#-estructura-del-proyecto-y-archivos-clave)
-8. [Protocolo de Contingencia y Hard Breach](#-protocolo-de-contingencia-y-hard-breach)
-9. [Herramientas DevOps, Snapshots y CI/CD](#-herramientas-devops-snapshots-y-cicd)
+7. [Panel de Control Maestro (`Control_Total_Bot.bat`) y Dashboards](#-panel-de-control-maestro-control_total_botbat-y-dashboards)
+8. [Guía de Migración: ¿Cómo Mover Todo el Sistema a Otra PC?](#-guía-de-migración-cómo-mover-todo-el-sistema-a-otra-pc)
+9. [Estructura del Proyecto y Archivos Clave](#-estructura-del-proyecto-y-archivos-clave)
+10. [Protocolo de Contingencia y Hard Breach](#-protocolo-de-contingencia-y-hard-breach)
+11. [Herramientas DevOps, Snapshots y CI/CD](#-herramientas-devops-snapshots-y-cicd)
 
 ---
 
@@ -249,28 +252,189 @@ Si realizas modificaciones en el código local y deseas subirlas de inmediato a 
 
 ---
 
+## 🎛️ Panel de Control Maestro (`Control_Total_Bot.bat`) y Dashboards
+
+Para una operación centralizada, cómoda y sin necesidad de escribir comandos en la consola, se diseñó un menú interactivo maestro de **13 opciones**:
+
+```cmd
+.\Control_Total_Bot.bat
+```
+
+```text
+==============================================================================
+      PANEL DE CONTROL MAESTRO -- FUNDEDNEXT STELLAR LITE ($5,000 USD)
+      Estrategia Ganadora Oficial: NY_OPEN (Oro GC=F / XAUUSD)
+      Servidor en la Nube: Oracle Cloud VPS (157.137.225.144) -- 24/7
+==============================================================================
+
+  [DASHBOARDS Y MONITOREO EN VIVO]
+   1. Abrir Dashboard en Vivo: Estrategia Ganadora NY_OPEN (Local)
+   2. Abrir Dashboard en Vivo: Desde Oracle Cloud VPS (Remoto 24/7)
+   3. Abrir Tablero Multi-Estrategia Detallado (Operaciones Hoy)
+
+  [OPCION B.2: ENLACE AUTOMATICO WEBHOOK MT5]
+   4. Gestor del Puente Webhook MT5 (Tunel Puerto 8000 en Segundo Plano)
+   5. Disparar Senal de Prueba Webhook hacia MT5 (Test Micro-Orden)
+
+  [OPCION C: ALERTAS A TU CELULAR VIA TELEGRAM (@victorsvlynch)]
+   6. Configurar / Vincular Telegram (@BotFather y Chat ID)
+   7. Enviar Alerta de Prueba NY_OPEN a Telegram (Test de Formato Celular)
+
+  [GESTION DEL SERVIDOR 24/7 EN LA NUBE]
+   8. Verificar Estado del Servicio en Oracle Cloud (Uptime y Memoria)
+   9. Ver Streaming de Logs en Tiempo Real (Segundo a Segundo)
+  10. Reiniciar Servicios en la Nube (Bot NY_OPEN + Webhook Server)
+
+  [PRUEBAS Y SIMULACION]
+  11. Ejecutar Prueba Interactiva con MetaTrader 5 (MT5 en PC)
+  12. Correr Suite de Verificacion Automatizada (9 Pruebas 100% OK)
+
+  13. Salir
+==============================================================================
+```
+
+### Funcionalidad de los Tableros y Lanzadores:
+
+1. **Dashboard NY_OPEN en Vivo ([`Dashboard_Operaciones_En_Vivo.bat`](Dashboard_Operaciones_En_Vivo.bat)):**
+   - **Reloj de Wall Street (EDT/EST):** Muestra la hora oficial del mercado financiero en Nueva York y el estado actual de la sesión (`SESION_ACTIVA`, `FUERA_DE_SESION` o `FIN_DE_SEMANA`).
+   - **Cuenta Regresiva Dinámica:** Informa cuántas horas y minutos exactos faltan para la apertura o cierre de la ventana operativa (08:30 a 11:30 AM NY).
+   - **Métricas Institucionales:** Balance actual, equidad flotante, margen libre y distancias exactas en dólares hacia el **Piso Diario ($4,800.00)** y el **Piso Máximo de Drawdown ($4,500.00)**.
+   - **Monitoreo de Posiciones:** Tabla en vivo con ticket, activo, lotaje, precio de entrada, Stop Loss, Take Profit, PnL flotante e indicador de **🛡️ Break-Even Protegido**.
+   - **Historial del Día:** Detalle de las operaciones cerradas en la jornada con comisiones y beneficio neto en dólares.
+
+2. **Gestor del Puente Webhook ([`Conectar_Puente_Webhook_MT5.bat`](Conectar_Puente_Webhook_MT5.bat)):**
+   - Permite iniciar el túnel seguro SSH en **segundo plano (silencioso)** redirigiendo el puerto 8000 (`http://127.0.0.1:8000`).
+   - No requiere mantener ventanas de consola abiertas.
+   - Permite verificar el estado del túnel (`ACTIVO` o `INACTIVO`) y detenerlo en cualquier momento.
+
+3. **Asistente Telegram ([`Configurar_Telegram.bat`](Configurar_Telegram.bat) y [`Probar_Alerta_Telegram.bat`](Probar_Alerta_Telegram.bat)):**
+   - Vinculado al bot oficial **`@victor_stellar_bot`** y tu usuario **`@victorsvlynch`** (`Chat ID: 5633051604`).
+   - El botón de prueba envía una simulación con formato enriquecido para validar que tu teléfono móvil recibe las alertas al instante.
+
+---
+
+## 💻 Guía Paso a Paso: ¿Cómo Mover o Clonar Todo el Sistema a Otra PC?
+
+Si deseas cambiar de computadora o tener el sistema listo para operar en una laptop secundaria o de respaldo, sigue este procedimiento ordenado:
+
+### 1. Requisitos Previos en la Nueva PC
+- **Sistema Operativo:** Windows 10 o Windows 11 (64-bit).
+- **Python 3.10 o Superior:** Descárgalo desde [python.org](https://www.python.org/downloads/).
+  > [!IMPORTANT]
+  > Durante la instalación de Python, **marca obligatoriamente la casilla:**
+  > ☑️ **"Add python.exe to PATH"** (Agregar Python al PATH del sistema).
+- **Git para Windows (Opcional pero recomendado):** Descárgalo desde [git-scm.com](https://git-scm.com/).
+- **MetaTrader 5:** Descarga e instala la terminal de tu broker (o MetaTrader 5 estándar) e inicia sesión con tu cuenta de FundedNext.
+
+---
+
+### 2. Flujo de Migración
+
+```mermaid
+flowchart LR
+    P1["1. Clonar Repo o Copiar Carpeta"] --> P2["2. Instalar Dependencias (pip)"]
+    P2 --> P3["3. Copiar Clave SSH (oracle_vps.key)"]
+    P3 --> P4["4. Copiar EA a MT5 (StellarLite.ex5)"]
+    P4 --> P5["5. Probar Alertas y Lanzar Control_Total"]
+```
+
+#### Paso 1: Obtener el Código en la Nueva PC
+- **Opción A (Recomendada con Git):**
+  Abre una terminal (CMD o PowerShell) y clona el repositorio oficial:
+  ```bash
+  git clone https://github.com/victorsvlynch/ftmo_stellar_lite.git
+  cd ftmo_stellar_lite
+  ```
+- **Opción B (Copia Directa por USB o Red):**
+  Copia la carpeta completa `FTMO_Stellar_Lite` desde tu PC anterior a la nueva PC (por ejemplo en `C:\Trading\FTMO_Stellar_Lite` o `D:\FTMO_Stellar_Lite`).
+
+#### Paso 2: Instalar las Dependencias de Python
+Abre la consola CMD o PowerShell dentro de la carpeta del proyecto y ejecuta:
+```cmd
+pip install -r requirements.txt
+```
+*Instala en pocos segundos los conectores de mercado (`MetaTrader5`, `yfinance`), librerías matemáticas (`pandas`, `numpy`) y formateadores de tablas (`tabulate`).*
+
+#### Paso 3: Configurar la Clave SSH de Oracle Cloud VPS
+Para que los scripts de la nueva PC puedan comunicarse de forma segura con el servidor en la nube (157.137.225.144):
+1. Copia tu archivo de clave privada `oracle_vps.key` (o `ssh-key-2026-10-26.key`).
+2. Pégalo en tu carpeta de usuario en Windows:
+   `C:\Users\<TuUsuario>\.ssh\oracle_vps.key`
+   *(Alternativamente, puedes dejar una copia dentro de la carpeta `VPS-Oracle\` en el proyecto).*
+3. Puedes verificar la conexión ejecutando en la consola:
+   ```cmd
+   ssh -i "%USERPROFILE%\.ssh\oracle_vps.key" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "echo Conexion OK"
+   ```
+
+#### Paso 4: Instalar el Asesor Experto (EA) en MetaTrader 5
+1. Abre tu MetaTrader 5 en la nueva PC.
+2. En el menú superior de MT5, haz clic en: **Archivo ➔ Abrir Carpeta de Datos**.
+3. En la ventana que se abre, entra a: **`MQL5\Experts\`** (o `MQL5\Experts\Advisors\`).
+4. Copia en esa carpeta el archivo compilado [**`StellarLite_Webhook_Bridge.ex5`**](StellarLite_Webhook_Bridge.ex5) que se encuentra en la raíz de tu proyecto.
+5. Regresa a MetaTrader 5: en el panel **Navegador** a la izquierda, haz clic derecho sobre **Asesores Expertos** y selecciona **Actualizar**. Verás aparecer `StellarLite_Webhook_Bridge`.
+6. Abre el gráfico del Oro (**`XAUUSD`** en temporalidad **M15**).
+7. Arrastra `StellarLite_Webhook_Bridge` hacia el gráfico de Oro.
+8. En la ventana emergente:
+   - Pestaña **Común**: Marca la casilla **"Permitir el trading algorítmico"**.
+   - Pestaña **Parámetros de entrada**: Comprueba que la URL sea `http://127.0.0.1:8000`.
+   - Haz clic en **Aceptar**.
+9. En la barra superior de MT5, asegúrate de que el botón **"Trading Algorítmico"** esté activo en color verde (presiona `Ctrl + E`).
+10. En **Herramientas ➔ Opciones ➔ Asesores Expertos**:
+    - Marca la casilla *"Permitir WebRequest para las siguientes URL"* y agrega:
+      - `http://127.0.0.1:8000`
+      - `http://157.137.225.144:8000`
+
+#### Paso 5: Alertas de Telegram (Opción C en Celular)
+El archivo [`telegram_config.json`](telegram_config.json) ya viene con tu bot (`@victor_stellar_bot`) y tu `Chat ID: 5633051604` guardados.
+- Para verificar que todo funciona en la nueva PC, haz doble clic en [**`Probar_Alerta_Telegram.bat`**](Probar_Alerta_Telegram.bat).
+- ¡Tu celular sonará de inmediato con la señal institucional de prueba!
+
+#### Paso 6: Iniciar el Panel de Control Maestro
+Haz doble clic en [**`Control_Total_Bot.bat`**](Control_Total_Bot.bat):
+1. Selecciona la **Opción 4** para activar el túnel seguro del puerto 8000 en segundo plano.
+2. Selecciona la **Opción 1** para abrir tu Dashboard en Vivo de Wall Street.
+3. ¡Tu sistema estará 100% operativo en la nueva PC exactamente como en la original!
+
+---
+
 ## 📂 Estructura del Proyecto y Archivos Clave
 
 ```text
 FTMO_Stellar_Lite/
-├── main.py                         # CLI principal, monitor interactivo en vivo y loop 24/7
-├── mt5_bridge.py                   # Puente IPC de alta velocidad con MetaTrader 5 (MT5)
+├── Control_Total_Bot.bat            # Menú maestro de control con 13 opciones integradas
+├── Dashboard_Operaciones_En_Vivo.bat# Dashboard en vivo con reloj NY, cuenta regresiva y break-even
+├── Dashboard_Nube_Oracle_En_Vivo.bat# Dashboard remoto conectado en tiempo real a Oracle Cloud VPS
+├── Dashboard_Multi_Detallado.bat    # Tablero con auditoría cruzada e historial financiero
+├── Conectar_Puente_Webhook_MT5.bat  # Gestor del túnel seguro SSH en segundo plano (Puerto 8000)
+├── Probar_Senal_Webhook.bat         # Disparador de micro-orden demo (0.01 lotes Oro) a MT5
+├── Configurar_Telegram.bat          # Asistente de vinculación de bot y usuario (@victorsvlynch)
+├── Probar_Alerta_Telegram.bat       # Enviador de alerta de prueba móvil con instrucciones MT5
+├── Verificar_Servicio_24_7.bat      # Diagnóstico rápido de uptime y memoria del servidor OCI
+├── StellarLite_Webhook_Bridge.mq5   # Código fuente MQL5 del Asesor Experto para MetaTrader 5
+├── StellarLite_Webhook_Bridge.ex5   # Archivo compilado de alta velocidad para MT5
+├── webhook_server.py                # Servidor HTTP de señales Webhook (0.0.0.0:8000)
+├── telegram_notifier.py             # Módulo de alertas push HTML para Telegram con plantillas móviles
+├── configurar_telegram.py           # Script de configuración y sincronización automática con la nube
+├── test_telegram_signal.py          # Script de prueba de envío de señales a Telegram
+├── telegram_config.json             # Credenciales seguras del bot de Telegram
+├── main.py                          # CLI principal, monitor interactivo en vivo y loop 24/7
+├── mt5_bridge.py                    # Puente IPC nativo de alta velocidad con MetaTrader 5
 ├── prueba_mt5_simulacion.py         # Script interactivo de prueba y simulación real con MT5
 ├── Ejecutar_Prueba_MT5.bat          # Lanzador de 1-clic para la prueba interactiva con MT5
-├── Monitor_Estrategia_Ganadora.bat  # Lanzador de 1-clic para monitorear NY_OPEN en vivo
-├── trading_engine.py               # Estrategia NY ORB 15M, EMA 200 H1 y conector de mercado
-├── risk_manager.py                 # Sizing de posición (0.5%), freno 2% y Tilt Alert
-├── stellar_rules.py                # Reglas FundedNext Stellar Lite ($5K) + Add-ons (10% DD, 95% Split)
-├── database.py                     # Motor SQLite multi-cuenta, eventos y auditoría de balance
-├── test_verification.py            # Suite de 9 pruebas de verificación integral (100% OK)
-├── setup_oracle.sh                 # Script de aprovisionamiento desatendido en Linux Ubuntu
-├── manage_services.sh              # Gestor central de servicios systemd en la nube
-├── desplegar_a_vps.bat             # Sincronización automática de código a Oracle Cloud VPS
-├── auto_push.bat                   # Commit automático con IA y push a GitHub
-├── archify.bat                     # Generador de respaldos y snapshots comprimidos
-├── requirements.txt                # Dependencias de Python mínimas y optimizadas
-├── trading_ny_open.db              # Base de datos SQLite exclusiva de la estrategia ganadora
-└── README.md                       # Manual integral de operación e instrucciones
+├── Monitor_Estrategia_Ganadora.bat  # Monitor rápido en vivo de la estrategia NY_OPEN
+├── trading_engine.py                # Motor NY ORB 15M, filtro EMA 200 H1 y conector de mercado
+├── risk_manager.py                  # Sizing institucional (0.5%), freno 2% y anti-tilt
+├── stellar_rules.py                 # Reglas FundedNext Stellar Lite ($5K) + Add-ons (10% DD, 95% Split)
+├── database.py                      # Motor SQLite multi-cuenta, eventos y auditoría de balance
+├── test_verification.py             # Suite de 9 pruebas de verificación integral (100% OK)
+├── setup_oracle.sh                  # Script de aprovisionamiento en Linux Ubuntu ARM64
+├── manage_services.sh               # Gestor de servicios systemd en la nube
+├── desplegar_a_vps.bat              # Sincronización automática de código a Oracle Cloud VPS
+├── auto_push.bat                    # Commit automático con IA y push a GitHub
+├── archify.bat                      # Generador de respaldos y snapshots comprimidos
+├── requirements.txt                 # Dependencias de Python mínimas y optimizadas
+├── trading_ny_open.db               # Base de datos SQLite exclusiva de la estrategia ganadora
+└── README.md                        # Manual integral de operación e instructivo de migración
 ```
 
 ---
