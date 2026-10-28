@@ -1000,7 +1000,8 @@ def run_continuous_bot_loop(
             try:
                 result = engine.run_single_cycle(ignore_session_filter=False)
                 now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-                print(f"[{now_str}] Ciclo completado -> Acción: {result['action']} | {result['message']}", flush=True)
+                src_tag = f" [{result.get('data_source')}]" if result.get("data_source") else ""
+                print(f"[{now_str}] Ciclo completado -> Acción: {result['action']}{src_tag} | {result['message']}", flush=True)
 
                 if result["action"] in ("TRADE_OPENED", "BLOCKED_HARD_BREACH") or result.get("closed_positions"):
                     print_console_report(db, rules, risk, engine)

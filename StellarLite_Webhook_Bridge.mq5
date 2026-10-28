@@ -231,6 +231,24 @@ void ProcessCloudAction(const string json)
             }
          }
 
+         // Fallback para brokers con Market Execution (donde SL/TP no pueden enviarse en la orden directa)
+         if(!orderSuccess)
+         {
+            for(int f = 0; f < ArraySize(fillModes); f++)
+            {
+               ExtTrade.SetTypeFilling(fillModes[f]);
+               if(ExtTrade.Buy(lots, realSymbol, askPrice, 0.0, 0.0, comment))
+               {
+                  orderSuccess = true;
+                  ulong ordTicket = ExtTrade.ResultOrder();
+                  Sleep(150);
+                  ExtTrade.PositionModify(ordTicket, slPrice, tpPrice);
+                  PrintFormat("[EA MT5] [MARKET EXECUTION] SL y TP aplicados via PositionModify -> Ticket #%I64u", ordTicket);
+                  break;
+               }
+            }
+         }
+
          if(orderSuccess)
          {
             ulong orderTicket = ExtTrade.ResultOrder();
@@ -294,6 +312,24 @@ void ProcessCloudAction(const string json)
             {
                orderSuccess = true;
                break;
+            }
+         }
+
+         // Fallback para brokers con Market Execution (donde SL/TP no pueden enviarse en la orden directa)
+         if(!orderSuccess)
+         {
+            for(int f = 0; f < ArraySize(fillModes); f++)
+            {
+               ExtTrade.SetTypeFilling(fillModes[f]);
+               if(ExtTrade.Sell(lots, realSymbol, bidPrice, 0.0, 0.0, comment))
+               {
+                  orderSuccess = true;
+                  ulong ordTicket = ExtTrade.ResultOrder();
+                  Sleep(150);
+                  ExtTrade.PositionModify(ordTicket, slPrice, tpPrice);
+                  PrintFormat("[EA MT5] [MARKET EXECUTION] SL y TP aplicados via PositionModify -> Ticket #%I64u", ordTicket);
+                  break;
+               }
             }
          }
 

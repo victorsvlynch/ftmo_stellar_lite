@@ -64,20 +64,83 @@ class MarketDataConnector:
                 continue
         raise RuntimeError("No fue posible inicializar ningún exchange en CCXT.")
 
+    @staticmethod
+    def _fetch_yahoo_direct(
+        symbol: str,
+        interval: str = "15m",
+        range_str: str = "5d",
+    ) -> Optional[pd.DataFrame]:
+        """
+        Descarga velas en tiempo real directamente desde los endpoints REST v8 de Yahoo Finance.
+        Evita bloqueos de rate-limit (HTTP 429) y problemas de cookies/crumbs de la librería yfinance.
+        """
+        import requests
+
+        yf_symbol = "GC=F" if symbol.upper() in ("XAUUSD", "XAU/USD", "GOLD") else symbol
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/json",
+        }
+        endpoints = [
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{yf_symbol}?interval={interval}&range={range_str}",
+            f"https://query2.finance.yahoo.com/v8/finance/chart/{yf_symbol}?interval={interval}&range={range_str}",
+        ]
+        tz_ny = "America/New_York"
+
+        for url in endpoints:
+            try:
+                resp = requests.get(url, headers=headers, timeout=8)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    chart = data.get("chart", {})
+                    results = chart.get("result", [])
+                    if results and "timestamp" in results[0]:
+                        res = results[0]
+                        ts = res["timestamp"]
+                        quote = res.get("indicators", {}).get("quote", [{}])[0]
+                        open_vals = quote.get("open", [])
+                        close_vals = quote.get("close", [])
+                        if not open_vals or not close_vals:
+                            continue
+                        df = pd.DataFrame(
+                            {
+                                "Open": quote.get("open"),
+                                "High": quote.get("high"),
+                                "Low": quote.get("low"),
+                                "Close": quote.get("close"),
+                                "Volume": quote.get("volume", [0] * len(ts)),
+                            },
+                            index=pd.to_datetime(ts, unit="s", utc=True),
+                        )
+                        df = df.dropna()
+                        if not df.empty:
+                            df.index = df.index.tz_convert(tz_ny)
+                            df.attrs["is_synthetic"] = False
+                            df.attrs["data_source"] = "YahooDirect"
+                            return df.astype(float)
+            except Exception:
+                continue
+        return None
+
     def fetch_ohlcv_15m(
         self,
         symbol: str = "GC=F",
         provider: str = "yfinance",
         limit: int = 120,
+        allow_synthetic: bool = False,
     ) -> pd.DataFrame:
         """
-        Descarga velas de 15 minutos en tiempo real desde `yfinance` (ej. GC=F para Oro XAU/USD)
+        Descarga velas de 15 minutos en tiempo real desde Yahoo Finance Direct / yfinance (ej. GC=F)
         o `ccxt` (ej. BTC/USDT). Retorna un DataFrame con índice datetime en zona America/New_York
         y columnas: ['Open', 'High', 'Low', 'Close', 'Volume'].
         """
         provider_clean = provider.lower().strip()
         tz_ny = "America/New_York"
 
+        # Conector ccxt para pares Cripto
         if provider_clean == "ccxt" or "/" in symbol:
             try:
                 exchange = self._get_ccxt_exchange()
@@ -89,11 +152,18 @@ class MarketDataConnector:
                     df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True).dt.tz_convert(tz_ny)
                     df.set_index("datetime", inplace=True)
                     df.drop(columns=["timestamp"], inplace=True)
+                    df.attrs["is_synthetic"] = False
+                    df.attrs["data_source"] = "ccxt"
                     return df.astype(float)
             except Exception:
                 pass
 
-        # Conector principal vía yfinance (Oro XAU/USD = "GC=F")
+        # 1. Conector principal de alta velocidad: REST v8 Directo (Sin Rate-Limits)
+        df_direct = self._fetch_yahoo_direct(symbol=symbol, interval="15m", range_str="5d")
+        if df_direct is not None and not df_direct.empty:
+            return df_direct
+
+        # 2. Conector secundario de respaldo vía librería yfinance
         try:
             import yfinance as yf
             yf_symbol = "GC=F" if symbol.upper() in ("XAUUSD", "XAU/USD", "GOLD") else symbol
@@ -105,18 +175,25 @@ class MarketDataConnector:
                 else:
                     df.index = df.index.tz_convert(tz_ny)
                 cols = [c for c in ["Open", "High", "Low", "Close", "Volume"] if c in df.columns]
-                return df[cols].dropna().astype(float)
+                res = df[cols].dropna().astype(float)
+                res.attrs["is_synthetic"] = False
+                res.attrs["data_source"] = "yfinance"
+                return res
         except Exception:
             pass
 
-        # Fallback sintético determinista en caso de desconexión temporal o mercado cerrado en pruebas
-        return self._generate_fallback_ohlcv(symbol=symbol, limit=limit, freq="15min")
+        # 3. Fallback solo si está explícitamente permitido (tests o simulación)
+        if allow_synthetic:
+            return self._generate_fallback_ohlcv(symbol=symbol, limit=limit, freq="15min")
+
+        return pd.DataFrame()
 
     def fetch_ohlcv_1h(
         self,
         symbol: str = "GC=F",
         provider: str = "yfinance",
         limit: int = 200,
+        allow_synthetic: bool = False,
     ) -> pd.DataFrame:
         """
         Obtiene velas históricas de 1 Hora (1H) para el cálculo del Filtro de Tendencia Macro (EMA 200).
@@ -136,11 +213,18 @@ class MarketDataConnector:
                     df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True).dt.tz_convert(tz_ny)
                     df.set_index("datetime", inplace=True)
                     df.drop(columns=["timestamp"], inplace=True)
+                    df.attrs["is_synthetic"] = False
+                    df.attrs["data_source"] = "ccxt"
                     return df.astype(float)
             except Exception:
                 pass
 
-        # Conector yfinance
+        # 1. Conector principal de alta velocidad: REST v8 Directo (Sin Rate-Limits)
+        df_direct = self._fetch_yahoo_direct(symbol=symbol, interval="1h", range_str="1mo")
+        if df_direct is not None and not df_direct.empty:
+            return df_direct
+
+        # 2. Conector secundario de respaldo vía librería yfinance
         try:
             import yfinance as yf
             yf_symbol = "GC=F" if symbol.upper() in ("XAUUSD", "XAU/USD", "GOLD") else symbol
@@ -152,30 +236,36 @@ class MarketDataConnector:
                 else:
                     df.index = df.index.tz_convert(tz_ny)
                 cols = [c for c in ["Open", "High", "Low", "Close", "Volume"] if c in df.columns]
-                return df[cols].dropna().astype(float)
+                res = df[cols].dropna().astype(float)
+                res.attrs["is_synthetic"] = False
+                res.attrs["data_source"] = "yfinance"
+                return res
         except Exception:
             pass
 
-        return self._generate_fallback_ohlcv(symbol=symbol, limit=limit, freq="1h")
+        if allow_synthetic:
+            return self._generate_fallback_ohlcv(symbol=symbol, limit=limit, freq="1h")
+
+        return pd.DataFrame()
 
     def get_latest_price(self, symbol: str = "GC=F", provider: str = "yfinance") -> float:
         """Obtiene el último precio de mercado disponible."""
-        df = self.fetch_ohlcv_15m(symbol=symbol, provider=provider, limit=5)
+        df = self.fetch_ohlcv_15m(symbol=symbol, provider=provider, limit=5, allow_synthetic=False)
         if df.empty:
-            raise RuntimeError(f"Sin datos de precio para {symbol} ({provider}).")
+            df = self._generate_fallback_ohlcv(symbol=symbol, limit=5, freq="15min")
         return round(float(df["Close"].iloc[-1]), 5)
 
     @staticmethod
     def _generate_fallback_ohlcv(symbol: str, limit: int = 96, freq: str = "15min") -> pd.DataFrame:
         """
-        Genera una serie temporal sintética realista para asegurar continuidad operativa.
+        Genera una serie temporal sintética realista para asegurar continuidad en pruebas y simulación.
         """
         tz_ny = "America/New_York"
         end_time = pd.Timestamp.now(tz=tz_ny).floor(freq)
         date_index = pd.date_range(end=end_time, periods=limit, freq=freq, tz=tz_ny)
 
-        base_price = 2650.0 if ("GC" in symbol.upper() or "XAU" in symbol.upper()) else (
-            68000.0 if "BTC" in symbol.upper() else 1.0850
+        base_price = 4050.0 if ("GC" in symbol.upper() or "XAU" in symbol.upper()) else (
+            80000.0 if "BTC" in symbol.upper() else 1.0850
         )
         volatility = base_price * (0.0025 if freq == "1h" else 0.0012)
 
@@ -194,7 +284,10 @@ class MarketDataConnector:
 
         df = pd.DataFrame(rows, index=date_index, columns=["Open", "High", "Low", "Close", "Volume"])
         df.index.name = "datetime"
-        return df.astype(float)
+        res = df.astype(float)
+        res.attrs["is_synthetic"] = True
+        res.attrs["data_source"] = "SYNTHETIC_FALLBACK"
+        return res
 
 
 class OpeningRangeBreakoutStrategy:
@@ -363,7 +456,8 @@ class OpeningRangeBreakoutStrategy:
                     candle_timestamp=current_ts.isoformat(),
                     reason=(
                         f"Anti-Fakeout Tendencial (1H EMA{ema_span}={ema_200_1h:,.2f}): "
-                        f"Ruptura alcista descartada por tendencia bajista macro (Cierre {current_close} < EMA)."
+                        f"Ruptura alcista descartada por tendencia bajista macro (Cierre {current_close} < EMA). "
+                        f"Rango {orb_type} [{orb_low} - {orb_high}] ({orb_date_label})."
                     ),
                 )
 
@@ -405,7 +499,8 @@ class OpeningRangeBreakoutStrategy:
                     candle_timestamp=current_ts.isoformat(),
                     reason=(
                         f"Anti-Fakeout Tendencial (1H EMA{ema_span}={ema_200_1h:,.2f}): "
-                        f"Ruptura bajista descartada por tendencia alcista macro (Cierre {current_close} > EMA)."
+                        f"Ruptura bajista descartada por tendencia alcista macro (Cierre {current_close} > EMA). "
+                        f"Rango {orb_type} [{orb_low} - {orb_high}] ({orb_date_label})."
                     ),
                 )
 
@@ -444,6 +539,7 @@ class OpeningRangeBreakoutStrategy:
             reason=(
                 f"Precio ({current_price}) consolidando dentro del Rango {orb_type} "
                 f"[{orb_low} - {orb_high}] ({orb_date_label})."
+                f"{f' | Macro 1H EMA{ema_span}={ema_200_1h:,.2f}' if ema_200_1h else ''}"
             ),
         )
 
@@ -809,8 +905,32 @@ class AutomatedTradingEngine:
                 prov = self.provider
 
             # 4. Obtener velas de 15m y 1H para evaluar estrategia ORB 15m con Filtro Macro
-            df_15m = self.connector.fetch_ohlcv_15m(symbol=sym, provider=prov, limit=96)
-            df_1h = self.connector.fetch_ohlcv_1h(symbol=sym, provider=prov, limit=200)
+            df_15m = self.connector.fetch_ohlcv_15m(symbol=sym, provider=prov, limit=96, allow_synthetic=False)
+            df_1h = self.connector.fetch_ohlcv_1h(symbol=sym, provider=prov, limit=200, allow_synthetic=False)
+
+            if df_15m.empty:
+                return {
+                    "timestamp": dt.isoformat(),
+                    "action": "DATA_FEED_ERROR",
+                    "rule_status": rule_status,
+                    "closed_positions": closed_positions,
+                    "open_positions": open_positions,
+                    "message": f"Feed de mercado en vivo inaccesible para {sym} ({prov}). Ciclo pausado para proteger la cuenta.",
+                }
+
+            if df_15m.attrs.get("is_synthetic", False) and not ignore_session_filter:
+                return {
+                    "timestamp": dt.isoformat(),
+                    "action": "DATA_FEED_FALLBACK_ALERT",
+                    "rule_status": rule_status,
+                    "closed_positions": closed_positions,
+                    "open_positions": open_positions,
+                    "message": (
+                        f"[ALERTA CRÍTICA] Datos en vivo inaccesibles para {sym}. "
+                        f"Operativa bloqueada para proteger la cuenta contra datos sintéticos."
+                    ),
+                }
+
             signal = self.strategy.evaluate(
                 df_15m=df_15m,
                 symbol=sym,
@@ -894,7 +1014,6 @@ class AutomatedTradingEngine:
                     strat_tag = "COMBO_TRIO_ORB"
                 elif self.risk.session_mode in ("ALL", "CRYPTO_24H"):
                     strat_tag = "CRYPTO_ORB_15M"
-                strat_tag = "CRYPTO_ORB_15M"
 
             trade_id = self.db.record_trade_open(
                 symbol=sym,
@@ -948,6 +1067,7 @@ class AutomatedTradingEngine:
                 "trade_id": trade_id,
                 "sizing": sizing,
                 "signal": signal,
+                "data_source": getattr(df_15m, "attrs", {}).get("data_source", "LIVE"),
                 "rule_status": rule_status,
                 "risk_check": pre_trade,
                 "closed_positions": closed_positions,
@@ -982,6 +1102,7 @@ class AutomatedTradingEngine:
             "timestamp": dt.isoformat(),
             "action": "NO_SIGNAL",
             "signal": last_signal,
+            "data_source": getattr(df_15m, "attrs", {}).get("data_source", "LIVE") if "df_15m" in locals() and df_15m is not None else "LIVE",
             "rule_status": rule_status,
             "risk_check": pre_trade,
             "closed_positions": closed_positions,
