@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Monitor 1: NY_OPEN (08:30-11:30 EST) - FTMO Stellar Lite
 mode con: cols=85 lines=25
 cls

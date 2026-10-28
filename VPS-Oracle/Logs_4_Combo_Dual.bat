@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Logs Modalidad 4: COMBO_DUAL (stellar_ny_london.service)
 mode con: cols=120 lines=35
 cls

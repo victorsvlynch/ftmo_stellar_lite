@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 cd /d "%~dp0"
 title Tablero Multi-Estrategia Detallado en Vivo - FundedNext Stellar Lite
 chcp 65001 >nul

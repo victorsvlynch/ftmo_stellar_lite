@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Logs Modalidad 1: NY_OPEN (stellar_ny_open.service)
 mode con: cols=120 lines=35
 cls

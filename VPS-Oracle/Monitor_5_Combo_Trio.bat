@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Monitor 5: COMBO_TRIO (London + NY + Crypto 24/7) - FTMO Stellar Lite
 mode con: cols=85 lines=25
 cls

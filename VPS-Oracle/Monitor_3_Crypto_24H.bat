@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Monitor 3: CRYPTO_24H (24/7 Continuo) - FTMO Stellar Lite
 mode con: cols=85 lines=25
 cls

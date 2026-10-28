@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 cd /d "%~dp0"
 title Simulacion Realista MetaTrader 5 (MT5) - FundedNext Stellar Lite
 mode con: cols=95 lines=40

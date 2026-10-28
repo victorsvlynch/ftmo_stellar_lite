@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Centro de Control Multi-Servicios - FTMO Stellar Lite (5 Estrategias)
 set "KEY=%USERPROFILE%\.ssh\ssh-key-2026-10-26.key"
 if not exist "%KEY%" set "KEY=%USERPROFILE%\.ssh\oracle_vps.key"

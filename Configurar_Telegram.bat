@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 cd /d "%~dp0"
 title Configurar Alertas Telegram (@victorsvlynch) - FundedNext Stellar Lite
 chcp 65001 >nul

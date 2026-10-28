@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Logs En Vivo Multi-Modalidad - FTMO Stellar Lite
 mode con: cols=120 lines=35
 cls

@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 cd /d "%~dp0"
 title Verificacion de Operacion 24/7 - FundedNext Stellar Lite (Oracle Cloud)
 cls

@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Tablero Detallado Multi-Modalidad (FTMO Stellar Lite - Operaciones en Vivo)
 mode con: cols=126 lines=38
 cls

@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 cd /d "%~dp0"
 title Dashboard en Vivo - Estrategia Ganadora NY_OPEN (Oro GC=F / XAUUSD)
 chcp 65001 >nul

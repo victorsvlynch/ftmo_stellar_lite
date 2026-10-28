@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Logs Modalidad 3: CRYPTO_24H (stellar_crypto_24h.service)
 mode con: cols=120 lines=35
 cls

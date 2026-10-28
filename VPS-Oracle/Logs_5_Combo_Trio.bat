@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Logs Modalidad 5: COMBO_TRIO (stellar_combo_trio.service)
 mode con: cols=120 lines=35
 cls

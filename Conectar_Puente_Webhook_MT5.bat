@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 cd /d "%~dp0"
 title Puente Webhook MT5 - Oracle Cloud VPS (157.137.225.144)
 chcp 65001 >nul
@@ -70,7 +70,7 @@ echo Verificando servicio stellar_webhook en Oracle Cloud...
 ssh -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "sudo systemctl start stellar_webhook" >nul 2>&1
 
 echo Iniciando tunel SSH en segundo plano...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process ssh -ArgumentList '-i \"%KEY%\" -o StrictHostKeyChecking=no -N -L 8000:localhost:8000 ubuntu@157.137.225.144' -WindowStyle Hidden"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process ssh -ArgumentList '-i \"%KEY%\" -o StrictHostKeyChecking=no -N -n -L 8000:localhost:8000 ubuntu@157.137.225.144' -WindowStyle Hidden"
 
 echo Esperando 3 segundos para confirmar conexion...
 timeout /t 3 >nul
@@ -108,7 +108,7 @@ goto MENU
 :DETENER_TUNEL
 echo.
 echo Deteniendo procesos de tunel SSH...
-powershell -NoProfile -Command "Get-Process ssh -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*8000*' -or $_.Path -like '*ssh*' } | Stop-Process -Force -ErrorAction SilentlyContinue"
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter "Name = 'ssh.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*8000*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
 echo [OK] Tunel detenido.
 timeout /t 2 >nul
 goto MENU

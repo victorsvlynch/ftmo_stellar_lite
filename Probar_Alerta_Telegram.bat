@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 cd /d "%~dp0"
 title Probar Alerta de Senal Telegram - FundedNext Stellar Lite
 chcp 65001 >nul

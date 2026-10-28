@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Monitor 4: COMBO_DUAL (London + NY Open) - FTMO Stellar Lite
 mode con: cols=85 lines=25
 cls

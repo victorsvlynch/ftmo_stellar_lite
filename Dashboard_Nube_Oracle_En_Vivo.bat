@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 cd /d "%~dp0"
 title Dashboard Remoto en Vivo - Oracle Cloud VPS (NY_OPEN 24/7)
 chcp 65001 >nul

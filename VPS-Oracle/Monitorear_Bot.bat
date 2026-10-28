@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Monitor En Vivo Consolidado - FundedNext Stellar Lite ($5K)
 mode con: cols=105 lines=28
 cls

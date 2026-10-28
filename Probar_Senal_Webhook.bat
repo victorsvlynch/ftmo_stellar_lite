@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 cd /d "%~dp0"
 title Disparar Senal de Prueba hacia MT5 - FundedNext Stellar Lite
 cls

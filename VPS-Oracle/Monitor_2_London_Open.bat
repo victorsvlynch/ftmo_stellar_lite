@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Monitor 2: LONDON_OPEN (03:00-06:00 EST) - FTMO Stellar Lite
 mode con: cols=85 lines=25
 cls

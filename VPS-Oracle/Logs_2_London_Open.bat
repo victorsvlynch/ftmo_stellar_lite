@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Logs Modalidad 2: LONDON_OPEN (stellar_london_open.service)
 mode con: cols=120 lines=35
 cls

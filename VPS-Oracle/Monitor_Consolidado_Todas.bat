@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 title Tablero Consolidado Multi-Modalidad (FTMO Stellar Lite - 5 Estrategias)
 mode con: cols=105 lines=28
 cls
