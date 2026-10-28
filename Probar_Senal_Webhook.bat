@@ -1,4 +1,5 @@
-﻿@echo off
+@echo off
+setlocal DisableDelayedExpansion
 cd /d "%~dp0"
 title Disparar Senal de Prueba hacia MT5 - FundedNext Stellar Lite
 cls

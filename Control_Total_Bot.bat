@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 title Panel de Control Maestro - FundedNext Stellar Lite ($5,000)
@@ -28,7 +28,7 @@ set "STATUS_SSH=[OK - Detectada]"
 if not exist "%KEY%" set "STATUS_SSH=[ERROR - No Encontrada]"
 
 set "STATUS_TUNNEL=[INACTIVO - Opción 4 para conectar]"
-netstat -ano | findstr /R ":8000 .*LISTENING" >nul 2>&1
+netstat -ano | findstr /C:":8000 " | findstr /I "LISTENING" >nul 2>&1
 if !ERRORLEVEL! EQU 0 (
     set "STATUS_TUNNEL=[ACTIVO - Enlace 8000 Operativo]"
 )

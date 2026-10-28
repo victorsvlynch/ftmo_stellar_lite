@@ -1,4 +1,5 @@
-﻿@echo off
+@echo off
+setlocal DisableDelayedExpansion
 cd /d "%~dp0"
 title Puente Webhook MT5 - Oracle Cloud VPS (157.137.225.144)
 chcp 65001 >nul
@@ -35,8 +36,8 @@ echo.
 
 :: Verificar si el túnel local en puerto 8000 está activo
 set "TUNNEL_STATUS=INACTIVO"
-netstat -ano | findstr /R ":8000 .*LISTENING" >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
+netstat -ano | findstr /C:":8000 " | findstr /I "LISTENING" >nul 2>&1
+if not errorlevel 1 (
     set "TUNNEL_STATUS=ACTIVO (Conectado a Oracle Cloud)"
 )
 
@@ -66,6 +67,14 @@ goto MENU
 
 :INICIAR_BACKGROUND
 echo.
+netstat -ano | findstr /C:":8000 " | findstr /I "LISTENING" >nul 2>&1
+if not errorlevel 1 (
+    echo [INFO] El tunel en puerto 8000 ya se encuentra ACTIVO.
+    echo.
+    pause
+    goto MENU
+)
+echo.
 echo Verificando servicio stellar_webhook en Oracle Cloud...
 ssh -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "sudo systemctl start stellar_webhook" >nul 2>&1
 
@@ -75,8 +84,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process ssh -Argum
 echo Esperando 3 segundos para confirmar conexion...
 timeout /t 3 >nul
 
-netstat -ano | findstr /R ":8000 .*LISTENING" >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
+netstat -ano | findstr /C:":8000 " | findstr /I "LISTENING" >nul 2>&1
+if not errorlevel 1 (
     echo.
     echo ==============================================================================
     echo [EXITO] Tunel SSH activado en SEGUNDO PLANO en puerto 8000.
@@ -108,15 +117,25 @@ goto MENU
 :DETENER_TUNEL
 echo.
 echo Deteniendo procesos de tunel SSH...
-powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter "Name = 'ssh.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*8000*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
-echo [OK] Tunel detenido.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'ssh.exe' -and $_.CommandLine -like '*8000*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+ping 127.0.0.1 -n 2 >nul
+netstat -ano | findstr /C:":8000 " | findstr /I "LISTENING" >nul 2>&1
+if not errorlevel 1 (
+    echo [AVISO] El puerto 8000 todavia aparece ocupado.
+) else (
+    echo [OK] Tunel detenido y puerto 8000 liberado correctamente.
+)
 timeout /t 2 >nul
 goto MENU
 
 :PROBAR_CONEXION
 echo.
 echo Probando conexion con http://127.0.0.1:8000/api/health...
-powershell -NoProfile -Command "try { $r = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/health' -TimeoutSec 3; Write-Host '[OK] Conexion Exitosa!' -ForegroundColor Green; Write-Host ($r | ConvertTo-Json) } catch { Write-Host '[ERROR] No se pudo conectar: ' $_.Exception.Message -ForegroundColor Red }"
+python -c "import urllib.request, json; res = urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).read().decode(); print('[OK] Conexion Exitosa\n' + json.dumps(json.loads(res), indent=2))" 2>nul
+if errorlevel 1 (
+    echo [ERROR] No se pudo conectar con el servidor Webhook en http://127.0.0.1:8000.
+    echo         Verifica que el tunel este activo (Opcion 1 o 2).
+)
 echo.
 pause
 goto MENU
