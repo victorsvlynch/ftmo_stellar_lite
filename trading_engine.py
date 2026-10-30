@@ -1006,7 +1006,9 @@ class AutomatedTradingEngine:
 
             is_news = self.rules.is_high_impact_news_window(dt)
             if not is_safety_day_pass:
-                if self.risk.session_mode in ("LONDON_OPEN", "LONDON"):
+                if sym in ("GC=F", "XAUUSD", "GOLD") or self.risk.session_mode == "NY_OPEN":
+                    strat_tag = "NY_ORB_15M"
+                elif self.risk.session_mode in ("LONDON_OPEN", "LONDON"):
                     strat_tag = "LONDON_ORB_15M"
                 elif self.risk.session_mode in ("COMBO_DUAL", "NY_LONDON"):
                     strat_tag = "COMBO_DUAL_ORB"

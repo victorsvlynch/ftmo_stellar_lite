@@ -67,6 +67,9 @@ $filesToUpload = @(
     "risk_manager.py",
     "trading_engine.py",
     "telegram_notifier.py",
+    "webhook_server.py",
+    "StellarLite_Webhook_Bridge.mq5",
+    "StellarLite_Webhook_Bridge.ex5",
     "test_verification.py",
     "manage_services.sh",
     "setup_oracle.sh",
@@ -94,10 +97,10 @@ Write-Host "[3/4] Desactivando modalidades perdedoras y activando ESTRATEGIA GAN
 $remoteCmds = @(
     "cd /home/$User/FTMO_Stellar_Lite",
     "chmod +x *.sh *.py 2>/dev/null",
-    "sudo systemctl stop stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service 2>/dev/null || true",
-    "sudo systemctl disable stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service 2>/dev/null || true",
-    "sudo systemctl enable stellar_ny_open.service fundednext_bot.service 2>/dev/null || true",
-    "sudo systemctl restart stellar_ny_open.service fundednext_bot.service",
+    "sudo systemctl stop stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service fundednext_bot.service 2>/dev/null || true",
+    "sudo systemctl disable stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service fundednext_bot.service 2>/dev/null || true",
+    "sudo systemctl enable stellar_ny_open.service stellar_webhook.service 2>/dev/null || true",
+    "sudo systemctl restart stellar_ny_open.service stellar_webhook.service 2>/dev/null || true",
     "sleep 1"
 ) -join " && "
 

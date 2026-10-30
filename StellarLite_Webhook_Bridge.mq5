@@ -179,6 +179,7 @@ void ProcessCloudAction(const string json)
    string action = JsonExtractString(json, "action");
    string symReq = JsonExtractString(json, "symbol");
    double lots = JsonExtractDouble(json, "lots");
+   double price = JsonExtractDouble(json, "price");
    double sl = JsonExtractDouble(json, "sl");
    double tp = JsonExtractDouble(json, "tp");
    int tradeId = (int)JsonExtractDouble(json, "trade_id");
@@ -214,10 +215,29 @@ void ProcessCloudAction(const string json)
 
          double askPrice = tick.ask;
          int digits = (int)SymbolInfoInteger(realSymbol, SYMBOL_DIGITS);
-         double slPrice = (sl > 0 && sl < askPrice) ? NormalizeDouble(sl, digits) : NormalizeDouble(askPrice - 6.50, digits);
-         double tpPrice = (tp > 0 && tp > askPrice) ? NormalizeDouble(tp, digits) : NormalizeDouble(askPrice + 13.00, digits);
 
-         PrintFormat("[EA MT5] Ejecutando COMPRA institucional: %s %.2f lotes @ %.2f | SL: %.2f | TP: %.2f", realSymbol, lots, askPrice, slPrice, tpPrice);
+         // Calcular distancias institucionales (R:R 1:2)
+         double slDist = (sl > 0 && price > 0) ? MathAbs(price - sl) : 6.50;
+         double tpDist = (tp > 0 && price > 0) ? MathAbs(price - tp) : 13.00;
+         if(slDist < 1.0) slDist = 6.50;
+         if(tpDist < 2.0) tpDist = 13.00;
+
+         // Detectar si la cotización del broker difiere de la fuente externa (ej. Yahoo Finance vs Broker Demo)
+         bool priceScaleMismatch = (price > 0 && MathAbs(askPrice - price) > 20.0);
+
+         double slPrice, tpPrice;
+         if(priceScaleMismatch || sl <= 0 || sl >= askPrice)
+            slPrice = NormalizeDouble(askPrice - slDist, digits);
+         else
+            slPrice = NormalizeDouble(sl, digits);
+
+         if(priceScaleMismatch || tp <= 0 || tp <= askPrice)
+            tpPrice = NormalizeDouble(askPrice + tpDist, digits);
+         else
+            tpPrice = NormalizeDouble(tp, digits);
+
+         PrintFormat("[EA MT5] Ejecutando COMPRA institucional: %s %.2f lotes @ %.2f | SL: %.2f | TP: %.2f (Dist SL: %.2f, TP: %.2f)", 
+                     realSymbol, lots, askPrice, slPrice, tpPrice, slDist, tpDist);
 
          bool orderSuccess = false;
          ENUM_ORDER_TYPE_FILLING fillModes[] = {ORDER_FILLING_IOC, ORDER_FILLING_FOK, ORDER_FILLING_RETURN};
@@ -298,10 +318,29 @@ void ProcessCloudAction(const string json)
 
          double bidPrice = tick.bid;
          int digits = (int)SymbolInfoInteger(realSymbol, SYMBOL_DIGITS);
-         double slPrice = (sl > 0 && sl > bidPrice) ? NormalizeDouble(sl, digits) : NormalizeDouble(bidPrice + 6.50, digits);
-         double tpPrice = (tp > 0 && tp < bidPrice) ? NormalizeDouble(tp, digits) : NormalizeDouble(bidPrice - 13.00, digits);
 
-         PrintFormat("[EA MT5] Ejecutando VENTA institucional: %s %.2f lotes @ %.2f | SL: %.2f | TP: %.2f", realSymbol, lots, bidPrice, slPrice, tpPrice);
+         // Calcular distancias institucionales (R:R 1:2)
+         double slDist = (sl > 0 && price > 0) ? MathAbs(sl - price) : 6.50;
+         double tpDist = (tp > 0 && price > 0) ? MathAbs(price - tp) : 13.00;
+         if(slDist < 1.0) slDist = 6.50;
+         if(tpDist < 2.0) tpDist = 13.00;
+
+         // Detectar si la cotización del broker difiere de la fuente externa
+         bool priceScaleMismatch = (price > 0 && MathAbs(bidPrice - price) > 20.0);
+
+         double slPrice, tpPrice;
+         if(priceScaleMismatch || sl <= 0 || sl <= bidPrice)
+            slPrice = NormalizeDouble(bidPrice + slDist, digits);
+         else
+            slPrice = NormalizeDouble(sl, digits);
+
+         if(priceScaleMismatch || tp <= 0 || tp >= bidPrice)
+            tpPrice = NormalizeDouble(bidPrice - tpDist, digits);
+         else
+            tpPrice = NormalizeDouble(tp, digits);
+
+         PrintFormat("[EA MT5] Ejecutando VENTA institucional: %s %.2f lotes @ %.2f | SL: %.2f | TP: %.2f (Dist SL: %.2f, TP: %.2f)", 
+                     realSymbol, lots, bidPrice, slPrice, tpPrice, slDist, tpDist);
 
          bool orderSuccess = false;
          ENUM_ORDER_TYPE_FILLING fillModes[] = {ORDER_FILLING_IOC, ORDER_FILLING_FOK, ORDER_FILLING_RETURN};
@@ -364,12 +403,20 @@ void ProcessCloudAction(const string json)
          if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
          {
             double curTp = PositionGetDouble(POSITION_TP);
-            PrintFormat("[EA MT5] Blindando posicion #%I64u con Break-Even: Nuevo SL: %.2f", ticket, sl);
-            if(ExtTrade.PositionModify(ticket, sl, curTp))
+            double entryPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+            int digits = (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS);
+            
+            // Si es Break-Even o el precio de SL enviado difiere de la escala del broker,
+            // fijar el SL exactamente al precio de apertura de la posición en MT5 (Riesgo = $0.00)
+            bool isBe = (StringFind(comment, "Break-Even") >= 0 || StringFind(comment, "BREAK_EVEN") >= 0);
+            double newSl = (isBe || (sl > 0 && MathAbs(entryPrice - sl) > 20.0)) ? NormalizeDouble(entryPrice, digits) : NormalizeDouble(sl, digits);
+
+            PrintFormat("[EA MT5] Blindando posicion #%I64u con Break-Even: Nuevo SL: %.2f (Precio Entrada: %.2f)", ticket, newSl, entryPrice);
+            if(ExtTrade.PositionModify(ticket, newSl, curTp))
             {
-               ExtLastActionMsg = StringFormat("Posicion #%I64u blindada a Break-Even (SL: %.2f)", ticket, sl);
+               ExtLastActionMsg = StringFormat("Posicion #%I64u blindada a Break-Even (SL: %.2f)", ticket, newSl);
                PrintFormat("[EA MT5] [EXITO] Posicion #%I64u modificada a Break-Even.", ticket);
-               ConfirmActionToCloud(actionId, ticket, sl, true);
+               ConfirmActionToCloud(actionId, ticket, newSl, true);
             }
             else
             {
@@ -389,11 +436,28 @@ void ProcessCloudAction(const string json)
          if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
          {
             PrintFormat("[EA MT5] Cerrando posicion #%I64u a precio de mercado...", ticket);
-            if(ExtTrade.PositionClose(ticket, (ulong)InpDeviationPoints))
+            bool closedSuccess = false;
+            ENUM_ORDER_TYPE_FILLING fillModes[] = {ORDER_FILLING_IOC, ORDER_FILLING_FOK, ORDER_FILLING_RETURN};
+            for(int f = 0; f < ArraySize(fillModes); f++)
+            {
+               ExtTrade.SetTypeFilling(fillModes[f]);
+               if(ExtTrade.PositionClose(ticket, (ulong)InpDeviationPoints))
+               {
+                  closedSuccess = true;
+                  break;
+               }
+            }
+
+            if(closedSuccess)
             {
                ExtLastActionMsg = StringFormat("Posicion #%I64u cerrada a mercado.", ticket);
                PrintFormat("[EA MT5] [EXITO] Posicion #%I64u cerrada correctamente.", ticket);
                ConfirmActionToCloud(actionId, ticket, 0.0, true);
+            }
+            else
+            {
+               PrintFormat("[EA MT5] [FALLO] Error al cerrar posicion #%I64u: %s", ticket, ExtTrade.ResultComment());
+               ConfirmActionToCloud(actionId, ticket, 0.0, false);
             }
             break;
          }
@@ -445,6 +509,54 @@ void OnDeinit(const int reason)
    Print("[EA MT5] Expert Advisor desinstalado del grafico.");
 }
 
+void CheckAutonomousBreakEven()
+{
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
+      {
+         string sym = PositionGetString(POSITION_SYMBOL);
+         ENUM_POSITION_TYPE pType = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+         double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+         double curSl = PositionGetDouble(POSITION_SL);
+         double curTp = PositionGetDouble(POSITION_TP);
+         int digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+
+         MqlTick tick;
+         if(!SymbolInfoTick(sym, tick)) continue;
+
+         // Si es BUY y el precio Bid subió +6.50 puntos por encima de la entrada (+1R)
+         if(pType == POSITION_TYPE_BUY)
+         {
+            if(tick.bid >= (openPrice + 6.50) && (curSl < openPrice || curSl == 0.0))
+            {
+               double newSl = NormalizeDouble(openPrice, digits);
+               PrintFormat("[EA MT5] [BREAK-EVEN AUTONOMO] Posicion BUY #%I64u alcanzo +1R (+6.50). Blindando SL a %.2f (Riesgo: $0.00)", ticket, newSl);
+               if(ExtTrade.PositionModify(ticket, newSl, curTp))
+               {
+                  ExtLastActionMsg = StringFormat("BUY #%I64u blindada a Break-Even ($0.00 riesgo)", ticket);
+               }
+            }
+         }
+         // Si es SELL y el precio Ask bajó +6.50 puntos por debajo de la entrada (+1R)
+         else if(pType == POSITION_TYPE_SELL)
+         {
+            if(tick.ask <= (openPrice - 6.50) && (curSl > openPrice || curSl == 0.0))
+            {
+               double newSl = NormalizeDouble(openPrice, digits);
+               PrintFormat("[EA MT5] [BREAK-EVEN AUTONOMO] Posicion SELL #%I64u alcanzo +1R (+6.50). Blindando SL a %.2f (Riesgo: $0.00)", ticket, newSl);
+               if(ExtTrade.PositionModify(ticket, newSl, curTp))
+               {
+                  ExtLastActionMsg = StringFormat("SELL #%I64u blindada a Break-Even ($0.00 riesgo)", ticket);
+               }
+            }
+         }
+         break;
+      }
+   }
+}
+
 //+------------------------------------------------------------------+
 //| Expert timer function (Polling continuo al Servidor Webhook)     |
 //+------------------------------------------------------------------+
@@ -465,6 +577,45 @@ void OnTimer()
       {
          ProcessCloudAction(resp);
       }
+      else
+      {
+         // Auto-Sincronización de Seguridad:
+         // Si la nube indica que NO hay operaciones abiertas en el bot (open_trades_count == 0),
+         // y en MT5 existe una posición con nuestro Magic Number que lleva abierta más de 15 segundos,
+         // significa que el bot ya cerró la posición por TP, SL o cierre de sesión en la nube.
+         double openTradesCloud = JsonExtractDouble(resp, "open_trades_count");
+         if(openTradesCloud == 0)
+         {
+            for(int i = PositionsTotal() - 1; i >= 0; i--)
+            {
+               ulong ticket = PositionGetTicket(i);
+               if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
+               {
+                  datetime posTime = (datetime)PositionGetInteger(POSITION_TIME);
+                  if(TimeCurrent() - posTime > 15)
+                  {
+                     PrintFormat("[EA MT5] [AUTO-SYNC] Nube sin operaciones (open_trades_count = 0). Sincronizando cierre de posicion #%I64u...", ticket);
+                     ENUM_ORDER_TYPE_FILLING fillModes[] = {ORDER_FILLING_IOC, ORDER_FILLING_FOK, ORDER_FILLING_RETURN};
+                     bool closedOk = false;
+                     for(int f = 0; f < ArraySize(fillModes); f++)
+                     {
+                        ExtTrade.SetTypeFilling(fillModes[f]);
+                        if(ExtTrade.PositionClose(ticket, (ulong)InpDeviationPoints))
+                        {
+                           closedOk = true;
+                           break;
+                        }
+                     }
+                     if(closedOk)
+                     {
+                        ExtLastActionMsg = StringFormat("Posicion #%I64u auto-sincronizada y cerrada.", ticket);
+                        PrintFormat("[EA MT5] [AUTO-SYNC] Posicion #%I64u cerrada con exito.", ticket);
+                     }
+                  }
+               }
+            }
+         }
+      }
    }
    else
    {
@@ -474,6 +625,9 @@ void OnTimer()
          ExtServerStatus = StringFormat("FALLO DE CONEXION (%d reintentos fallidos)", ExtConsecutiveErrors);
       }
    }
+
+   // Guardia de blindaje autónomo Break-Even local (+1R = +$6.50 en Oro)
+   CheckAutonomousBreakEven();
    
    UpdateChartDashboard();
 }
