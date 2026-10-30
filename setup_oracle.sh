@@ -178,10 +178,15 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-# Servicio de compatibilidad fundednext_bot.service (apunta a Modalidad 1 NY_OPEN)
-sudo tee "/etc/systemd/system/fundednext_bot.service" > /dev/null <<EOF
+# Limpiar y remover servicio duplicado fundednext_bot si existe
+sudo systemctl stop fundednext_bot.service 2>/dev/null || true
+sudo systemctl disable fundednext_bot.service 2>/dev/null || true
+sudo rm -f /etc/systemd/system/fundednext_bot.service 2>/dev/null || true
+
+# Servicio Webhook Bridge para MetaTrader 5 (Puerto 8000)
+sudo tee "/etc/systemd/system/stellar_webhook.service" > /dev/null <<EOF
 [Unit]
-Description=FundedNext Stellar Lite Automated Trading Engine (Principal NY_OPEN)
+Description=FundedNext Stellar Lite - MT5 Webhook Bridge Server (Port 8000)
 After=network-online.target
 Wants=network-online.target
 
@@ -191,7 +196,7 @@ User=${RUN_USER}
 Group=${RUN_USER}
 WorkingDirectory=${APP_DIR}
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=/usr/bin/python3 ${APP_DIR}/main.py run --symbol GC=F --provider yfinance --risk 0.005 --personal-cap 0.02 --session NY_OPEN --db trading_ny_open.db --interval 60
+ExecStart=/usr/bin/python3 ${APP_DIR}/webhook_server.py 8000
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -202,12 +207,14 @@ WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable stellar_ny_open.service stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service fundednext_bot.service
-sudo systemctl restart stellar_ny_open.service stellar_london_open.service stellar_crypto_24h.service stellar_ny_london.service stellar_combo_trio.service
+# Habilitar y arrancar unicamente la Estrategia Ganadora NY_OPEN y el Webhook Bridge
+sudo systemctl enable stellar_ny_open.service stellar_webhook.service
+sudo systemctl restart stellar_ny_open.service stellar_webhook.service
 
 echo "=============================================================================="
-echo " Instalación y despliegue multi-modalidad completado con éxito."
+echo " Instalación y despliegue completado con éxito."
+echo " - Estrategia Ganadora : sudo systemctl status stellar_ny_open"
+echo " - Servidor Webhook    : sudo systemctl status stellar_webhook"
+echo " - Gestor de Servicios : ${APP_DIR}/manage_services.sh solo-ganadora"
 echo " - Monitor Consolidado : python3 ${APP_DIR}/main.py multi"
-echo " - Estado de servicios : ${APP_DIR}/manage_services.sh status"
-echo " - Reiniciar cuentas   : python3 ${APP_DIR}/main.py reset-all"
 echo "=============================================================================="

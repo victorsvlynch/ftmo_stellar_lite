@@ -29,15 +29,15 @@ ACTION="${1:-status}"
 case "${ACTION}" in
     winner|solo-ganadora|winner-only)
         echo "=============================================================================="
-        echo " [MODO EXCLUSIVO] Activando unicamente Estrategia Ganadora: NY_OPEN"
+        echo " [MODO EXCLUSIVO] Activando unicamente Estrategia Ganadora: NY_OPEN + Webhook"
         echo "=============================================================================="
-        echo "[1/2] Deteniendo y deshabilitando las 4 modalidades retiradas..."
-        sudo systemctl stop "${RETIRED_SERVICES[@]}" 2>/dev/null || true
-        sudo systemctl disable "${RETIRED_SERVICES[@]}" 2>/dev/null || true
-        echo "[2/2] Iniciando y habilitando servicio ganador ($WINNER_SERVICE)..."
-        sudo systemctl enable "$WINNER_SERVICE" 2>/dev/null || true
-        sudo systemctl restart "$WINNER_SERVICE"
-        echo "[OK] Estrategia ganadora NY_OPEN activa y en ejecucion."
+        echo "[1/2] Deteniendo y deshabilitando modalidades secundarias y procesos duplicados..."
+        sudo systemctl stop "${RETIRED_SERVICES[@]}" fundednext_bot.service 2>/dev/null || true
+        sudo systemctl disable "${RETIRED_SERVICES[@]}" fundednext_bot.service 2>/dev/null || true
+        echo "[2/2] Iniciando y habilitando servicio ganador ($WINNER_SERVICE) y webhook..."
+        sudo systemctl enable "$WINNER_SERVICE" stellar_webhook.service 2>/dev/null || true
+        sudo systemctl restart "$WINNER_SERVICE" stellar_webhook.service
+        echo "[OK] Estrategia ganadora NY_OPEN y Webhook activos y en ejecucion."
         python3 "${APP_DIR}/main.py" winner
         ;;
     start-all)

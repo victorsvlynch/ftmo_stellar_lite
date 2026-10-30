@@ -20,7 +20,10 @@ Desarrollado en **Python Puro de Alto Rendimiento (sin interfaces web innecesari
    - [Consola Interactiva Avanzada (`stellar-cli>`)](#5-consola-interactiva-avanzada-stellar-cli)
 6. [Operación y Despliegue 24/7 en Servidor Oracle Cloud (OCI)](#-operación-y-despliegue-247-en-servidor-oracle-cloud-oci)
 7. [Panel de Control Maestro (`Control_Total_Bot.bat`) y Dashboards](#-panel-de-control-maestro-control_total_botbat-y-dashboards)
-8. [Guía de Migración: ¿Cómo Mover Todo el Sistema a Otra PC?](#-guía-de-migración-cómo-mover-todo-el-sistema-a-otra-pc)
+8. [Guía de Migración y Portabilidad Total (PC Windows y Servidores Cloud/VPS)](#-guía-de-migración-y-portabilidad-total-pc-windows-y-servidores-cloudvps)
+   - [8.1 Escenario A: Mover a Otra PC (Windows 10/11 con MetaTrader 5)](#81-escenario-a-mover-a-otra-pc-windows-1011-con-metatrader-5)
+   - [8.2 Escenario B: Mover o Replicar en un Nuevo Servidor Cloud / VPS Linux](#82-escenario-b-mover-o-replicar-en-un-nuevo-servidor-cloud--vps-linux-ubuntu--debian)
+   - [8.3 Documentación Técnica: Trailing Stop por Estructura M15 y Protección de Ganancias](#83-documentación-técnica-trailing-stop-por-estructura-m15-y-protección-de-ganancias)
 9. [Estructura del Proyecto y Archivos Clave](#-estructura-del-proyecto-y-archivos-clave)
 10. [Protocolo de Contingencia y Hard Breach](#-protocolo-de-contingencia-y-hard-breach)
 11. [Herramientas DevOps, Snapshots y CI/CD](#-herramientas-devops-snapshots-y-cicd)
@@ -62,9 +65,13 @@ Tras auditar y simular múltiples configuraciones bajo fricción institucional r
    - Solo se permiten ventas (**SELL**) si el precio se encuentra por debajo de la EMA 200 H1.
 5. **Filtro Anti-Fakeout por Cierre de Vela:** Una ruptura de mecha no es válida. La vela de 15 minutos debe **cerrar estrictamente por fuera del rango** para confirmar la entrada.
 6. **Ratio Riesgo/Beneficio Estricto (1:2):**
-   - **Stop Loss (SL):** $6.50 por debajo/encima del punto de entrada.
-   - **Take Profit (TP):** $13.00 (el doble del riesgo).
-7. **Protocolo de Blindaje con Break-Even a +1R:** En cuanto la operación alcanza **+1R de beneficio flotante** (+$6.50 en el Oro), el bot envía una modificación al broker trasladando el Stop Loss al precio de entrada (`SL = Entry Price`). El riesgo monetario queda reducido a **$0.00** (Trade Gratuito).
+   - **Stop Loss (SL):** $6.50 por debajo/encima del punto de entrada (1R).
+   - **Take Profit (TP):** $13.00 (el doble del riesgo, 2R).
+7. **Protocolo de Protección Escalonada y Trailing Stop Autónomo (M15):**
+   - **Nivel 1 — Blindaje a Break-Even (+1R / +$6.50 pts):** Al alcanzar +1R de beneficio flotante (+$6.50 en Oro), traslada el Stop Loss al precio de entrada (`SL = Entry Price`), asegurando **$0.00 de riesgo monetario** (Trade Libre de Riesgo).
+   - **Nivel 2 — Trailing Stop por Estructura Técnica M15 (+2R / +$13.00 pts):** Al superar +2R, el Asesor Experto en MT5 (`StellarLite_Webhook_Bridge.mq5`) inspecciona las últimas 4 velas M15 cerradas y traslada el SL por detrás del último Swing High (en ventas) o Swing Low (en compras) con un colchón de $1.50 de volatilidad, bloqueando ganancias escalonadas de forma 100% autónoma.
+   - **Cálculo de Distancias Relativas Broker-Agnostic:** Las distancias de SL y TP se aplican de forma relativa al precio de llenado real (`Bid`/`Ask`) en MetaTrader 5 mediante `MathAbs`, blindando la orden ante divergencias de cotización entre feeds de análisis (Yahoo Finance `GC=F`) y el broker (`XAUUSD`).
+   - **Fail-Safe de Auto-Sincronización:** Si el bot en la nube cierra la operación o reporta `open_trades_count == 0`, el EA detecta el estado y liquida la posición local de inmediato mediante ciclos multi-modo (`IOC`, `FOK`, `RETURN`), previniendo posiciones huérfanas o desincronizadas.
 8. **Protección de Fin de Semana:** Todo trade de Oro se liquida forzosamente los viernes a las **15:30 EST** para evitar riesgos de gap al abrir el mercado el domingo.
 
 ---
@@ -313,96 +320,214 @@ Para una operación centralizada, cómoda y sin necesidad de escribir comandos e
 
 ---
 
-## 💻 Guía Paso a Paso: ¿Cómo Mover o Clonar Todo el Sistema a Otra PC?
+## 💻 Guía de Migración y Portabilidad Total (PC Windows y Servidores Cloud/VPS)
 
-El proyecto se encuentra **100% listo, portátil y automatizado para utilizarse en cualquier PC** (Windows 10 o Windows 11).
+El proyecto se encuentra **100% modular, portátil y automatizado para trasladarse en minutos a cualquier PC local o servidor en la nube** (Windows 10/11 para la terminal MetaTrader 5 y Linux Ubuntu/Debian para el motor cuantitativo en la nube).
 
 > [!TIP]
-> **Diseño Plug & Play y Portabilidad Total:**
-> - **Rutas 100% Relativas (`%~dp0`):** Puedes ubicar la carpeta en cualquier disco (`C:\`, `D:\`), memoria USB o subcarpeta; los scripts resuelven todas las rutas de forma automática.
-> - **Auto-Instalación de la Clave SSH:** Al ejecutar cualquier script en una nueva PC, este detecta la clave en `VPS-Oracle\` y la copia automáticamente a `%USERPROFILE%\.ssh\oracle_vps.key`.
-> - **Asesor Experto Precompilado:** El archivo [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) está listo para copiar a MT5 sin necesidad de abrir MetaEditor.
-> - **Credenciales de Telegram Portables:** [`telegram_config.json`](telegram_config.json) viaja pre-configurado con tu bot y tu Chat ID para recibir alertas de inmediato.
+> **Filosofía de Diseño Plug & Play y Cero Dependencias Complejas:**
+> - **Sin Docker:** Se eliminó la sobrecarga de contenedores, capas de red complejas y cuellos de botella de memoria.
+> - **Rutas 100% Relativas (`%~dp0`):** El repositorio puede residir en cualquier unidad (`C:\`, `D:\`, `L:\`), disco externo o memoria USB; los scripts calculan sus rutas dinámicamente.
+> - **Auto-Instalación de la Clave SSH:** Al ejecutar cualquier script en una nueva PC con Windows, este detecta la clave en `VPS-Oracle\` y la copia automáticamente a `%USERPROFILE%\.ssh\oracle_vps.key` sin requerir configuración manual.
+> - **Asesor Experto Precompilado:** El archivo [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) está listo para copiar directamente a MT5 sin necesidad de abrir MetaEditor.
+> - **Credenciales de Telegram Portables:** [`telegram_config.json`](telegram_config.json) viaja pre-configurado para recibir alertas instantáneas en tu dispositivo móvil.
 
-Si deseas cambiar de computadora o tener el sistema listo para operar en una laptop secundaria o de respaldo, sigue este procedimiento ordenado:
+```mermaid
+flowchart TD
+    Inicio["Repositorio FTMO_Stellar_Lite"] --> Destino{"¿Dónde deseas desplegar?"}
+    
+    Destino -->|"Escenario A"| Win["PC / Laptop Windows (MT5 Local)"]
+    Win --> W1["1. Clonar Repo o Copiar Carpeta"]
+    W1 --> W2["2. pip install -r requirements.txt"]
+    W2 --> W3["3. Copiar EA a MQL5/Experts/"]
+    W3 --> W4["4. Iniciar Conectar_Puente_Webhook_MT5.bat"]
+    W4 --> W5["5. Control_Total_Bot.bat (Dashboard en Vivo)"]
+    
+    Destino -->|"Escenario B"| Linux["Servidor Cloud / VPS Linux (24/7)"]
+    Linux --> L1["1. git clone https://github.com/..."]
+    L1 --> L2["2. sudo bash setup_oracle.sh"]
+    L2 --> L3["3. sudo bash manage_services.sh solo-ganadora"]
+    L3 --> L4["4. Actualizar IP en scripts de Windows"]
+    L4 --> L5["5. Sincronización Lista y Operativa 24/7"]
+```
 
-### 1. Requisitos Previos en la Nueva PC
+---
+
+### 8.1 Escenario A: Mover a Otra PC (Windows 10/11 con MetaTrader 5)
+
+Si cambias de computadora, formateas o deseas tener el sistema listo para operar en una laptop secundaria o de respaldo, sigue este procedimiento:
+
+#### Requisitos Previos en la Nueva PC Windows:
 - **Sistema Operativo:** Windows 10 o Windows 11 (64-bit).
 - **Python 3.10 o Superior:** Descárgalo desde [python.org](https://www.python.org/downloads/).
   > [!IMPORTANT]
   > Durante la instalación de Python, **marca obligatoriamente la casilla:**
   > ☑️ **"Add python.exe to PATH"** (Agregar Python al PATH del sistema).
 - **Git para Windows (Opcional pero recomendado):** Descárgalo desde [git-scm.com](https://git-scm.com/).
-- **MetaTrader 5:** Descarga e instala la terminal de tu broker (o MetaTrader 5 estándar) e inicia sesión con tu cuenta de FundedNext.
+- **MetaTrader 5:** Descarga e instala la terminal oficial de tu broker (o MetaTrader 5 estándar) e inicia sesión con tu cuenta de FundedNext.
+
+#### Paso a Paso:
+1. **Obtener el Código:**
+   - *Vía Git:* Abre CMD o PowerShell y clona el repositorio:
+     ```bash
+     git clone https://github.com/victorsvlynch/ftmo_stellar_lite.git
+     cd ftmo_stellar_lite
+     ```
+   - *Vía USB o Disco:* Copia la carpeta completa `FTMO_Stellar_Lite` a la nueva máquina (ej. `C:\Trading\FTMO_Stellar_Lite`).
+2. **Instalar Dependencias de Python:**
+   En la raíz del proyecto, ejecuta:
+   ```cmd
+   pip install -r requirements.txt
+   ```
+   *Instala en segundos los módulos esenciales (`MetaTrader5`, `yfinance`, `pandas`, `numpy`, `tabulate`).*
+3. **Clave SSH de Conexión con la Nube:**
+   - Los scripts `.bat` del proyecto detectan de forma automática si la clave `oracle_vps.key` existe en la carpeta `VPS-Oracle\` y la copian a `%USERPROFILE%\.ssh\oracle_vps.key`.
+   - Puedes verificar la conexión ejecutando:
+     ```cmd
+     ssh -i "%USERPROFILE%\.ssh\oracle_vps.key" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "echo Conexion OK"
+     ```
+4. **Instalar el Asesor Experto en MetaTrader 5:**
+   - En MT5, ve a: **Archivo ➔ Abrir Carpeta de Datos**.
+   - Entra a la carpeta **`MQL5\Experts\`** y pega el archivo precompilado [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5).
+   - En MT5, en el panel izquierdo **Navegador**, haz clic derecho sobre **Asesores Expertos ➔ Actualizar**.
+   - Abre el gráfico de Oro (**`XAUUSD`**) en temporalidad **M15**.
+   - Arrastra `StellarLite_Webhook_Bridge` al gráfico de Oro:
+     - En la pestaña **Común**: Marca **"Permitir el trading algorítmico"**.
+     - En la pestaña **Parámetros**: Comprueba que la URL sea `http://127.0.0.1:8000`.
+   - En la barra superior de MT5, activa el botón **"Trading Algorítmico"** (color verde, o `Ctrl + E`).
+   - En **Herramientas ➔ Opciones ➔ Asesores Expertos**:
+     - Marca *"Permitir WebRequest para las siguientes URL"* y agrega:
+       - `http://127.0.0.1:8000`
+       - `http://157.137.225.144:8000`
+5. **Verificar Alertas de Telegram (Opción C):**
+   - Haz doble clic en [`Probar_Alerta_Telegram.bat`](Probar_Alerta_Telegram.bat). Tu teléfono móvil sonará al instante con la notificación de prueba.
+6. **Lanzar el Panel de Control:**
+   - Ejecuta [`Control_Total_Bot.bat`](Control_Total_Bot.bat).
+   - Selecciona la **Opción 4** para levantar el túnel SSH seguro en segundo plano.
+   - Selecciona la **Opción 1** para abrir el Dashboard en Vivo de Wall Street.
 
 ---
 
-### 2. Flujo de Migración
+### 8.2 Escenario B: Mover o Replicar en un Nuevo Servidor Cloud / VPS Linux (Ubuntu / Debian)
 
-```mermaid
-flowchart LR
-    P1["1. Clonar Repo o Copiar Carpeta"] --> P2["2. Instalar Dependencias (pip)"]
-    P2 --> P3["3. Copiar Clave SSH (oracle_vps.key)"]
-    P3 --> P4["4. Copiar EA a MT5 (StellarLite.ex5)"]
-    P4 --> P5["5. Probar Alertas y Lanzar Control_Total"]
-```
+Si deseas trasladar el bot a otra máquina virtual en la nube (Oracle Cloud Always Free, AWS EC2, Hetzner Cloud, DigitalOcean, Google Cloud Compute, etc.):
 
-#### Paso 1: Obtener el Código en la Nueva PC
-- **Opción A (Recomendada con Git):**
-  Abre una terminal (CMD o PowerShell) y clona el repositorio oficial:
-  ```bash
-  git clone https://github.com/victorsvlynch/ftmo_stellar_lite.git
-  cd ftmo_stellar_lite
-  ```
-- **Opción B (Copia Directa por USB o Red):**
-  Copia la carpeta completa `FTMO_Stellar_Lite` desde tu PC anterior a la nueva PC (por ejemplo en `C:\Trading\FTMO_Stellar_Lite` o `D:\FTMO_Stellar_Lite`).
+#### Requisitos de la Máquina Virtual Linux:
+- **Distribución:** Ubuntu 22.04 LTS / 24.04 LTS (o Debian 12).
+- **Arquitectura:** Compatible con ARM64 (ej. Oracle Ampere A1 Always Free) y x86_64 (Intel / AMD).
+- **Recursos Mínimos:** 1 vCPU, 1 GB RAM, 10 GB de disco SSD.
+- **Red:** Puerto TCP `22` (SSH) abierto en la Security List / Firewall del proveedor de nube. *(No es necesario exponer públicamente el puerto 8000 si utilizas el túnel SSH cifrado de Windows, lo que garantiza máxima seguridad).*
 
-#### Paso 2: Instalar las Dependencias de Python
-Abre la consola CMD o PowerShell dentro de la carpeta del proyecto y ejecuta:
-```cmd
-pip install -r requirements.txt
-```
-*Instala en pocos segundos los conectores de mercado (`MetaTrader5`, `yfinance`), librerías matemáticas (`pandas`, `numpy`) y formateadores de tablas (`tabulate`).*
+#### Paso a Paso para Despliegue Automatizado en el Nuevo VPS:
 
-#### Paso 3: Configurar la Clave SSH de Oracle Cloud VPS
-Para que los scripts de la nueva PC puedan comunicarse de forma segura con el servidor en la nube (157.137.225.144):
-1. Copia tu archivo de clave privada `oracle_vps.key` (o `ssh-key-2026-10-26.key`).
-2. Pégalo en tu carpeta de usuario en Windows:
-   `C:\Users\<TuUsuario>\.ssh\oracle_vps.key`
-   *(Alternativamente, puedes dejar una copia dentro de la carpeta `VPS-Oracle\` en el proyecto).*
-3. Puedes verificar la conexión ejecutando en la consola:
-   ```cmd
-   ssh -i "%USERPROFILE%\.ssh\oracle_vps.key" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "echo Conexion OK"
+1. **Conectarse vía SSH a la Nueva Instancia y Clonar el Repositorio:**
+   ```bash
+   ssh usuario@IP_NUEVO_VPS
+   git clone https://github.com/victorsvlynch/ftmo_stellar_lite.git
+   cd ftmo_stellar_lite
    ```
 
-#### Paso 4: Instalar el Asesor Experto (EA) en MetaTrader 5
-1. Abre tu MetaTrader 5 en la nueva PC.
-2. En el menú superior de MT5, haz clic en: **Archivo ➔ Abrir Carpeta de Datos**.
-3. En la ventana que se abre, entra a: **`MQL5\Experts\`** (o `MQL5\Experts\Advisors\`).
-4. Copia en esa carpeta el archivo compilado [**`StellarLite_Webhook_Bridge.ex5`**](StellarLite_Webhook_Bridge.ex5) que se encuentra en la raíz de tu proyecto.
-5. Regresa a MetaTrader 5: en el panel **Navegador** a la izquierda, haz clic derecho sobre **Asesores Expertos** y selecciona **Actualizar**. Verás aparecer `StellarLite_Webhook_Bridge`.
-6. Abre el gráfico del Oro (**`XAUUSD`** en temporalidad **M15**).
-7. Arrastra `StellarLite_Webhook_Bridge` hacia el gráfico de Oro.
-8. En la ventana emergente:
-   - Pestaña **Común**: Marca la casilla **"Permitir el trading algorítmico"**.
-   - Pestaña **Parámetros de entrada**: Comprueba que la URL sea `http://127.0.0.1:8000`.
-   - Haz clic en **Aceptar**.
-9. En la barra superior de MT5, asegúrate de que el botón **"Trading Algorítmico"** esté activo en color verde (presiona `Ctrl + E`).
-10. En **Herramientas ➔ Opciones ➔ Asesores Expertos**:
-    - Marca la casilla *"Permitir WebRequest para las siguientes URL"* y agrega:
-      - `http://127.0.0.1:8000`
-      - `http://157.137.225.144:8000`
+2. **Ejecutar el Aprovisionamiento Automatizado:**
+   ```bash
+   sudo bash setup_oracle.sh
+   ```
+   *¿Qué realiza este script en 60 segundos de forma 100% desatendida?*
+   - Actualiza repositorios del sistema e instala `python3`, `python3-pip` y `tzdata`.
+   - Instala todas las librerías de Python desde [`requirements.txt`](requirements.txt) en el entorno global (sin la sobrecarga de virtualenvs ni contenedores).
+   - Configura las reglas de firewall (UFW / iptables).
+   - Genera y registra los servicios systemd oficiales:
+     - `stellar_ny_open.service`: Motor cuantitativo de la Estrategia Ganadora NY_OPEN (Oro).
+     - `stellar_webhook.service`: Servidor HTTP de señales Webhook para MT5 en el puerto 8000.
+   - Remueve cualquier servicio obsoleto o duplicado para evitar conflictos.
+   - Habilita el arranque automático con el sistema (`systemctl enable`) e inicia ambos servicios.
 
-#### Paso 5: Alertas de Telegram (Opción C en Celular)
-El archivo [`telegram_config.json`](telegram_config.json) ya viene con tu bot (`@victor_stellar_bot`) y tu `Chat ID: 5633051604` guardados.
-- Para verificar que todo funciona en la nueva PC, haz doble clic en [**`Probar_Alerta_Telegram.bat`**](Probar_Alerta_Telegram.bat).
-- ¡Tu celular sonará de inmediato con la señal institucional de prueba!
+3. **Verificar el Estado de los Servicios en la Nube:**
+   ```bash
+   # Activar modo exclusivo de la estrategia ganadora + webhook:
+   sudo bash manage_services.sh solo-ganadora
 
-#### Paso 6: Iniciar el Panel de Control Maestro
-Haz doble clic en [**`Control_Total_Bot.bat`**](Control_Total_Bot.bat):
-1. Selecciona la **Opción 4** para activar el túnel seguro del puerto 8000 en segundo plano.
-2. Selecciona la **Opción 1** para abrir tu Dashboard en Vivo de Wall Street.
-3. ¡Tu sistema estará 100% operativo en la nueva PC exactamente como en la original!
+   # Comprobar estado de los servicios:
+   sudo systemctl status stellar_ny_open --no-pager
+   sudo systemctl status stellar_webhook --no-pager
+
+   # Inspeccionar logs en vivo segundo a segundo:
+   sudo journalctl -u stellar_ny_open -f
+   sudo journalctl -u stellar_webhook -f
+   ```
+
+4. **Actualizar la IP del Nuevo VPS en los Scripts de Windows:**
+   En tu PC local de Windows, abre los siguientes archivos y reemplaza la IP anterior por la nueva IP de tu servidor:
+   - En [`desplegar_a_vps.ps1`](desplegar_a_vps.ps1): Cambia `$vpsIp = "IP_NUEVO_VPS"`.
+   - En [`Conectar_Puente_Webhook_MT5.bat`](Conectar_Puente_Webhook_MT5.bat): Cambia la variable `REMOTE_HOST=IP_NUEVO_VPS`.
+   - En [`Verificar_Servicio_24_7.bat`](Verificar_Servicio_24_7.bat): Cambia la variable `VPS_IP=IP_NUEVO_VPS`.
+   - Si generaste una nueva clave SSH para el nuevo VPS, guarda la clave privada como `VPS-Oracle\oracle_vps.key`.
+
+5. **Verificar Conexión desde Windows:**
+   - Ejecuta `.\desplegar_a_vps.bat` para confirmar la sincronización remota por SSH.
+   - Ejecuta `Conectar_Puente_Webhook_MT5.bat` para validar que el túnel SSH hacia el nuevo servidor levanta de inmediato en el puerto 8000.
+
+---
+
+### 8.3 Documentación Técnica: Trailing Stop por Estructura M15 y Protección de Ganancias
+
+En instrumentos de alta volatilidad como el Oro (`XAUUSD`), los Trailing Stops convencionales de puntos fijos sufren de cierres prematuros por ruido de mercado y mechas de liquidez. Por ello, el Asesor Experto [`StellarLite_Webhook_Bridge.mq5`](StellarLite_Webhook_Bridge.mq5) incorpora el algoritmo institucional **`CheckAutonomousStructuralTrailing()`**.
+
+```mermaid
+flowchart TD
+    Tick["Tick / Temporizador OnTimer (Cada 1s)"] --> Check{"¿Existe posición abierta con Magic 101501?"}
+    Check -->|No| Wait["Esperar siguiente ciclo"]
+    Check -->|Sí| EvalPnL["Calcular PnL Flotante en Puntos de Oro"]
+    
+    EvalPnL --> Step1{"¿PnL >= +1R (+6.50 pts)?"}
+    Step1 -->|No| Keep["Mantener SL inicial institucional"]
+    Step1 -->|Sí| CheckBE{"¿SL ya está en Break-Even?"}
+    CheckBE -->|No| MoveBE["Mover SL a Precio de Entrada ($0.00 Riesgo)"]
+    CheckBE -->|Sí| Step2{"¿PnL >= +2R (+13.00 pts)?"}
+    
+    Step2 -->|No| KeepBE["Mantener SL en Break-Even"]
+    Step2 -->|Sí| M15["Analizar últimas 4 velas cerradas M15 (rates 1..4)"]
+    
+    M15 --> Type{"¿Tipo de Posición?"}
+    Type -->|SELL / Venta| SwingH["Identificar Swing High más alto + 1.50 buffer"]
+    SwingH --> ModShort{"¿Nuevo SL < SL actual?"}
+    ModShort -->|Sí| ApplyShort["Ajustar SL por detrás del Swing High"]
+    ModShort -->|No| Wait
+    
+    Type -->|BUY / Compra| SwingL["Identificar Swing Low más bajo - 1.50 buffer"]
+    SwingL --> ModLong{"¿Nuevo SL > SL actual?"}
+    ModLong -->|Sí| ApplyLong["Ajustar SL por detrás del Swing Low"]
+    ModLong -->|No| Wait
+```
+
+#### Características Clave del Algoritmo:
+
+1. **Blindaje Nivel 1: Break-Even a +1R (+6.50 pts / +65 pips):**
+   - En cuanto la operación alcanza una distancia de beneficio de +$6.50 sobre el precio de llenado, el EA envía una orden `TRADE_ACTION_SLTP` colocando el `Stop Loss = Open Price`.
+   - La posición queda matemáticamente libre de riesgo monetario ($0.00 de exposición).
+
+2. **Blindaje Nivel 2: Trailing Stop Estructural a +2R (+13.00 pts / +130 pips):**
+   - Al superar el objetivo de 2R, el EA no utiliza distancias arbitrarias, sino la acción del precio en velas cerradas de 15 minutos (`rates[1]` a `rates[4]`):
+     - **Para Posiciones Vendedoras (SELL):**
+       $$\text{Swing High} = \max(\text{High}_1, \text{High}_2, \text{High}_3, \text{High}_4)$$
+       $$\text{Nuevo SL} = \text{Swing High} + 1.50\text{ (Buffer de Volatilidad)}$$
+       *Si $\text{Nuevo SL} < \text{SL Actual}$, el Stop Loss desciende, bloqueando el 80%+ de la ganancia estructuralmente.*
+     - **Para Posiciones Compradoras (BUY):**
+       $$\text{Swing Low} = \min(\text{Low}_1, \text{Low}_2, \text{Low}_3, \text{Low}_4)$$
+       $$\text{Nuevo SL} = \text{Swing Low} - 1.50\text{ (Buffer de Volatilidad)}$$
+       *Si $\text{Nuevo SL} > \text{SL Actual}$, el Stop Loss asciende protegiendo la subida.*
+
+3. **Cálculo de Distancias Relativas Broker-Agnostic:**
+   - El bot en la nube analiza cotizaciones globales (Yahoo Finance `GC=F`) mientras que MetaTrader 5 ejecuta contra el servidor del broker (`XAUUSD`). Debido a diferencias de spreads y proveedores, las cotizaciones absolutas pueden variar en decenas o cientos de puntos.
+   - Para evitar desajustes, el EA extrae las distancias absolutas de Stop Loss y Take Profit:
+     $$\text{slDist} = |\text{open\_price} - \text{sl}|, \quad \text{tpDist} = |\text{open\_price} - \text{tp}|$$
+   - Y las ancla directamente al precio de ejecución real del broker (`Bid` para compras o `Ask` para ventas), garantizando que el riesgo en dólares ($25.00 USD) sea exactamente el 0.50% sin importar la cotización del proveedor.
+
+4. **Fail-Safe de Auto-Sincronización Cloud $\leftrightarrow$ Broker:**
+   - Durante cada consulta al endpoint `/api/v1/status` del Webhook, el EA revisa el campo `open_trades_count`.
+   - Si el bot en la nube cerró la operación (por horario de sesión, regla de fin de semana a las 15:30 EST o condición de salida), pero la posición sigue abierta en MT5:
+   - El EA activa de inmediato la función de liquidación forzosa `PositionClose` con reintentos automáticos en modos `ORDER_FILLING_IOC`, `ORDER_FILLING_FOK` y `ORDER_FILLING_RETURN`, protegiendo la cuenta contra desincronizaciones o posiciones abandonadas.
+
+---
 
 ---
 
