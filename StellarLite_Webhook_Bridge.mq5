@@ -509,7 +509,7 @@ void OnDeinit(const int reason)
    Print("[EA MT5] Expert Advisor desinstalado del grafico.");
 }
 
-void CheckAutonomousBreakEven()
+void CheckAutonomousStructuralTrailing()
 {
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
@@ -526,7 +526,7 @@ void CheckAutonomousBreakEven()
          MqlTick tick;
          if(!SymbolInfoTick(sym, tick)) continue;
 
-         // Si es BUY y el precio Bid subió +6.50 puntos por encima de la entrada (+1R)
+         // 1. Blindaje Break-Even a +1R (+6.50 puntos)
          if(pType == POSITION_TYPE_BUY)
          {
             if(tick.bid >= (openPrice + 6.50) && (curSl < openPrice || curSl == 0.0))
@@ -536,10 +536,10 @@ void CheckAutonomousBreakEven()
                if(ExtTrade.PositionModify(ticket, newSl, curTp))
                {
                   ExtLastActionMsg = StringFormat("BUY #%I64u blindada a Break-Even ($0.00 riesgo)", ticket);
+                  curSl = newSl;
                }
             }
          }
-         // Si es SELL y el precio Ask bajó +6.50 puntos por debajo de la entrada (+1R)
          else if(pType == POSITION_TYPE_SELL)
          {
             if(tick.ask <= (openPrice - 6.50) && (curSl > openPrice || curSl == 0.0))
@@ -549,6 +549,55 @@ void CheckAutonomousBreakEven()
                if(ExtTrade.PositionModify(ticket, newSl, curTp))
                {
                   ExtLastActionMsg = StringFormat("SELL #%I64u blindada a Break-Even ($0.00 riesgo)", ticket);
+                  curSl = newSl;
+               }
+            }
+         }
+
+         // 2. Trailing Stop por Estructura Tecnica M15 (Alternativa B - Maximos/Minimos decrecientes)
+         // Se activa cuando la posicion avanza al menos +13.00 puntos (+2R) a favor
+         MqlRates ratesM15[];
+         ArraySetAsSeries(ratesM15, true);
+         int copied = CopyRates(sym, PERIOD_M15, 1, 4, ratesM15);
+         if(copied >= 4)
+         {
+            if(pType == POSITION_TYPE_SELL && (openPrice - tick.ask) >= 13.00)
+            {
+               // Buscar el maximo de las ultimas 4 velas M15 cerradas (resistencia)
+               double maxHigh = ratesM15[0].high;
+               for(int k = 1; k < copied; k++)
+               {
+                  if(ratesM15[k].high > maxHigh) maxHigh = ratesM15[k].high;
+               }
+               double structSl = NormalizeDouble(maxHigh + 1.50, digits);
+               // Si la estructura permite asegurar beneficio y es mas favorable que el SL actual
+               if(structSl < openPrice && (curSl == 0.0 || structSl < curSl) && (openPrice - structSl) >= 5.0)
+               {
+                  PrintFormat("[EA MT5] [TRAILING M15] SELL #%I64u: Nuevo SL Estructural @ %.2f (Max M15: %.2f + 1.50). Ganancia bloqueada: +$%.2f USD", 
+                              ticket, structSl, maxHigh, (openPrice - structSl));
+                  if(ExtTrade.PositionModify(ticket, structSl, curTp))
+                  {
+                     ExtLastActionMsg = StringFormat("SELL #%I64u Trailing M15 activo @ %.2f (+$%.2f garantizados)", ticket, structSl, (openPrice - structSl));
+                  }
+               }
+            }
+            else if(pType == POSITION_TYPE_BUY && (tick.bid - openPrice) >= 13.00)
+            {
+               // Buscar el minimo de las ultimas 4 velas M15 cerradas (soporte)
+               double minLow = ratesM15[0].low;
+               for(int k = 1; k < copied; k++)
+               {
+                  if(ratesM15[k].low < minLow) minLow = ratesM15[k].low;
+               }
+               double structSl = NormalizeDouble(minLow - 1.50, digits);
+               if(structSl > openPrice && (curSl == 0.0 || structSl > curSl) && (structSl - openPrice) >= 5.0)
+               {
+                  PrintFormat("[EA MT5] [TRAILING M15] BUY #%I64u: Nuevo SL Estructural @ %.2f (Min M15: %.2f - 1.50). Ganancia bloqueada: +$%.2f USD", 
+                              ticket, structSl, minLow, (structSl - openPrice));
+                  if(ExtTrade.PositionModify(ticket, structSl, curTp))
+                  {
+                     ExtLastActionMsg = StringFormat("BUY #%I64u Trailing M15 activo @ %.2f (+$%.2f garantizados)", ticket, structSl, (structSl - openPrice));
+                  }
                }
             }
          }
@@ -626,8 +675,8 @@ void OnTimer()
       }
    }
 
-   // Guardia de blindaje autónomo Break-Even local (+1R = +$6.50 en Oro)
-   CheckAutonomousBreakEven();
+   // Guardia de blindaje autónomo Break-Even local y Trailing Stop M15
+   CheckAutonomousStructuralTrailing();
    
    UpdateChartDashboard();
 }
