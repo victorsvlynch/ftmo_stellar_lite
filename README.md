@@ -27,6 +27,7 @@ Desarrollado en **Python Puro de Alto Rendimiento (sin interfaces web innecesari
    - [8.1 Escenario A: Mover a Otra PC en 1 Clic (`PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip`)](#81-escenario-a-mover-a-otra-pc-windows-1011-con-metatrader-5-en-1-clic)
    - [8.2 Escenario B: Mover o Replicar en un Nuevo Servidor Cloud / VPS Linux](#82-escenario-b-mover-o-replicar-en-un-nuevo-servidor-cloud--vps-linux-ubuntu--debian)
    - [8.3 Documentación Técnica: Trailing Stop por Estructura M15 y Protección de Ganancias](#83-documentación-técnica-trailing-stop-por-estructura-m15-y-protección-de-ganancias)
+   - [8.4 Protocolo Operativo en 2 PCs (Trabajo y Hogar) y Reglas Prop Firm](#84-protocolo-operativo-en-2-pcs-trabajo-y-hogar-y-reglas-prop-firm)
 9. [Estructura del Proyecto y Archivos Clave](#-estructura-del-proyecto-y-archivos-clave)
 10. [Protocolo de Contingencia y Hard Breach](#-protocolo-de-contingencia-y-hard-breach)
 11. [Herramientas DevOps, Snapshots, Grabación de Estados y CI/CD](#-herramientas-devops-snapshots-grabación-de-estados-y-cicd)
@@ -565,6 +566,40 @@ flowchart TD
    - Durante cada consulta al endpoint `/api/v1/status` del Webhook, el EA revisa el campo `open_trades_count`.
    - Si el bot en la nube cerró la operación (por horario de sesión, regla de fin de semana a las 15:30 EST o condición de salida), pero la posición sigue abierta en MT5:
    - El EA activa de inmediato la función de liquidación forzosa `PositionClose` con reintentos automáticos en modos `ORDER_FILLING_IOC`, `ORDER_FILLING_FOK` y `ORDER_FILLING_RETURN`, protegiendo la cuenta contra desincronizaciones o posiciones abandonadas.
+
+---
+
+### 8.4 Protocolo Operativo en 2 PCs (Trabajo y Hogar) y Reglas Prop Firm
+
+Es totalmente posible y habitual operar alternando entre la **computadora de tu trabajo** y tu **computadora personal (hogar)**. Para garantizar la seguridad del capital y el cumplimiento normativo con **FundedNext** y **FTMO**, sigue este protocolo:
+
+#### ⚠️ Regla de Oro Técnica: Solo 1 Terminal Ejecutando a la Vez
+El bot cuantitativo en el VPS de Oracle analiza el mercado 24/7 y genera una única orden institucional cuando se confirma una ruptura (riesgo fijo del 0.50% / $25.00 USD).
+
+> [!CAUTION]
+> **Peligro de Doble Ejecución Involuntaria:**  
+> Si dejas MetaTrader 5 abierto con el EA activo en la PC del trabajo **y al mismo tiempo** lo tienes abierto con el EA activo en tu PC personal:
+> * Ambas terminales consultarán la nube al mismo tiempo por el túnel SSH.
+> * Ambas terminales recibirán la señal y enviarán una orden al broker.
+> * **Consecuencia:** Se abrirían 2 órdenes (0.01 + 0.01 lotes), **duplicando el riesgo al 1.0% ($50 USD)** e incrementando innecesariamente la exposición.
+
+#### 🛡️ Rutina Diaria Recomendada (Modo Turnos):
+1. **Turno Oficina (08:30 – 11:30 EST):**  
+   * En la PC del trabajo: Abre `Control_Total_Bot.bat` (Opción 6: Iniciar Túnel SSH) y abre MetaTrader 5 con el botón **"Trading Algorítmico" en verde**.
+   * Opera la sesión de Nueva York y Wall Street.
+2. **Cierre de Jornada Laboral:**  
+   * Al retirarte de tu trabajo: **Cierra MetaTrader 5** en la PC de la oficina (o desactiva el botón de Trading Algorítmico con `Ctrl + E`).
+3. **Turno Hogar (Tarde / Noche o Sesión de Londres 03:00 – 06:00 EST):**  
+   * En tu PC personal: Abre MetaTrader 5, inicia el túnel SSH y continúa la supervisión o deja la terminal lista para la apertura europea.
+
+#### 🖥️ Modo de Visualización Simultánea (Si ambas PCs están encendidas):
+Si deseas tener ambas computadoras encendidas al mismo tiempo:
+* **PC Ejecutora (ej. Trabajo):** Botón *"Trading Algorítmico"* activado en verde (con el EA cargado en XAUUSD).
+* **PC Espejo / Visual (ej. Casa):** Botón *"Trading Algorítmico"* desactivado en rojo o gráficos sin el EA adjunto. Puedes ver el precio, las velas y las operaciones abiertas en tiempo real sin riesgo de duplicar órdenes.
+
+#### 📋 Cumplimiento de Reglas Prop Firm (FundedNext & FTMO):
+* **Ubicación e IP:** Las empresas de fondeo permiten expresamente que el trader opere desde su casa, trabajo o teléfono móvil en la misma ciudad/país.
+* **Prevención de "Account Sharing":** Las firmas prohíben compartir cuentas con terceros o usar servicios de gestión no autorizados (detectados cuando dos IPs distantes envían órdenes en el mismo segundo). Al alternar el uso con el **Modo Turnos** (una sola PC enviando órdenes a la vez), tu cuenta mantiene un registro 100% limpio y cumple estrictamente los términos de servicio.
 
 ---
 
