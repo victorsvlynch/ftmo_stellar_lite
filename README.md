@@ -73,6 +73,22 @@ Todos los activos tradicionales operan de **Lunes a Viernes**. Como la referenci
 2. **Cierre Forzoso Anti-Gap de Fin de Semana:** **Viernes a las 15:30 EST**. Toda posición abierta en Oro, S&P 500 o EUR/USD es liquidada forzosamente 90 minutos antes del cierre semanal para blindar la cuenta ante saltos de precios por noticias geopolíticas de fin de semana.
 3. **Sábados y Domingos:** Mercados cerrados (`4756 - Market closed`). Cero trading tradicional.
 
+#### 🇵🇪 Equivalencia y Referencia Horaria en Lima, Perú (PET / UTC-5):
+Perú no implementa horario de verano y mantiene su huso horario fijo en **PET (UTC-5)** todo el año. Su relación con el horario de Wall Street es la siguiente:
+
+1. **Horario de Invierno en EE. UU. (Noviembre a Marzo — EST = UTC-5):**
+   * **Coincidencia 100% exacta minuto a minuto:**
+     * **Apertura Londres (EUR/USD):** `03:00 a.m. – 06:00 a.m.` (Madrugada de Lima).
+     * **Apertura NY (Oro / XAUUSD):** `08:30 a.m. – 11:30 a.m.` (Mañana de Lima).
+     * **Wall Street Cash Open (S&P 500):** `09:30 a.m. – 11:30 a.m.` (Mañana de Lima).
+     * **Cierre Anti-Gap (Viernes):** `03:30 p.m.` (Tarde de Lima).
+2. **Horario de Verano en EE. UU. (Marzo a Noviembre — EDT = UTC-4):**
+   * Nueva York se adelanta 1 hora; por tanto, en Lima la campana abre **1 hora más temprano**:
+     * **Apertura Londres (EUR/USD):** `02:00 a.m. – 05:00 a.m.` (Madrugada de Lima).
+     * **Apertura NY (Oro / XAUUSD):** `07:30 a.m. – 10:30 a.m.` (Mañana de Lima).
+     * **Wall Street Cash Open (S&P 500):** `08:30 a.m. – 10:30 a.m.` (Mañana de Lima).
+     * **Cierre Anti-Gap (Viernes):** `02:30 p.m.` (Tarde de Lima).
+
 ---
 
 ### 🖥️ Arquitectura Master Bridge en MetaTrader 5 (3 Gráficos en Mosaico)
