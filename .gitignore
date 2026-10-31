@@ -65,6 +65,7 @@ telegram_config.json
 archives/
 */archives/
 backups/
+EXPORT_PACK_PORTABILIDAD/
 snapshot-manifest*.json
 manifest*.json
 *.zip

@@ -9,24 +9,27 @@ Desarrollado en **Python Puro de Alto Rendimiento (sin interfaces web innecesari
 ## 📋 Tabla de Contenidos
 
 1. [Configuración Oficial Contratada (FundedNext Checkout)](#-configuración-oficial-contratada-fundednext-checkout)
-2. [Estrategia Ganadora Seleccionada: NY_OPEN (Oro / XAUUSD)](#-estrategia-ganadora-seleccionada-ny_open-oro--xauusd)
+2. [Estrategia Ganadora Seleccionada y Portafolio Multi-Activo](#-estrategia-ganadora-seleccionada-y-portafolio-multi-activo)
+   - [Calendario y Horarios Operativos de los Activos (EST / UTC-5)](#-calendario-y-horarios-operativos-de-los-activos-est--utc-5)
+   - [Arquitectura Master Bridge en MetaTrader 5 (3 Gráficos en Mosaico)](#-arquitectura-master-bridge-en-metatrader-5-3-gráficos-en-mosaico)
+   - [Portafolio Descorrelacionado: S&P 500 (`US500`) + EUR/USD (`EURUSD`)](#-portafolio-profesional-multi-activo-sp-500-esf--us500--eurusd-eurusdx--eurusd)
 3. [Arquitectura del Motor Cuantitativo y Reglas de Riesgo](#-arquitectura-del-motor-cuantitativo-y-reglas-de-riesgo)
 4. [Puente Institucional con MetaTrader 5 (`mt5_bridge.py`)](#-puente-institucional-con-metatrader-5-mt5_bridgepy)
 5. [Guía de Ejecución Rápida y Modalidades de Trading](#-guía-de-ejecución-rápida-y-modalidades-de-trading)
    - [Prueba Interactiva en Vivo con MetaTrader 5 (`Ejecutar_Prueba_MT5.bat`)](#1-prueba-interactiva-en-vivo-con-metatrader-5)
    - [Modalidades de Operación: Opción B.2 (MT5 Automático) y Opción C (Telegram Celular)](#2-modalidades-de-ejecución-disponibles)
    - [Monitoreo en Tiempo Real de la Estrategia Ganadora (`Dashboard_Operaciones_En_Vivo.bat`)](#3-monitoreo-en-tiempo-real-de-la-estrategia-ganadora)
-   - [Suite de Pruebas Automatizadas 100% OK (`test_verification.py`)](#4-suite-de-pruebas-automatizadas-100-ok)
+   - [Suite de Pruebas Automatizadas 100% OK (`test_verification.py` - 10/10)](#4-suite-de-pruebas-automatizadas-100-ok)
    - [Consola Interactiva Avanzada (`stellar-cli>`)](#5-consola-interactiva-avanzada-stellar-cli)
 6. [Operación y Despliegue 24/7 en Servidor Oracle Cloud (OCI)](#-operación-y-despliegue-247-en-servidor-oracle-cloud-oci)
 7. [Panel de Control Maestro (`Control_Total_Bot.bat`) y Dashboards](#-panel-de-control-maestro-control_total_botbat-y-dashboards)
 8. [Guía de Migración y Portabilidad Total (PC Windows y Servidores Cloud/VPS)](#-guía-de-migración-y-portabilidad-total-pc-windows-y-servidores-cloudvps)
-   - [8.1 Escenario A: Mover a Otra PC (Windows 10/11 con MetaTrader 5)](#81-escenario-a-mover-a-otra-pc-windows-1011-con-metatrader-5)
+   - [8.1 Escenario A: Mover a Otra PC en 1 Clic (`PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip`)](#81-escenario-a-mover-a-otra-pc-windows-1011-con-metatrader-5-en-1-clic)
    - [8.2 Escenario B: Mover o Replicar en un Nuevo Servidor Cloud / VPS Linux](#82-escenario-b-mover-o-replicar-en-un-nuevo-servidor-cloud--vps-linux-ubuntu--debian)
    - [8.3 Documentación Técnica: Trailing Stop por Estructura M15 y Protección de Ganancias](#83-documentación-técnica-trailing-stop-por-estructura-m15-y-protección-de-ganancias)
 9. [Estructura del Proyecto y Archivos Clave](#-estructura-del-proyecto-y-archivos-clave)
 10. [Protocolo de Contingencia y Hard Breach](#-protocolo-de-contingencia-y-hard-breach)
-11. [Herramientas DevOps, Snapshots y CI/CD](#-herramientas-devops-snapshots-y-cicd)
+11. [Herramientas DevOps, Snapshots, Grabación de Estados y CI/CD](#-herramientas-devops-snapshots-grabación-de-estados-y-cicd)
 
 ---
 
@@ -47,9 +50,53 @@ El motor cuantitativo tiene incorporadas de forma nativa en su lógica de evalua
 
 ---
 
-## 🏆 Estrategia Ganadora Seleccionada: NY_OPEN (Oro / XAUUSD)
+## 🏆 Estrategia Ganadora Seleccionada y Portafolio Multi-Activo
 
-Tras auditar y simular múltiples configuraciones bajo fricción institucional real (comisiones, spreads dinámicos y slippage), **se podaron y desactivaron permanentemente las estrategias secundarias** (Londres, Cripto 24/7 y combinados) para concentrar todo el capital y la gestión en la **estrategia cuantitativa ganadora**:
+Tras auditar y simular múltiples configuraciones bajo fricción institucional real (comisiones, spreads dinámicos y slippage), el sistema opera con dos configuraciones de élite: la **estrategia monoproducto ganadora en Oro (`NY_OPEN`)** y el **portafolio diversificado descorrelacionado (S&P 500 + EUR/USD)**.
+
+---
+
+### ⏰ Calendario y Horarios Operativos de los Activos (EST / UTC-5)
+
+Todos los activos tradicionales operan de **Lunes a Viernes**. Como la referencia horaria del bot es **Hora de Nueva York (EST)**, los horarios en huso horario **UTC-5** (Colombia, Perú, Ecuador, CDMX) coinciden exactamente con la hora de Wall Street:
+
+| Activo | Días Operativos | Sesión Clave | Vela de Rango (ORB 15m) | Ventana Operativa Activa (Hora Local UTC-5 / EST) | Hora Servidor VPS (UTC) |
+| :--- | :---: | :--- | :---: | :---: | :---: |
+| **Oro** (`XAUUSD` / `GC=F`) | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30** | 13:45 – 16:30 UTC |
+| **S&P 500** (`US500` / `ES=F`) | **Lunes a Viernes** | **Wall Street Cash Open** | 09:30 – 09:45 | **09:45 – 11:30** | 14:45 – 16:30 UTC |
+| **EUR/USD** (`EURUSD`) *(Ventana 1)* | **Lunes a Viernes** | **Apertura Londres** | 03:00 – 03:15 | **03:15 – 06:00** | 08:15 – 11:00 UTC |
+| **EUR/USD** (`EURUSD`) *(Ventana 2)* | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30** | 13:45 – 16:30 UTC |
+
+#### Reglas de Apertura, Cierre y Protección de Fin de Semana:
+1. **Apertura Semanal de Mercados:** Domingo a las 17:00 / 18:00 EST. El bot permanece en espera y **no abre operaciones el domingo** debido al spread ensanchado interbancario; espera a la sesión de Londres del lunes a las 03:00 EST.
+2. **Cierre Forzoso Anti-Gap de Fin de Semana:** **Viernes a las 15:30 EST**. Toda posición abierta en Oro, S&P 500 o EUR/USD es liquidada forzosamente 90 minutos antes del cierre semanal para blindar la cuenta ante saltos de precios por noticias geopolíticas de fin de semana.
+3. **Sábados y Domingos:** Mercados cerrados (`4756 - Market closed`). Cero trading tradicional.
+
+---
+
+### 🖥️ Arquitectura Master Bridge en MetaTrader 5 (3 Gráficos en Mosaico)
+
+Para visualizar y operar simultáneamente los 3 activos de forma profesional sin conflictos de sondeo duplicado:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        METATRADER 5 (Mosaico Alt + R)                  │
+├──────────────────────────┬──────────────────────────┬──────────────────┤
+│        VENTANA 1         │        VENTANA 2         │    VENTANA 3     │
+│       XAUUSD (H1)        │        US500 (H1)        │   EURUSD (H1)    │
+│  [ MASTER BRIDGE EA ]    │    [ SOLO VISUAL ]       │  [ SOLO VISUAL ] │
+│  * Recibe señales Cloud  │    * Gráfico abierto     │  * Gráfico       │
+│  * Ejecuta XAU/US/EUR    │    * Sin EA adjunto      │  * Sin EA        │
+│  * Break-Even + Trailing │    * Acción de precio    │  * Velas M15     │
+└──────────────────────────┴──────────────────────────┴──────────────────┘
+```
+
+#### Regla de Oro en MT5:
+* **Un Solo EA Activo en la Cuenta:** El Expert Advisor [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) es un **Bridge Multi-Activo Global**. Desde un único gráfico (recomendado: **`XAUUSD`**), lee la orden de la nube con el símbolo correspondiente (`XAUUSD`, `US500` o `EURUSD`) y la envía al broker de inmediato.
+* Además, su motor autónomo de Break-Even (+1R) y Trailing Stop M15 recorre todas las posiciones de la cuenta para proteger los 3 activos.
+* **Organización:** Abre los 3 gráficos, presiona `Alt + R` (Ventana $\rightarrow$ Mosaico) y arrastra el EA **únicamente al gráfico de Oro**. En los gráficos de S&P 500 y EUR/USD manténlos sin el EA para evitar peticiones duplicadas a la cola de señales.
+
+---
 
 ### ¿Por qué `NY_OPEN` es la Estrategia Ganadora?
 - **Mayor Concentración de Volumen Institucional:** El 68% de las transacciones globales del Oro Spot y Futuros COMEX ocurren entre las 08:30 y las 11:30 EST.
@@ -188,9 +235,9 @@ Para observar el motor cuantitativo operando en vivo, analizando el mercado segu
 
 ---
 
-### 4. Suite de Pruebas Automatizadas (100% OK)
+### 4. Suite de Pruebas Automatizadas (100% OK - 10/10)
 
-El proyecto incluye una suite integral de 9 pruebas unitarias y de integración que validan matemáticamente todas las reglas del broker, filtros anti-trampas y cálculos de riesgo:
+El proyecto incluye una suite integral de 10 pruebas unitarias y de integración que validan matemáticamente todas las reglas del broker, filtros anti-trampas y cálculos de riesgo:
 
 - **Desde Windows:**
   Haz doble clic en `VPS-Oracle\Ejecutar_Tests_Verificacion.bat`.
@@ -198,7 +245,7 @@ El proyecto incluye una suite integral de 9 pruebas unitarias y de integración 
   ```bash
   python test_verification.py
   ```
-- **Pruebas Validadas:**
+- **Pruebas Validadas (10/10 PASS):**
   1. Estrategia ORB: Anti-Fakeout y filtro EMA 200 H1.
   2. Fricción institucional (comisiones + spread dinámico).
   3. Base de datos SQLite y auditoría financiera.
@@ -208,6 +255,7 @@ El proyecto incluye una suite integral de 9 pruebas unitarias y de integración 
   7. Resiliencia del sistema de notificaciones Telegram.
   8. Detección de target y bloqueo anti-overtrading.
   9. Add-ons de FundedNext (`cloud.png`: No Min Days, 10% Max Loss, 95% Split).
+  10. Portafolio Profesional Multi-Activo: S&P 500 (`ES=F` / `US500`) y EUR/USD (`EURUSD=X` / `EURUSD`) con dimensionamiento institucional por contrato y filtros de sesión horaria (Londres vs Wall Street Cash).
 
 ---
 
@@ -363,58 +411,39 @@ flowchart TD
 
 ---
 
-### 8.1 Escenario A: Mover a Otra PC (Windows 10/11 con MetaTrader 5)
+### 8.1 Escenario A: Mover a Otra PC (Windows 10/11 con MetaTrader 5) en 1 Clic
 
-Si cambias de computadora, formateas o deseas tener el sistema listo para operar en una laptop secundaria o de respaldo, sigue este procedimiento:
+Para migrar todo el sistema a una nueva computadora portátil o de escritorio sin tener que configurar nada a mano, utiliza el **Pack de Portabilidad Automatizado**:
 
-#### Requisitos Previos en la Nueva PC Windows:
-- **Sistema Operativo:** Windows 10 o Windows 11 (64-bit).
-- **Python 3.10 o Superior:** Descárgalo desde [python.org](https://www.python.org/downloads/).
-  > [!IMPORTANT]
-  > Durante la instalación de Python, **marca obligatoriamente la casilla:**
-  > ☑️ **"Add python.exe to PATH"** (Agregar Python al PATH del sistema).
-- **Git para Windows (Opcional pero recomendado):** Descárgalo desde [git-scm.com](https://git-scm.com/).
-- **MetaTrader 5:** Descarga e instala la terminal oficial de tu broker (o MetaTrader 5 estándar) e inicia sesión con tu cuenta de FundedNext.
+#### 📦 Paquete Portable Incluido:
+* **Archivo ZIP directo:** [`PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip`](PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip) (1.59 MB con los 173 archivos del ecosistema).
+* **Carpeta del Paquete:** [`EXPORT_PACK_PORTABILIDAD/`](EXPORT_PACK_PORTABILIDAD/)
 
-#### Paso a Paso:
-1. **Obtener el Código:**
-   - *Vía Git:* Abre CMD o PowerShell y clona el repositorio:
-     ```bash
-     git clone https://github.com/victorsvlynch/ftmo_stellar_lite.git
-     cd ftmo_stellar_lite
-     ```
-   - *Vía USB o Disco:* Copia la carpeta completa `FTMO_Stellar_Lite` a la nueva máquina (ej. `C:\Trading\FTMO_Stellar_Lite`).
-2. **Instalar Dependencias de Python:**
-   En la raíz del proyecto, ejecuta:
-   ```cmd
-   pip install -r requirements.txt
-   ```
-   *Instala en segundos los módulos esenciales (`MetaTrader5`, `yfinance`, `pandas`, `numpy`, `tabulate`).*
-3. **Clave SSH de Conexión con la Nube:**
-   - Los scripts `.bat` del proyecto detectan de forma automática si la clave `oracle_vps.key` existe en la carpeta `VPS-Oracle\` y la copian a `%USERPROFILE%\.ssh\oracle_vps.key`.
-   - Puedes verificar la conexión ejecutando:
-     ```cmd
-     ssh -i "%USERPROFILE%\.ssh\oracle_vps.key" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "echo Conexion OK"
-     ```
-4. **Instalar el Asesor Experto en MetaTrader 5:**
-   - En MT5, ve a: **Archivo ➔ Abrir Carpeta de Datos**.
-   - Entra a la carpeta **`MQL5\Experts\`** y pega el archivo precompilado [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5).
-   - En MT5, en el panel izquierdo **Navegador**, haz clic derecho sobre **Asesores Expertos ➔ Actualizar**.
-   - Abre el gráfico de Oro (**`XAUUSD`**) en temporalidad **M15**.
-   - Arrastra `StellarLite_Webhook_Bridge` al gráfico de Oro:
-     - En la pestaña **Común**: Marca **"Permitir el trading algorítmico"**.
-     - En la pestaña **Parámetros**: Comprueba que la URL sea `http://127.0.0.1:8000`.
-   - En la barra superior de MT5, activa el botón **"Trading Algorítmico"** (color verde, o `Ctrl + E`).
-   - En **Herramientas ➔ Opciones ➔ Asesores Expertos**:
-     - Marca *"Permitir WebRequest para las siguientes URL"* y agrega:
-       - `http://127.0.0.1:8000`
-       - `http://157.137.225.144:8000`
-5. **Verificar Alertas de Telegram (Opción C):**
-   - Haz doble clic en [`Probar_Alerta_Telegram.bat`](Probar_Alerta_Telegram.bat). Tu teléfono móvil sonará al instante con la notificación de prueba.
-6. **Lanzar el Panel de Control:**
-   - Ejecuta [`Control_Total_Bot.bat`](Control_Total_Bot.bat).
-   - Selecciona la **Opción 4** para levantar el túnel SSH seguro en segundo plano.
-   - Selecciona la **Opción 1** para abrir el Dashboard en Vivo de Wall Street.
+#### Contenido del Pack:
+1. `01_MT5_Configuracion/`: EA precompilado (`.ex5` y `.mq5`), `common.ini` (con URLs de WebRequest pre-autorizadas), `servers.dat`, `accounts.dat` y plantillas de gráficos.
+2. `02_SSH_Keys_Oracle_VPS/`: Llaves SSH (`oracle_vps.key`) con permisos configurables.
+3. `03_Codigo_Python_Proyecto/`: Motor completo, bases de datos sincronizadas (`trading_ny_open.db`), lanzadores `.bat` y `requirements.txt`.
+4. `INSTALAR_EN_NUEVA_PC.bat`: Instalador interactivo automático en 1 clic.
+
+#### Procedimiento de Restauración en 3 Pasos (Tiempo estimado: 2 minutos):
+
+1. **Requisitos Mínimos en la Nueva PC:**
+   - Tener instalado **MetaTrader 5**.
+   - Tener instalado **Python 3.10 o superior** (marcando obligatoriamente ☑️ **"Add python.exe to PATH"**).
+
+2. **Ejecutar el Instalador en 1 Clic:**
+   - Descomprime `PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip` en la nueva PC (ej. `C:\FTMO_Stellar_Lite`).
+   - Haz doble clic en **`INSTALAR_EN_NUEVA_PC.bat`**.
+   - El instalador automáticamente:
+     - Crea la carpeta `%USERPROFILE%\.ssh` e instala las llaves con permisos estrictos de Windows (`icacls`).
+     - Detecta la instalación de MT5 y copia el EA a `MQL5\Experts\` e inyecta la configuración de WebRequest en `Config\common.ini`.
+     - Instala las dependencias requeridas de Python vía `pip install -r requirements.txt`.
+     - Verifica la conexión en vivo con Oracle Cloud VPS (`157.137.225.144`).
+
+3. **Puesta en Marcha:**
+   - Abre **MetaTrader 5**, organiza los gráficos de **XAUUSD**, **US500** y **EURUSD** en mosaico (`Alt + R`), y coloca el EA **únicamente en XAUUSD** (Master Bridge).
+   - Abre `03_Codigo_Python_Proyecto\Control_Total_Bot.bat` y selecciona la **Opción 6** para levantar el túnel SSH.
+   - En el gráfico de MT5 verás inmediatamente: `Estado Conexion: CONECTADO A ORACLE CLOUD (ONLINE)`.
 
 ---
 
@@ -601,7 +630,7 @@ El motor cuenta con un mecanismo de seguridad a nivel de microsegundos para prot
 
 ---
 
-## 🛠️ Herramientas DevOps, Snapshots y CI/CD
+## 🛠️ Herramientas DevOps, Snapshots, Grabación de Estados y CI/CD
 
 ### 1. Auto-Push Inteligente a GitHub (`auto_push.bat`)
 Ejecuta:
@@ -610,13 +639,19 @@ Ejecuta:
 ```
 *Analiza las diferencias de código (`git diff`), redacta un mensaje profesional siguiendo el estándar de **Conventional Commits** y realiza el push a GitHub automáticamente.*
 
-### 2. Respaldos y Snapshots Comprimidos (`archify.bat`)
-Genera archivos de respaldo estructurados con manifiesto JSON en la carpeta `archives/`:
+### 2. Respaldos, Grabación de Estados y Snapshots (`archify.bat`)
+Genera archivos de respaldo estructurados e inmutables con manifiesto JSON en la carpeta `archives/`:
 ```cmd
 .\archify.bat Databases       # Respalda todas las bases de datos SQLite (*.db)
-.\archify.bat Full v2.0.0     # Respaldo completo del código fuente limpio
+.\archify.bat Full v2.1.0     # Respaldo completo del código fuente limpio
 .\archify.bat All             # Respaldo combinado de bases de datos y código
 ```
+*Crea una "grabación de estado" (snapshot comprimido) con hash SHA-256 de integridad para auditoría y restauración rápida.*
 
-### 3. Integración Continua (GitHub Actions)
-Configurado en `.github/workflows/release.yml`. Cada `push` a la rama `main` ejecuta la suite completa de pruebas [`test_verification.py`](test_verification.py). Si las 9 pruebas son superadas con éxito, genera automáticamente un nuevo Release en GitHub.
+### 3. Grabación de Video / Evidencia de Pantalla para Empresas de Fondeo (FTMO / FundedNext)
+Si la empresa de fondeo requiere evidencia o grabación en video de la operativa del Asesor Experto en MetaTrader 5:
+* **Grabador Nativo de Windows:** Presiona `Win + Alt + R` para iniciar o detener la grabación en video de la ventana de MetaTrader 5 (las grabaciones se guardan automáticamente en `Videos\Capturas`).
+* **Atajo del Panel de Juego:** Presiona `Win + G` para ajustar micrófono, audio del sistema y calidad de captura.
+
+### 4. Integración Continua (GitHub Actions)
+Configurado en `.github/workflows/release.yml`. Cada `push` a la rama `main` ejecuta la suite completa de pruebas [`test_verification.py`](test_verification.py). Si las 10 pruebas son superadas con éxito (100% OK), genera automáticamente un nuevo Release en GitHub.
