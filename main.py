@@ -131,6 +131,8 @@ def print_console_report(
     strat_label = "NY ORB 15m (08:30 EST)"
     if risk.session_mode in ("LONDON_OPEN", "LONDON"):
         strat_label = "LONDON ORB 15m (03:00 EST)"
+    elif risk.session_mode in ("PORTFOLIO_DUAL", "SP500_EURUSD"):
+        strat_label = "PORTFOLIO DUAL (EUR/USD LDN/NY + S&P 500 NY 09:30 EST)"
     elif risk.session_mode in ("COMBO_DUAL", "NY_LONDON"):
         strat_label = "COMBO DUAL (LDN 03:00 + NY 08:30 EST)"
     elif risk.session_mode == "COMBO_TRIO":
@@ -1099,8 +1101,8 @@ def parse_args() -> argparse.Namespace:
         "--session",
         type=str,
         default="NY_OPEN",
-        choices=["NY_OPEN", "LONDON_OPEN", "LONDON_NY", "ALL", "CRYPTO_24H", "COMBO_DUAL", "COMBO_TRIO"],
-        help="Filtro de sesión operativa ('NY_OPEN', 'LONDON_OPEN', 'ALL', 'COMBO_DUAL', 'COMBO_TRIO').",
+        choices=["NY_OPEN", "LONDON_OPEN", "LONDON_NY", "ALL", "CRYPTO_24H", "COMBO_DUAL", "COMBO_TRIO", "PORTFOLIO_DUAL", "SP500_EURUSD"],
+        help="Filtro de sesión operativa ('NY_OPEN', 'LONDON_OPEN', 'PORTFOLIO_DUAL', 'SP500_EURUSD', 'ALL', 'COMBO_DUAL', 'COMBO_TRIO').",
     )
     parser.add_argument(
         "--interval",

@@ -131,7 +131,46 @@ class MT5Bridge:
 
         self.account_info = acc._asdict()
         self.connected = True
+
+        # Sincronizar automáticamente especificaciones reales del broker con RiskManager
+        try:
+            self.sync_specs_to_risk_manager()
+        except Exception:
+            pass
+
         return True
+
+    def sync_specs_to_risk_manager(self) -> Dict[str, Dict[str, float]]:
+        """
+        Lee dinámicamente las especificaciones de contrato de los activos principales
+        directamente desde MT5 y las registra en RiskManager.
+        """
+        from risk_manager import RiskManager
+        synced = {}
+        for generic in ("XAUUSD", "US500", "EURUSD"):
+            real_sym = self.detect_broker_symbol(generic)
+            spec = self.get_symbol_specification(real_sym)
+            if spec:
+                pip_size = float(spec["point"]) * (10.0 if spec.get("digits", 2) in (3, 5) else 1.0)
+                spec_dict = {
+                    "contract_size": float(spec.get("trade_contract_size", 1.0)),
+                    "pip_size": pip_size,
+                    "min_lot": float(spec.get("volume_min", 0.01)),
+                    "max_lot": float(spec.get("volume_max", 100.0)),
+                    "lot_step": float(spec.get("volume_step", 0.01)),
+                    "commission_per_lot": 3.0 if "500" in real_sym else 5.0,
+                    "typical_spread": float(spec.get("spread", 10)) * float(spec.get("point", 0.01)),
+                }
+                RiskManager.set_custom_instrument_spec(real_sym, spec_dict)
+                RiskManager.set_custom_instrument_spec(generic, spec_dict)
+                if generic == "US500":
+                    RiskManager.set_custom_instrument_spec("ES=F", spec_dict)
+                elif generic == "EURUSD":
+                    RiskManager.set_custom_instrument_spec("EURUSD=X", spec_dict)
+                elif generic == "XAUUSD":
+                    RiskManager.set_custom_instrument_spec("GC=F", spec_dict)
+                synced[real_sym] = spec_dict
+        return synced
 
     def get_account_summary(self) -> Dict[str, Any]:
         """Devuelve un resumen estructurado del balance, equidad, apalancamiento y servidor."""
@@ -162,10 +201,43 @@ class MT5Bridge:
         Detecta dinámicamente cómo nombra el broker el contrato de Oro Spot / CFDs.
         Variaciones comunes en FundedNext y brokers MT5: 'XAUUSD', 'XAUUSD.m', 'XAUUSD.raw', 'GOLD', 'GC=F'.
         """
-        mt5 = self._ensure_mt5_module()
-        candidates = ["XAUUSD", "XAUUSD.m", "XAUUSD.raw", "XAUUSD.pro", "GOLD", "GC=F"]
+        return self.detect_broker_symbol("XAUUSD")
 
-        # 1. Probar candidatos típicos
+    def detect_eurusd_symbol(self) -> str:
+        """Detecta dinámicamente cómo nombra el broker el par EUR/USD."""
+        return self.detect_broker_symbol("EURUSD")
+
+    def detect_sp500_symbol(self) -> str:
+        """Detecta dinámicamente cómo nombra el broker el índice S&P 500."""
+        return self.detect_broker_symbol("US500")
+
+    def detect_broker_symbol(self, requested_symbol: str) -> str:
+        """
+        Detecta inteligentemente la nomenclatura exacta del broker en MT5 para cualquier activo:
+        Oro (XAUUSD), EUR/USD, S&P 500 (US500, SPX500) o Nasdaq 100 (US100, NAS100).
+        """
+        mt5 = self._ensure_mt5_module()
+        clean = requested_symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
+
+        # 1. Definir lista de candidatos prioritarios según activo
+        if any(k in clean for k in ("500", "ES", "SPX")):
+            candidates = ["US500", "US500.cash", "SPX500", "USA500", "US500m", "US500.raw", "US500.pro", "SP500", "ES"]
+            match_keywords = ["500", "SPX"]
+            fallback = "US500"
+        elif "EUR" in clean:
+            candidates = ["EURUSD", "EURUSDm", "EURUSD.raw", "EURUSD.pro", "EURUSDb", "EURUSD.cash", "EURUSD+"]
+            match_keywords = ["EUR", "USD"]
+            fallback = "EURUSD"
+        elif any(k in clean for k in ("100", "NQ", "NAS", "USTEC")):
+            candidates = ["US100", "US100.cash", "NAS100", "USTEC", "US100m", "US100.raw", "NAS100.raw", "NQ"]
+            match_keywords = ["100", "NAS", "USTEC"]
+            fallback = "US100"
+        else:
+            candidates = ["XAUUSD", "GOLD", "XAUUSD.m", "XAUUSDm", "XAUUSD.raw", "XAUUSD.pro", "GC=F"]
+            match_keywords = ["XAU", "GOLD"]
+            fallback = "XAUUSD"
+
+        # 2. Probar candidatos típicos directos
         for cand in candidates:
             info = mt5.symbol_info(cand)
             if info is not None:
@@ -173,22 +245,17 @@ class MT5Bridge:
                     mt5.symbol_select(cand, True)
                 return cand
 
-        # 2. Búsqueda por coincidencia en todos los símbolos del broker
+        # 3. Búsqueda por coincidencia en todos los símbolos del broker
         symbols = mt5.symbols_get()
         if symbols:
             for s in symbols:
                 name_upper = s.name.upper()
-                if "XAU" in name_upper and "USD" in name_upper:
-                    if not s.visible:
-                        mt5.symbol_select(s.name, True)
-                    return s.name
-            for s in symbols:
-                if s.name.upper() == "GOLD":
+                if all(kw in name_upper for kw in match_keywords):
                     if not s.visible:
                         mt5.symbol_select(s.name, True)
                     return s.name
 
-        return "XAUUSD"
+        return fallback
 
     def get_symbol_specification(self, symbol: str) -> Dict[str, Any]:
         """Obtiene las especificaciones exactas del contrato en el broker MT5."""

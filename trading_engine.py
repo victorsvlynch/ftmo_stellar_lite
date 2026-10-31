@@ -65,6 +65,22 @@ class MarketDataConnector:
         raise RuntimeError("No fue posible inicializar ningún exchange en CCXT.")
 
     @staticmethod
+    def resolve_yahoo_symbol(symbol: str) -> str:
+        """Mapea símbolos de brokers/índices a los tickers oficiales de Yahoo Finance."""
+        clean_upper = symbol.upper().replace(".M", "").replace(".RAW", "").replace(".PRO", "")
+        if clean_upper in ("XAUUSD", "XAU/USD", "GOLD"):
+            return "GC=F"
+        if clean_upper in ("EURUSD", "EUR/USD"):
+            return "EURUSD=X"
+        if clean_upper in ("GBPUSD", "GBP/USD"):
+            return "GBPUSD=X"
+        if any(k in clean_upper for k in ("US500", "SPX500", "SP500", "USA500")) and "NQ" not in clean_upper:
+            return "ES=F"
+        if any(k in clean_upper for k in ("US100", "NAS100", "USTEC")):
+            return "NQ=F"
+        return symbol
+
+    @staticmethod
     def _fetch_yahoo_direct(
         symbol: str,
         interval: str = "15m",
@@ -76,7 +92,7 @@ class MarketDataConnector:
         """
         import requests
 
-        yf_symbol = "GC=F" if symbol.upper() in ("XAUUSD", "XAU/USD", "GOLD") else symbol
+        yf_symbol = MarketDataConnector.resolve_yahoo_symbol(symbol)
         headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -166,7 +182,7 @@ class MarketDataConnector:
         # 2. Conector secundario de respaldo vía librería yfinance
         try:
             import yfinance as yf
-            yf_symbol = "GC=F" if symbol.upper() in ("XAUUSD", "XAU/USD", "GOLD") else symbol
+            yf_symbol = self.resolve_yahoo_symbol(symbol)
             ticker = yf.Ticker(yf_symbol)
             df = ticker.history(period="5d", interval="15m")
             if df is not None and not df.empty:
@@ -227,7 +243,7 @@ class MarketDataConnector:
         # 2. Conector secundario de respaldo vía librería yfinance
         try:
             import yfinance as yf
-            yf_symbol = "GC=F" if symbol.upper() in ("XAUUSD", "XAU/USD", "GOLD") else symbol
+            yf_symbol = self.resolve_yahoo_symbol(symbol)
             ticker = yf.Ticker(yf_symbol)
             df = ticker.history(period="1mo", interval="1h")
             if df is not None and not df.empty:
@@ -264,9 +280,19 @@ class MarketDataConnector:
         end_time = pd.Timestamp.now(tz=tz_ny).floor(freq)
         date_index = pd.date_range(end=end_time, periods=limit, freq=freq, tz=tz_ny)
 
-        base_price = 4050.0 if ("GC" in symbol.upper() or "XAU" in symbol.upper()) else (
-            80000.0 if "BTC" in symbol.upper() else 1.0850
-        )
+        sym_u = symbol.upper()
+        if "GC" in sym_u or "XAU" in sym_u or "GOLD" in sym_u:
+            base_price = 2700.0
+        elif any(k in sym_u for k in ("ES", "500", "SPX")):
+            base_price = 5850.0
+        elif any(k in sym_u for k in ("NQ", "100", "NAS")):
+            base_price = 20500.0
+        elif "EUR" in sym_u:
+            base_price = 1.0950
+        elif "BTC" in sym_u:
+            base_price = 85000.0
+        else:
+            base_price = 1.0850
         volatility = base_price * (0.0025 if freq == "1h" else 0.0012)
 
         rng = np.random.default_rng(seed=int(end_time.strftime("%Y%m%d%H")))
@@ -350,6 +376,8 @@ class OpeningRangeBreakoutStrategy:
 
         clean_sym = symbol.upper()
         is_crypto = "BTC" in clean_sym or "/" in clean_sym or "USDT" in clean_sym
+        is_index = any(k in clean_sym for k in ("ES", "500", "SPX", "NQ", "100", "NAS", "USTEC"))
+        is_forex = any(k in clean_sym for k in ("EUR", "GBP", "JPY", "AUD", "CAD", "CHF"))
         mode_upper = session_mode.upper()
 
         # Cálculo de Filtro de Tendencia Macro (EMA 200 en 1H)
@@ -364,7 +392,7 @@ class OpeningRangeBreakoutStrategy:
             except Exception:
                 ema_200_1h = None
 
-        # Determinar si buscamos vela de Londres (03:00 EST), vela de NY (08:30 EST), o dinámico
+        # Determinar si buscamos vela de Wall Street (09:30 EST), Londres (03:00 EST), NY (08:30 EST), o dinámico
         target_hour = None
         target_minute = None
         orb_type = "NY ORB 15m"
@@ -372,14 +400,36 @@ class OpeningRangeBreakoutStrategy:
         if is_crypto or mode_upper in ("CRYPTO_24H", "ALL"):
             target_hour = None
             orb_type = "CRYPTO 15m"
+        elif is_index and mode_upper in ("NY_OPEN", "PORTFOLIO_DUAL", "SP500_EURUSD", "DEFAULT"):
+            target_hour = 9
+            target_minute = 30
+            orb_type = "WALL_STREET ORB 15m"
         elif mode_upper in ("LONDON_OPEN", "LONDON"):
             target_hour = 3
             target_minute = 0
             orb_type = "LONDON ORB 15m"
+        elif mode_upper in ("PORTFOLIO_DUAL", "SP500_EURUSD"):
+            if is_index:
+                target_hour = 9
+                target_minute = 30
+                orb_type = "WALL_STREET ORB 15m"
+            elif is_forex and ny_minutes < (8 * 60 + 30):
+                target_hour = 3
+                target_minute = 0
+                orb_type = "LONDON ORB 15m (Dual)"
+            else:
+                target_hour = 8
+                target_minute = 30
+                orb_type = "NY ORB 15m (Dual)"
         elif mode_upper == "NY_OPEN":
-            target_hour = 8
-            target_minute = 30
-            orb_type = "NY ORB 15m"
+            if is_index:
+                target_hour = 9
+                target_minute = 30
+                orb_type = "WALL_STREET ORB 15m"
+            else:
+                target_hour = 8
+                target_minute = 30
+                orb_type = "NY ORB 15m"
         elif mode_upper in ("COMBO_DUAL", "NY_LONDON"):
             if ny_minutes < (8 * 60 + 30):
                 target_hour = 3
@@ -875,6 +925,8 @@ class AutomatedTradingEngine:
         # Determinar lista de símbolos a evaluar
         if "," in self.symbol:
             symbols_to_run = [s.strip() for s in self.symbol.split(",") if s.strip()]
+        elif self.symbol.upper() in ("MULTI", "PORTFOLIO_DUAL", "SP500_EURUSD") or self.risk.session_mode in ("PORTFOLIO_DUAL", "SP500_EURUSD"):
+            symbols_to_run = ["ES=F", "EURUSD=X"]
         elif self.symbol.upper() == "MULTI" or (self.risk.session_mode == "COMBO_TRIO" and self.symbol == "GC=F"):
             symbols_to_run = ["GC=F", "BTC/USDT"]
         else:
@@ -1006,7 +1058,14 @@ class AutomatedTradingEngine:
 
             is_news = self.rules.is_high_impact_news_window(dt)
             if not is_safety_day_pass:
-                if sym in ("GC=F", "XAUUSD", "GOLD") or self.risk.session_mode == "NY_OPEN":
+                sym_up = sym.upper()
+                if any(k in sym_up for k in ("ES", "500", "SPX")):
+                    strat_tag = "SP500_ORB_15M"
+                elif any(k in sym_up for k in ("EUR", "EURUSD")):
+                    strat_tag = "EURUSD_ORB_15M"
+                elif any(k in sym_up for k in ("NQ", "100", "NAS")):
+                    strat_tag = "NAS100_ORB_15M"
+                elif sym in ("GC=F", "XAUUSD", "GOLD") or self.risk.session_mode == "NY_OPEN":
                     strat_tag = "NY_ORB_15M"
                 elif self.risk.session_mode in ("LONDON_OPEN", "LONDON"):
                     strat_tag = "LONDON_ORB_15M"
@@ -1016,6 +1075,8 @@ class AutomatedTradingEngine:
                     strat_tag = "COMBO_TRIO_ORB"
                 elif self.risk.session_mode in ("ALL", "CRYPTO_24H"):
                     strat_tag = "CRYPTO_ORB_15M"
+                else:
+                    strat_tag = "ORB_15M"
 
             trade_id = self.db.record_trade_open(
                 symbol=sym,

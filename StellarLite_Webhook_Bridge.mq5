@@ -69,20 +69,65 @@ bool JsonExtractBool(const string json, const string key)
 }
 
 //+------------------------------------------------------------------+
-//| Resolver simbolo real del broker para Oro                        |
+//| Resolver simbolo real del broker (Oro, EUR/USD, S&P 500, etc.)   |
 //+------------------------------------------------------------------+
 string ResolveBrokerSymbol(const string requestedSymbol)
 {
    if(SymbolInfoDouble(requestedSymbol, SYMBOL_BID) > 0)
       return requestedSymbol;
       
-   // Probar variaciones comunes
-   string candidates[] = {"XAUUSD", "GOLD", "XAUUSDm", "XAUUSD.raw", "XAUUSD.pro", "XAUUSDb"};
-   for(int i = 0; i < ArraySize(candidates); i++)
+   string clean = requestedSymbol;
+   StringToUpper(clean);
+   StringReplace(clean, "=X", "");
+   StringReplace(clean, "=F", "");
+   StringReplace(clean, "/", "");
+
+   // A. S&P 500
+   if(StringFind(clean, "500") >= 0 || StringFind(clean, "SPX") >= 0 || StringFind(clean, "ES") >= 0)
    {
-      if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0)
-         return candidates[i];
+      string candidates[] = {"US500", "US500.cash", "SPX500", "USA500", "US500m", "US500.raw", "US500.pro", "SP500", "ES"};
+      for(int i = 0; i < ArraySize(candidates); i++)
+         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
    }
+   // B. EUR/USD
+   else if(StringFind(clean, "EUR") >= 0)
+   {
+      string candidates[] = {"EURUSD", "EURUSDm", "EURUSD.raw", "EURUSD.pro", "EURUSDb", "EURUSD.cash", "EURUSD+"};
+      for(int i = 0; i < ArraySize(candidates); i++)
+         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
+   }
+   // C. Nasdaq 100
+   else if(StringFind(clean, "100") >= 0 || StringFind(clean, "NAS") >= 0 || StringFind(clean, "USTEC") >= 0 || StringFind(clean, "NQ") >= 0)
+   {
+      string candidates[] = {"US100", "US100.cash", "NAS100", "USTEC", "US100m", "US100.raw", "NAS100.raw", "NQ"};
+      for(int i = 0; i < ArraySize(candidates); i++)
+         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
+   }
+   // D. Oro / XAUUSD
+   else
+   {
+      string candidates[] = {"XAUUSD", "GOLD", "XAUUSDm", "XAUUSD.raw", "XAUUSD.pro", "XAUUSDb"};
+      for(int i = 0; i < ArraySize(candidates); i++)
+         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
+   }
+
+   // Busqueda inteligente en la lista completa de simbolos del broker
+   int total = SymbolsTotal(false);
+   for(int i = 0; i < total; i++)
+   {
+      string sName = SymbolName(i, false);
+      string sUpper = sName;
+      StringToUpper(sUpper);
+      if(StringFind(clean, "500") >= 0 && (StringFind(sUpper, "500") >= 0 || StringFind(sUpper, "SPX") >= 0))
+         return sName;
+      if(StringFind(clean, "EUR") >= 0 && StringFind(sUpper, "EUR") >= 0 && StringFind(sUpper, "USD") >= 0)
+         return sName;
+      if(StringFind(clean, "100") >= 0 && (StringFind(sUpper, "100") >= 0 || StringFind(sUpper, "NAS") >= 0))
+         return sName;
+      if((StringFind(clean, "XAU") >= 0 || StringFind(clean, "GC") >= 0) && (StringFind(sUpper, "XAU") >= 0 || StringFind(sUpper, "GOLD") >= 0))
+         return sName;
+   }
+
    return _Symbol;
 }
 
@@ -191,12 +236,12 @@ void ProcessCloudAction(const string json)
    // A. APERTURA DE COMPRA (BUY)
    if(action == "OPEN_BUY")
    {
-      // Verificar si ya tenemos posicion abierta con ese trade_id o magic
+      // Verificar si ya tenemos posicion abierta en este simbolo con ese magic
       bool alreadyOpen = false;
       for(int i = PositionsTotal() - 1; i >= 0; i--)
       {
          ulong ticket = PositionGetTicket(i);
-         if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
+         if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber && PositionGetString(POSITION_SYMBOL) == realSymbol)
          {
             alreadyOpen = true;
             break;
@@ -216,14 +261,19 @@ void ProcessCloudAction(const string json)
          double askPrice = tick.ask;
          int digits = (int)SymbolInfoInteger(realSymbol, SYMBOL_DIGITS);
 
-         // Calcular distancias institucionales (R:R 1:2)
-         double slDist = (sl > 0 && price > 0) ? MathAbs(price - sl) : 6.50;
-         double tpDist = (tp > 0 && price > 0) ? MathAbs(price - tp) : 13.00;
-         if(slDist < 1.0) slDist = 6.50;
-         if(tpDist < 2.0) tpDist = 13.00;
+         // Calcular distancias institucionales (R:R 1:2) relativas al precio de ejecucion
+         double slDist = (sl > 0 && price > 0) ? MathAbs(price - sl) : 0.0;
+         double tpDist = (tp > 0 && price > 0) ? MathAbs(price - tp) : 0.0;
+         if(slDist <= 0.0)
+         {
+            if(digits >= 4) slDist = 250 * SymbolInfoDouble(realSymbol, SYMBOL_POINT); // ~25 pips en Forex
+            else if(askPrice > 1000) slDist = (StringFind(realSymbol, "XAU") >= 0 || StringFind(realSymbol, "GOLD") >= 0) ? 6.50 : 15.0; // Oro o Indices
+            else slDist = 50 * SymbolInfoDouble(realSymbol, SYMBOL_POINT);
+         }
+         if(tpDist <= 0.0) tpDist = slDist * 2.0;
 
-         // Detectar si la cotización del broker difiere de la fuente externa (ej. Yahoo Finance vs Broker Demo)
-         bool priceScaleMismatch = (price > 0 && MathAbs(askPrice - price) > 20.0);
+         // Detectar si la cotizacion del broker difiere de la fuente externa por escala de contrato
+         bool priceScaleMismatch = (price > 0 && (MathAbs(askPrice - price) / askPrice) > 0.02);
 
          double slPrice, tpPrice;
          if(priceScaleMismatch || sl <= 0 || sl >= askPrice)
@@ -299,7 +349,7 @@ void ProcessCloudAction(const string json)
       for(int i = PositionsTotal() - 1; i >= 0; i--)
       {
          ulong ticket = PositionGetTicket(i);
-         if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
+         if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber && PositionGetString(POSITION_SYMBOL) == realSymbol)
          {
             alreadyOpen = true;
             break;
@@ -319,14 +369,19 @@ void ProcessCloudAction(const string json)
          double bidPrice = tick.bid;
          int digits = (int)SymbolInfoInteger(realSymbol, SYMBOL_DIGITS);
 
-         // Calcular distancias institucionales (R:R 1:2)
-         double slDist = (sl > 0 && price > 0) ? MathAbs(sl - price) : 6.50;
-         double tpDist = (tp > 0 && price > 0) ? MathAbs(price - tp) : 13.00;
-         if(slDist < 1.0) slDist = 6.50;
-         if(tpDist < 2.0) tpDist = 13.00;
+         // Calcular distancias institucionales (R:R 1:2) relativas al precio de ejecucion
+         double slDist = (sl > 0 && price > 0) ? MathAbs(sl - price) : 0.0;
+         double tpDist = (tp > 0 && price > 0) ? MathAbs(price - tp) : 0.0;
+         if(slDist <= 0.0)
+         {
+            if(digits >= 4) slDist = 250 * SymbolInfoDouble(realSymbol, SYMBOL_POINT); // ~25 pips en Forex
+            else if(bidPrice > 1000) slDist = (StringFind(realSymbol, "XAU") >= 0 || StringFind(realSymbol, "GOLD") >= 0) ? 6.50 : 15.0; // Oro o Indices
+            else slDist = 50 * SymbolInfoDouble(realSymbol, SYMBOL_POINT);
+         }
+         if(tpDist <= 0.0) tpDist = slDist * 2.0;
 
-         // Detectar si la cotización del broker difiere de la fuente externa
-         bool priceScaleMismatch = (price > 0 && MathAbs(bidPrice - price) > 20.0);
+         // Detectar si la cotizacion del broker difiere de la fuente externa por escala de contrato
+         bool priceScaleMismatch = (price > 0 && (MathAbs(bidPrice - price) / bidPrice) > 0.02);
 
          double slPrice, tpPrice;
          if(priceScaleMismatch || sl <= 0 || sl <= bidPrice)
@@ -522,17 +577,30 @@ void CheckAutonomousStructuralTrailing()
          double curSl = PositionGetDouble(POSITION_SL);
          double curTp = PositionGetDouble(POSITION_TP);
          int digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+         double pt = SymbolInfoDouble(sym, SYMBOL_POINT);
 
          MqlTick tick;
          if(!SymbolInfoTick(sym, tick)) continue;
 
-         // 1. Blindaje Break-Even a +1R (+6.50 puntos)
+         // Obtener distancia inicial 1R de riesgo
+         double initialRiskDist = 0.0;
+         if(curSl > 0.0)
+            initialRiskDist = MathAbs(openPrice - curSl);
+         if(initialRiskDist <= (5 * pt))
+         {
+            if(digits >= 4) initialRiskDist = 250 * pt;
+            else if(openPrice > 1000) initialRiskDist = (StringFind(sym, "XAU") >= 0 || StringFind(sym, "GOLD") >= 0) ? 6.50 : 15.0;
+            else initialRiskDist = 50 * pt;
+         }
+
+         // 1. Blindaje Break-Even a +1R (+1R de ganancia flotante alcanzado)
          if(pType == POSITION_TYPE_BUY)
          {
-            if(tick.bid >= (openPrice + 6.50) && (curSl < openPrice || curSl == 0.0))
+            if(tick.bid >= (openPrice + initialRiskDist) && (curSl < openPrice || curSl == 0.0))
             {
                double newSl = NormalizeDouble(openPrice, digits);
-               PrintFormat("[EA MT5] [BREAK-EVEN AUTONOMO] Posicion BUY #%I64u alcanzo +1R (+6.50). Blindando SL a %.2f (Riesgo: $0.00)", ticket, newSl);
+               PrintFormat("[EA MT5] [BREAK-EVEN AUTONOMO] Posicion BUY #%I64u alcanzo +1R (Dist: %.5f). Blindando SL a %.5f (Riesgo: $0.00)", 
+                           ticket, initialRiskDist, newSl);
                if(ExtTrade.PositionModify(ticket, newSl, curTp))
                {
                   ExtLastActionMsg = StringFormat("BUY #%I64u blindada a Break-Even ($0.00 riesgo)", ticket);
@@ -542,10 +610,11 @@ void CheckAutonomousStructuralTrailing()
          }
          else if(pType == POSITION_TYPE_SELL)
          {
-            if(tick.ask <= (openPrice - 6.50) && (curSl > openPrice || curSl == 0.0))
+            if(tick.ask <= (openPrice - initialRiskDist) && (curSl > openPrice || curSl == 0.0))
             {
                double newSl = NormalizeDouble(openPrice, digits);
-               PrintFormat("[EA MT5] [BREAK-EVEN AUTONOMO] Posicion SELL #%I64u alcanzo +1R (+6.50). Blindando SL a %.2f (Riesgo: $0.00)", ticket, newSl);
+               PrintFormat("[EA MT5] [BREAK-EVEN AUTONOMO] Posicion SELL #%I64u alcanzo +1R (Dist: %.5f). Blindando SL a %.5f (Riesgo: $0.00)", 
+                           ticket, initialRiskDist, newSl);
                if(ExtTrade.PositionModify(ticket, newSl, curTp))
                {
                   ExtLastActionMsg = StringFormat("SELL #%I64u blindada a Break-Even ($0.00 riesgo)", ticket);
@@ -554,14 +623,18 @@ void CheckAutonomousStructuralTrailing()
             }
          }
 
-         // 2. Trailing Stop por Estructura Tecnica M15 (Alternativa B - Maximos/Minimos decrecientes)
-         // Se activa cuando la posicion avanza al menos +13.00 puntos (+2R) a favor
+         // 2. Trailing Stop por Estructura Tecnica M15
+         // Se activa cuando la posicion avanza al menos +2R a favor
+         double doubleRDist = initialRiskDist * 2.0;
+         double buffer = MathMax(10.0 * pt, initialRiskDist * 0.15);
+         double minSecuredGain = initialRiskDist * 0.50;
+
          MqlRates ratesM15[];
          ArraySetAsSeries(ratesM15, true);
          int copied = CopyRates(sym, PERIOD_M15, 1, 4, ratesM15);
          if(copied >= 4)
          {
-            if(pType == POSITION_TYPE_SELL && (openPrice - tick.ask) >= 13.00)
+            if(pType == POSITION_TYPE_SELL && (openPrice - tick.ask) >= doubleRDist)
             {
                // Buscar el maximo de las ultimas 4 velas M15 cerradas (resistencia)
                double maxHigh = ratesM15[0].high;
@@ -569,19 +642,19 @@ void CheckAutonomousStructuralTrailing()
                {
                   if(ratesM15[k].high > maxHigh) maxHigh = ratesM15[k].high;
                }
-               double structSl = NormalizeDouble(maxHigh + 1.50, digits);
+               double structSl = NormalizeDouble(maxHigh + buffer, digits);
                // Si la estructura permite asegurar beneficio y es mas favorable que el SL actual
-               if(structSl < openPrice && (curSl == 0.0 || structSl < curSl) && (openPrice - structSl) >= 5.0)
+               if(structSl < openPrice && (curSl == 0.0 || structSl < curSl) && (openPrice - structSl) >= minSecuredGain)
                {
-                  PrintFormat("[EA MT5] [TRAILING M15] SELL #%I64u: Nuevo SL Estructural @ %.2f (Max M15: %.2f + 1.50). Ganancia bloqueada: +$%.2f USD", 
-                              ticket, structSl, maxHigh, (openPrice - structSl));
+                  PrintFormat("[EA MT5] [TRAILING M15] SELL #%I64u: Nuevo SL Estructural @ %.5f (Max M15: %.5f + Buffer: %.5f). Ganancia bloqueada: +%.5f", 
+                              ticket, structSl, maxHigh, buffer, (openPrice - structSl));
                   if(ExtTrade.PositionModify(ticket, structSl, curTp))
                   {
-                     ExtLastActionMsg = StringFormat("SELL #%I64u Trailing M15 activo @ %.2f (+$%.2f garantizados)", ticket, structSl, (openPrice - structSl));
+                     ExtLastActionMsg = StringFormat("SELL #%I64u Trailing M15 activo @ %.5f (+%.5f garantizados)", ticket, structSl, (openPrice - structSl));
                   }
                }
             }
-            else if(pType == POSITION_TYPE_BUY && (tick.bid - openPrice) >= 13.00)
+            else if(pType == POSITION_TYPE_BUY && (tick.bid - openPrice) >= doubleRDist)
             {
                // Buscar el minimo de las ultimas 4 velas M15 cerradas (soporte)
                double minLow = ratesM15[0].low;
@@ -589,19 +662,18 @@ void CheckAutonomousStructuralTrailing()
                {
                   if(ratesM15[k].low < minLow) minLow = ratesM15[k].low;
                }
-               double structSl = NormalizeDouble(minLow - 1.50, digits);
-               if(structSl > openPrice && (curSl == 0.0 || structSl > curSl) && (structSl - openPrice) >= 5.0)
+               double structSl = NormalizeDouble(minLow - buffer, digits);
+               if(structSl > openPrice && (curSl == 0.0 || structSl > curSl) && (structSl - openPrice) >= minSecuredGain)
                {
-                  PrintFormat("[EA MT5] [TRAILING M15] BUY #%I64u: Nuevo SL Estructural @ %.2f (Min M15: %.2f - 1.50). Ganancia bloqueada: +$%.2f USD", 
-                              ticket, structSl, minLow, (structSl - openPrice));
+                  PrintFormat("[EA MT5] [TRAILING M15] BUY #%I64u: Nuevo SL Estructural @ %.5f (Min M15: %.5f - Buffer: %.5f). Ganancia bloqueada: +%.5f", 
+                              ticket, structSl, minLow, buffer, (structSl - openPrice));
                   if(ExtTrade.PositionModify(ticket, structSl, curTp))
                   {
-                     ExtLastActionMsg = StringFormat("BUY #%I64u Trailing M15 activo @ %.2f (+$%.2f garantizados)", ticket, structSl, (structSl - openPrice));
+                     ExtLastActionMsg = StringFormat("BUY #%I64u Trailing M15 activo @ %.5f (+%.5f garantizados)", ticket, structSl, (structSl - openPrice));
                   }
                }
             }
          }
-         break;
       }
    }
 }

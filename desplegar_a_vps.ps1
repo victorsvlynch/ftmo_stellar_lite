@@ -62,6 +62,7 @@ Write-Host "[2/4] Sincronizando codigo fuente y modulos (protegiendo bases de da
 
 $filesToUpload = @(
     "main.py",
+    "mt5_bridge.py",
     "database.py",
     "stellar_rules.py",
     "risk_manager.py",

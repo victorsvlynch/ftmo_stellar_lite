@@ -74,6 +74,16 @@ Tras auditar y simular múltiples configuraciones bajo fricción institucional r
    - **Fail-Safe de Auto-Sincronización:** Si el bot en la nube cierra la operación o reporta `open_trades_count == 0`, el EA detecta el estado y liquida la posición local de inmediato mediante ciclos multi-modo (`IOC`, `FOK`, `RETURN`), previniendo posiciones huérfanas o desincronizadas.
 8. **Protección de Fin de Semana:** Todo trade de Oro se liquida forzosamente los viernes a las **15:30 EST** para evitar riesgos de gap al abrir el mercado el domingo.
 
+### 🌐 Portafolio Profesional Multi-Activo: S&P 500 (`ES=F` / `US500`) + EUR/USD (`EURUSD=X` / `EURUSD`)
+
+Además de operar Oro monoproducto, el sistema incorpora arquitectura multi-activo profesional **descorrelacionada**:
+- **Descorrelación Renta Variable vs. Forex:** A diferencia de operar NAS100 + S&P 500 (que comparten más del 90% de correlación y duplican el riesgo en bolsa), combinar **S&P 500 con EUR/USD** diversifica el capital entre dos clases de activos independientes.
+- **Horarios Diferenciados por Activo:**
+  - **EUR/USD:** Apertura de Londres (**03:00 a 06:00 EST**) o Apertura de Nueva York (**08:30 a 11:30 EST**).
+  - **S&P 500:** Apertura oficial al contado de Wall Street (**09:30 a 11:30 EST**), operando rupturas de la vela de las 09:30 EST.
+- **Dimensionamiento Automático de Lote:** Calcula el lotaje institucional con riesgo fijo del 0.50% ($25 USD) adaptado al tamaño de contrato del broker (100,000 unidades en EUR/USD y 10 o 1 contratos en S&P 500).
+- **Lanzador Directo en 1-Clic:** Haz doble clic en [`Monitor_Portfolio_SP500_EURUSD.bat`](Monitor_Portfolio_SP500_EURUSD.bat) para abrir el monitor en tiempo real del portafolio.
+
 ---
 
 ## 🛡️ Arquitectura del Motor Cuantitativo y Reglas de Riesgo

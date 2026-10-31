@@ -277,6 +277,68 @@ def run_tests():
     assert eval_addon.max_loss_floor == 4500.0, f"Expected $4,500.00 floor (10% Max DD), got {eval_addon.max_loss_floor}"
     print("  PASS: Aprobacion instantanea a FONDEADA con No Min Trading Days, Piso $4,500 (10% DD) y Split 95%.")
 
+    # -------------------------------------------------------------------------
+    # TEST 10: Validacion de Portafolio Multi-Activo (S&P 500 & EUR/USD)
+    # -------------------------------------------------------------------------
+    print("\n[TEST 10] Portafolio Profesional: S&P 500 (ES=F / US500) & EUR/USD (EURUSD=X)")
+    rm_portfolio = RiskManager(db=db, session_mode="PORTFOLIO_DUAL")
+    
+    # 1. Dimensionamiento de Posición EUR/USD (25 pips de SL -> $25 USD de riesgo = 0.5%)
+    pos_eur = rm_portfolio.calculate_position_size(
+        balance=5000.0,
+        symbol="EURUSD=X",
+        side="BUY",
+        entry_price=1.10000,
+        stop_loss=1.09750, # 25 pips
+        risk_pct=0.005,
+    )
+    assert pos_eur.lots == 0.10, f"Expected 0.10 lots for EUR/USD with 25 pips SL, got {pos_eur.lots}"
+    assert abs(pos_eur.risk_amount_usd - 25.0) < 0.50, f"Expected ~$25.00 risk, got {pos_eur.risk_amount_usd}"
+    print(f"  PASS: EUR/USD -> Lotaje: {pos_eur.lots} lotes | Riesgo: ${pos_eur.risk_amount_usd:.2f} USD (0.50%) | TP: {pos_eur.take_profit}")
+
+    # 2. Dimensionamiento de Posición S&P 500 (15 puntos de SL -> $25 USD de riesgo = 0.5%)
+    pos_sp = rm_portfolio.calculate_position_size(
+        balance=5000.0,
+        symbol="ES=F",
+        side="SELL",
+        entry_price=5850.0,
+        stop_loss=5865.0, # 15 puntos
+        risk_pct=0.005,
+    )
+    assert pos_sp.lots > 0.0, f"Expected valid lots for S&P 500, got {pos_sp.lots}"
+    assert abs(pos_sp.risk_amount_usd - 25.0) < 1.0, f"Expected ~$25.00 risk for S&P 500, got {pos_sp.risk_amount_usd}"
+    print(f"  PASS: S&P 500 -> Lotaje: {pos_sp.lots} lotes | Riesgo: ${pos_sp.risk_amount_usd:.2f} USD (0.50%) | TP: {pos_sp.take_profit}")
+
+    # 3. Verificación de Horarios Diferenciados de Sesión:
+    # A. 04:00 EST (Apertura de Londres): EUR/USD activo, S&P 500 inactivo
+    dt_london = datetime.datetime(2026, 10, 28, 9, 0, 0, tzinfo=datetime.timezone.utc) # 04:00 EST
+    eu_act, eu_lbl = rm_portfolio.is_symbol_session_active("EURUSD=X", dt_london)
+    sp_act, sp_lbl = rm_portfolio.is_symbol_session_active("ES=F", dt_london)
+    assert eu_act is True, f"EUR/USD should be active at 04:00 EST in PORTFOLIO_DUAL: {eu_lbl}"
+    assert sp_act is False, f"S&P 500 should be inactive at 04:00 EST: {sp_lbl}"
+    print("  PASS: Sesion 04:00 EST (Londres): EUR/USD ACTIVO | S&P 500 INACTIVO.")
+
+    # B. 10:00 EST (Wall Street Cash Open): S&P 500 activo, EUR/USD activo (NY Overlap)
+    dt_ny = datetime.datetime(2026, 10, 28, 15, 0, 0, tzinfo=datetime.timezone.utc) # 10:00 EST
+    eu_act_ny, eu_lbl_ny = rm_portfolio.is_symbol_session_active("EURUSD=X", dt_ny)
+    sp_act_ny, sp_lbl_ny = rm_portfolio.is_symbol_session_active("ES=F", dt_ny)
+    assert sp_act_ny is True, f"S&P 500 should be active at 10:00 EST: {sp_lbl_ny}"
+    assert eu_act_ny is True, f"EUR/USD should be active at 10:00 EST: {eu_lbl_ny}"
+    print("  PASS: Sesion 10:00 EST (Wall Street Cash): S&P 500 ACTIVO | EUR/USD ACTIVO.")
+
+    # 4. Verificación de Rango de Apertura ORB para S&P 500 (Vela 09:30 EST)
+    df_sp_m15 = pd.DataFrame([
+        {"Open": 5840.0, "High": 5855.0, "Low": 5835.0, "Close": 5845.0, "Volume": 50000}, # 09:30 EST
+        {"Open": 5845.0, "High": 5865.0, "Low": 5842.0, "Close": 5860.0, "Volume": 70000}, # 09:45 EST (Breakout)
+    ], index=[
+        pd.Timestamp("2026-10-28 09:30:00", tz="America/New_York"),
+        pd.Timestamp("2026-10-28 09:45:00", tz="America/New_York"),
+    ])
+    sig_sp = strat.evaluate(df_sp_m15, symbol="ES=F", provider="yfinance", session_mode="PORTFOLIO_DUAL")
+    assert sig_sp.side == "BUY", f"Expected BUY breakout on S&P 500, got {sig_sp.side}"
+    assert sig_sp.orb_high == 5855.0, f"Expected ORB High 5855.0 from 09:30 EST bar, got {sig_sp.orb_high}"
+    print(f"  PASS: S&P 500 ORB 15m (09:30 EST) confirmado con exito: BUY @ {sig_sp.current_price} | SL: {sig_sp.stop_loss} | TP: {sig_sp.take_profit}")
+
     del engine
     del rules_engine
     del db

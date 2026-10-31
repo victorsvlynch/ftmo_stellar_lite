@@ -28,10 +28,20 @@ INSTRUMENT_SPECS: Dict[str, Dict[str, float]] = {
     # Oro XAU/USD: 1 lote estándar = 100 onzas troy, 1 pip/punto = $0.10 o $1.00, Comisión $5/lote round-turn, spread típico $0.25
     "GC=F": {"contract_size": 100.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.25},
     "XAUUSD": {"contract_size": 100.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.25},
-    # Forex Pares Mayores: 1 lote estándar = 100,000 unidades, 1 pip = 0.0001, Comisión $5/lote round-turn, spread típico 1.5 pips
+    # Forex Pares Mayores: 1 lote estándar = 100,000 unidades, 1 pip = 0.0001, Comisión $5/lote round-turn, spread típico 0.2 pips
     "EURUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
+    "EURUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
     "GBPUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00020},
-    # Índices / Cripto (1 lote = 1 unidad subyacente en CFD/Spot)
+    # S&P 500 (Índice USA 500): 1 lote estándar = 10 contratos (estándar prop firm) o 1 contrato, 1 punto = $10 o $1
+    "ES=F": {"contract_size": 10.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 0.40},
+    "US500": {"contract_size": 10.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 0.40},
+    "SPX500": {"contract_size": 10.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 0.40},
+    "SP500": {"contract_size": 10.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 0.40},
+    # Nasdaq 100 (Índice USA Tech 100): 1 lote = 1 contrato, 1 punto = $1.00
+    "NQ=F": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5},
+    "NAS100": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5},
+    "US100": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5},
+    # Cripto (1 lote = 1 unidad subyacente en CFD/Spot)
     "BTC/USDT": {"contract_size": 1.0, "pip_size": 1.0, "min_lot": 0.001, "max_lot": 20.0, "lot_step": 0.001, "commission_per_lot": 2.0, "typical_spread": 2.0},
     "ETH/USDT": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 0.5, "typical_spread": 0.3},
     "SOL/USDT": {"contract_size": 1.0, "pip_size": 0.01, "min_lot": 0.1, "max_lot": 1000.0, "lot_step": 0.1, "commission_per_lot": 0.1, "typical_spread": 0.05},
@@ -87,13 +97,34 @@ class RiskManager:
         self.session_mode = session_mode.upper()
 
     @staticmethod
+    def set_custom_instrument_spec(symbol: str, spec: Dict[str, float]) -> None:
+        """Permite registrar o actualizar dinámicamente la especificación exacta leída desde MT5."""
+        clean = symbol.upper()
+        INSTRUMENT_SPECS[clean] = spec
+
+    @staticmethod
     def get_instrument_spec(symbol: str) -> Dict[str, float]:
         """Obtiene la especificación del contrato o retorna un estándar seguro."""
-        clean_sym = symbol.upper()
+        clean_sym = symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
+        if symbol.upper() in INSTRUMENT_SPECS:
+            return INSTRUMENT_SPECS[symbol.upper()]
         if clean_sym in INSTRUMENT_SPECS:
             return INSTRUMENT_SPECS[clean_sym]
-        if "XAU" in clean_sym or "GC" in clean_sym:
+        # Índices S&P 500
+        if any(k in clean_sym for k in ("500", "SPX", "ES")):
+            return INSTRUMENT_SPECS["US500"]
+        # Índices Nasdaq 100
+        if any(k in clean_sym for k in ("100", "NQ", "NAS", "USTEC")):
+            return INSTRUMENT_SPECS["US100"]
+        # Forex Pares
+        if "EUR" in clean_sym:
+            return INSTRUMENT_SPECS["EURUSD=X"]
+        if "GBP" in clean_sym:
+            return INSTRUMENT_SPECS["GBPUSD=X"]
+        # Materias Primas / Oro
+        if "XAU" in clean_sym or "GC" in clean_sym or "GOLD" in clean_sym:
             return INSTRUMENT_SPECS["GC=F"]
+        # Cripto
         if "BTC" in clean_sym:
             return INSTRUMENT_SPECS["BTC/USDT"]
         if "USD" in clean_sym and "/" not in clean_sym:
@@ -210,6 +241,7 @@ class RiskManager:
 
         is_london_open = (3 * 60) <= ny_minutes <= (6 * 60)
         is_ny_open = (8 * 60 + 30) <= ny_minutes <= (11 * 60 + 30)
+        is_wall_street_cash = (9 * 60 + 30) <= ny_minutes <= (11 * 60 + 30)
         is_london = (3 * 60) <= ny_minutes <= (11 * 60 + 30)
         is_ny_full = (8 * 60) <= ny_minutes <= (16 * 60)
 
@@ -218,7 +250,9 @@ class RiskManager:
             active_labels.append("LONDRES_OPEN (03:00-06:00 EST)")
         elif is_london:
             active_labels.append("LONDRES")
-        if is_ny_open:
+        if is_wall_street_cash:
+            active_labels.append("WALL_STREET_CASH (09:30-11:30 EST)")
+        elif is_ny_open:
             active_labels.append("APERTURA_NY (08:30-11:30 EST)")
         elif is_ny_full:
             active_labels.append("NUEVA_YORK")
@@ -227,6 +261,9 @@ class RiskManager:
 
         if self.session_mode in ("ALL", "CRYPTO_24H", "COMBO_TRIO"):
             return True, f"MODO_24H [{session_str}]"
+        if self.session_mode in ("PORTFOLIO_DUAL", "SP500_EURUSD"):
+            active_portfolio = is_london_open or is_ny_open or is_wall_street_cash
+            return active_portfolio, f"PORTFOLIO_DUAL [{session_str}]"
         if self.session_mode == "NY_OPEN":
             return is_ny_open, session_str
         if self.session_mode in ("LONDON_OPEN", "LONDON"):
@@ -243,9 +280,11 @@ class RiskManager:
         """
         Determina si un símbolo específico se encuentra dentro de su ventana operativa activa:
         - Criptoactivo ('BTC', '/' o 'USDT'): 24/7 si el modo es ALL, CRYPTO_24H o COMBO_TRIO.
-        - Oro / Metales / Forex ('GC=F', etc.):
+        - Índices bursátiles (S&P 500 / Nasdaq): Wall Street Cash Open 09:30 - 11:30 EST.
+        - Oro / Metales / Forex ('GC=F', 'EURUSD', etc.):
           * NY_OPEN: 08:30 - 11:30 EST.
           * LONDON_OPEN: 03:00 - 06:00 EST.
+          * PORTFOLIO_DUAL / SP500_EURUSD: EURUSD (03:00-06:00 o 08:30-11:30 EST), S&P 500 (09:30-11:30 EST).
           * COMBO_DUAL: 03:00-06:00 EST o 08:30-11:30 EST.
           * COMBO_TRIO: 03:00-06:00 EST o 08:30-11:30 EST.
           * ALL: 24/7 continuo.
@@ -257,20 +296,39 @@ class RiskManager:
 
         is_london_open = (3 * 60) <= ny_minutes <= (6 * 60)
         is_ny_open = (8 * 60 + 30) <= ny_minutes <= (11 * 60 + 30)
+        is_wall_street_cash = (9 * 60 + 30) <= ny_minutes <= (11 * 60 + 30)
 
         sym_upper = symbol.upper()
         is_crypto = "BTC" in sym_upper or "/" in sym_upper or "USDT" in sym_upper
+        is_index = any(k in sym_upper for k in ("ES", "500", "SPX", "NQ", "100", "NAS", "USTEC"))
+        is_forex = any(k in sym_upper for k in ("EUR", "GBP", "JPY", "AUD", "CAD", "CHF"))
 
         if is_crypto:
             if self.session_mode in ("ALL", "CRYPTO_24H", "COMBO_TRIO"):
                 return True, "CRIPTO_24H [ACTIVO 24/7]"
             return False, f"CRIPTO_INACTIVO en modo {self.session_mode}"
 
-        # Activo tradicional (Oro GC=F o Forex)
+        # Activo tradicional (Oro GC=F, Forex o Índices)
         if not is_crypto and self.is_friday_weekend_close_window(dt_utc):
             return False, "BLOQUEO_VIERNES (15:30 EST: Cierre Anti-Gap Fin de Semana)"
 
+        # Modo Portfolio Dual (S&P 500 + EUR/USD)
+        if self.session_mode in ("PORTFOLIO_DUAL", "SP500_EURUSD"):
+            if is_index:
+                lbl = "WALL_STREET_CASH (09:30-11:30 EST)" if is_wall_street_cash else f"FUERA_WALL_STREET ({dt_ny.strftime('%H:%M %Z')})"
+                return is_wall_street_cash, lbl
+            if is_forex:
+                active_fx = is_london_open or is_ny_open
+                lbl = "LONDRES_OPEN" if is_london_open else ("NY_OPEN" if is_ny_open else f"PAUSA_FOREX ({dt_ny.strftime('%H:%M %Z')})")
+                return active_fx, f"PORTFOLIO_FX [{lbl}]"
+            # Oro u otros
+            lbl = "APERTURA_NY (08:30-11:30 EST)" if is_ny_open else f"FUERA_NY ({dt_ny.strftime('%H:%M %Z')})"
+            return is_ny_open, lbl
+
         if self.session_mode == "NY_OPEN":
+            if is_index:
+                lbl = "WALL_STREET_CASH (09:30-11:30 EST)" if is_wall_street_cash else f"FUERA_WALL_STREET ({dt_ny.strftime('%H:%M %Z')})"
+                return is_wall_street_cash, lbl
             lbl = "APERTURA_NY (08:30-11:30 EST)" if is_ny_open else f"FUERA_NY ({dt_ny.strftime('%H:%M %Z')})"
             return is_ny_open, lbl
         if self.session_mode in ("LONDON_OPEN", "LONDON"):

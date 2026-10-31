@@ -72,7 +72,7 @@ echo   │ 10. Streaming de Logs en Tiempo Real (Segundo a Segundo - journalctl)
 echo   │ 11. Reiniciar Servicios en la Nube (Bot NY_OPEN + Webhook Server)     │
 echo   └───────────────────────────────────────────────────────────────────────┘
 echo   ┌─ [5] AUDITORÍA Y CONTROL ─────────────────────────────────────────────┐
-echo   │ 12. Correr Suite de Verificación Automatizada (9 Pruebas 100%% OK)     │
+echo   │ 12. Correr Suite de Verificación Automatizada (10 Pruebas 100%% OK)    │
 echo   │ 13. Salir                                                             │
 echo   └───────────────────────────────────────────────────────────────────────┘
 echo.
