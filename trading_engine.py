@@ -1056,6 +1056,26 @@ class AutomatedTradingEngine:
                 )
                 strat_tag = "NY_ORB_15M"
 
+            # 5.1 Regla Oficial FundedNext (1.png): Max Risk 3% At Any Time
+            current_open_risk = self.risk.calculate_current_open_risk()
+            max_allowed_risk = float(acc.get("initial_balance", rule_status.balance)) * self.risk.MAX_OPEN_RISK_EXPOSURE_PCT
+            if (current_open_risk + sizing.risk_amount_usd) > (max_allowed_risk + 1e-4):
+                skip_msg = (
+                    f"REGLA FUNDEDNEXT MAX RISK 3% AT ANY TIME: Riesgo abierto simultáneo (${current_open_risk:,.2f}) "
+                    f"+ nuevo trade (${sizing.risk_amount_usd:,.2f}) = ${current_open_risk + sizing.risk_amount_usd:,.2f}, "
+                    f"supera el límite oficial de 3.0% (${max_allowed_risk:,.2f}). Operación omitida."
+                )
+                self.db.log_event("MAX_RISK_3PCT_BLOCKED", rule_status.phase, skip_msg)
+                return {
+                    "timestamp": dt.isoformat(),
+                    "action": "SKIPPED_MAX_RISK_3PCT",
+                    "rule_status": rule_status,
+                    "risk_check": pre_trade,
+                    "closed_positions": closed_positions,
+                    "open_positions": open_positions,
+                    "message": skip_msg,
+                }
+
             is_news = self.rules.is_high_impact_news_window(dt)
             if not is_safety_day_pass:
                 sym_up = sym.upper()

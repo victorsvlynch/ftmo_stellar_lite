@@ -5,7 +5,7 @@ Push-Location "$PSScriptRoot\..\.."
 
 try {
     Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host " [AUTO-PUSH] FTMO Stellar Lite ($5,000) Trading Engine" -ForegroundColor Cyan
+    Write-Host " [AUTO-PUSH] FundedNext Stellar Lite ($10,000 USD) Trading Engine" -ForegroundColor Cyan
     Write-Host "============================================================" -ForegroundColor Cyan
 
     Write-Host "Anadiendo cambios con 'git add .'..." -ForegroundColor Yellow

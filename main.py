@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 main.py - Punto de Entrada Principal (CLI y Demonio 24/7 para Oracle Cloud Infrastructure).
-Simulador y Motor de Trading Automatizado para Cuentas de Fondeo FundedNext - Stellar Lite ($5,000).
+Simulador y Motor de Trading Automatizado para Cuentas de Fondeo FundedNext - Stellar Lite ($10,000).
 100% Python Puro, Persistencia SQLite (`trading_history.db`) y Auto-instalación de Dependencias.
 """
 
@@ -141,7 +141,7 @@ def print_console_report(
         strat_label = "CRIPTO ORB 15m (24/7 Continuo)"
 
     print(f"\n{sep}")
-    print("   FUNDEDNEXT STELLAR LITE ($5K) - MOTOR CUANTITATIVO & GESTOR DE RIESGO")
+    print("   FUNDEDNEXT STELLAR LITE ($10K) - MOTOR CUANTITATIVO & GESTOR DE RIESGO")
     print(f"{sep}")
     print(f" Fecha/Hora Servidor : {now_str} | Jornada: {trading_date}")
     print(f" Fase de Cuenta      : {state.phase:<12} | Estado : {state.status}")
@@ -291,7 +291,7 @@ def run_interactive_cli(
         "  calc <entry> <sl>       - Calcula el lotaje exacto para el activo actual según riesgo configurado\n"
         "  history                 - Muestra las últimas 15 operaciones en SQLite\n"
         "  events                  - Muestra el registro de auditoría de reglas\n"
-        "  reset                   - Reinicia la cuenta a $5,000.00 en FASE_1\n"
+        "  reset                   - Reinicia la cuenta a $10,000.00 en FASE_1\n"
         "  exit / quit             - Sale del programa"
     )
     print(help_text)
@@ -380,8 +380,8 @@ def run_interactive_cli(
             for ev in events:
                 print(f" [{ev['timestamp']}] ({ev['phase']}) {ev['event_type']}: {ev['message']}")
         elif cmd == "reset":
-            db.reset_account()
-            print("Cuenta reiniciada a $5,000.00 (FASE_1).")
+            db.reset_account(initial_balance=10000.0)
+            print("Cuenta reiniciada a $10,000.00 (FASE_1).")
             print_console_report(db, rules, risk, engine)
         else:
             print("Comando no reconocido. Escriba 'help' para ver la lista de comandos.")
@@ -547,7 +547,7 @@ def run_live_dashboard(
 
             lines = [
                 "\033[H\033[J" + sep,
-                f" FUNDEDNEXT STELLAR LITE ($5K) | UTC: {now_str[:19]} | WALL STREET: {now_ny_str}",
+                f" FUNDEDNEXT STELLAR LITE ($10K) | UTC: {now_str[:19]} | WALL STREET: {now_ny_str}",
                 sep,
                 f" Cuenta   : {state.phase:<9} Estado: {state.status:<7} | Activo: {engine.symbol} ({price_tag})",
                 f" Estrategia: {strat_label} (R:R 1:{risk.rr_ratio:.0f}) | Sesion: {pre_trade.active_session} {session_status}",
@@ -739,7 +739,7 @@ def get_modality_snapshot(cfg: dict, now_utc: datetime, cached_prices: Optional[
         p["floating_pnl"] = floating
         tot_floating += floating
 
-    balance = float(acc.get("balance", 5000.0))
+    balance = float(acc.get("balance", 10000.0))
     equity = round(balance + tot_floating, 2)
     rule_res = rules.evaluate_account(floating_pnl=tot_floating)
 
@@ -775,7 +775,7 @@ def get_modality_snapshot(cfg: dict, now_utc: datetime, cached_prices: Optional[
         "balance": balance,
         "equity": equity,
         "floating_pnl": tot_floating,
-        "initial_balance": float(acc.get("initial_balance", 5000.0)),
+        "initial_balance": float(acc.get("initial_balance", 10000.0)),
         "pnl_today": pnl_today,
         "pnl_today_realized": pnl_today_realized,
         "profit_total": float(rule_res.current_profit),
@@ -806,7 +806,7 @@ def build_multi_dashboard_text(
     title_mode = "DETALLADO EN VIVO (CON OPERACIONES)" if detailed else "EN VIVO (5 ESTRATEGIAS)"
     lines = [
         "\033[H\033[J" + sep,
-        f" FUNDEDNEXT STELLAR LITE ($5K) | TABLERO MULTI-MODALIDAD {title_mode} | HORA UTC: {now_str}",
+        f" FUNDEDNEXT STELLAR LITE ($10K) | TABLERO MULTI-MODALIDAD {title_mode} | HORA UTC: {now_str}",
         sep,
         f" {'#':<2} | {'MODALIDAD':<22} | {'ACTIVO':<13} | {'HORARIO':<16} | {'BALANCE':<10} | {'EQUIDAD':<10} | {'PNL HOY':<9} | {'W / L':<7} | {'ESTADO':<8}",
         subsep,
@@ -958,6 +958,7 @@ def print_multi_status(detailed: bool = False) -> None:
 def reset_all_modalities(personal_cap_pct: float = 0.02, risk_pct: float = 0.005) -> None:
     db_list = [
         "trading_ny_open.db",
+        "trading_portfolio_sp_eu.db",
         "trading_london_open.db",
         "trading_crypto_24h.db",
         "trading_ny_london.db",
@@ -966,18 +967,25 @@ def reset_all_modalities(personal_cap_pct: float = 0.02, risk_pct: float = 0.005
         "trading_history.db",
     ]
     print("=" * 78)
-    print(" REINICIO DE TODAS LAS MODALIDADES DE TRADING (FTMO / FUNDEDNEXT $5K)")
+    print(" REINICIO DE TODAS LAS MODALIDADES (HISTORIAL ARCHIVADO + SYNC MT5)")
     print("=" * 78)
     for db_file in db_list:
         db = TradingDatabase(db_path=db_file)
-        db.reset_account(
-            initial_balance=5000.0,
+        state = db.reset_account(
+            initial_balance=10000.0,
             personal_daily_cap_pct=personal_cap_pct,
             risk_per_trade_pct=risk_pct,
+            max_drawdown_limit_pct=0.08,
+            min_trading_days=2,
+            funded_profit_split=0.80,
+            archive_current_trades=True,
+            auto_sync_mt5=True,
         )
-        print(f" [*] Base de datos '{db_file}' -> Reiniciada a $5,000.00 (FASE_1 ACTIVA).")
+        sync_str = f" [Sync MT5: ${state['balance']:,.2f}]" if state.get("synced_mt5_login") else ""
+        arch_str = f" ({state.get('archived_count', 0)} trades archivados)" if state.get("archived_count", 0) > 0 else ""
+        print(f" [*] Base '{db_file}' -> {state['phase']} a ${state['balance']:,.2f}{sync_str}{arch_str}")
     print("=" * 78)
-    print(" [OK] Todas las modalidades (1 a 5) han sido restablecidas exitosamente.")
+    print(" [OK] Todas las modalidades restablecidas sin perder el historial.")
     print("=" * 78)
 
 
@@ -1043,8 +1051,10 @@ def parse_args() -> argparse.Namespace:
             "multi-detail",
             "multi-detail-status",
             "reset-all",
+            "sync-mt5",
+            "history",
         ],
-        help="Comando a ejecutar: 'status', 'live', 'winner' (solo estrategia ganadora NY_OPEN), 'winner-live', 'multi', 'multi-detail', 'multi-status', 'multi-detail-status', 'reset-all', 'run', 'interactive', 'simulate', 'reset'.",
+        help="Comando a ejecutar: 'status', 'live', 'winner' (solo estrategia ganadora NY_OPEN), 'winner-live', 'multi', 'multi-detail', 'multi-status', 'multi-detail-status', 'reset-all', 'sync-mt5', 'history', 'run', 'interactive', 'simulate', 'reset'.",
     )
     parser.add_argument(
         "--detailed",
@@ -1057,20 +1067,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-loss-pct",
         type=float,
-        default=0.10,
-        help="Límite de pérdida máxima (por defecto 0.10 = 10%% según Add-on Maximum Loss Limit 10%% en cloud.png).",
+        default=0.08,
+        help="Límite de pérdida máxima (por defecto 0.08 = 8%% según FundedNext Stellar Lite 10K en cloud.png).",
     )
     parser.add_argument(
         "--min-trading-days",
         type=int,
-        default=0,
-        help="Días mínimos operativos requeridos por fase (por defecto 0 según Add-on No Minimum Trading Days en cloud.png).",
+        default=2,
+        help="Días mínimos operativos requeridos por fase (por defecto 2 días estándar en FundedNext Stellar Lite).",
     )
     parser.add_argument(
         "--profit-split",
         type=float,
-        default=0.95,
-        help="Porcentaje de Profit Split en cuenta fondeada (por defecto 0.95 = 95%% según Add-on Lifetime Reward 95%% en cloud.png).",
+        default=0.80,
+        help="Porcentaje de Profit Split en cuenta fondeada (por defecto 0.80 = 80%% estándar inicial en FundedNext Stellar Lite).",
     )
     parser.add_argument(
         "--symbol",
@@ -1196,13 +1206,59 @@ def main() -> None:
     elif args.command == "reset-all":
         reset_all_modalities(personal_cap_pct=args.personal_cap, risk_pct=args.risk)
     elif args.command == "reset":
-        db.reset_account(
-            initial_balance=5000.0,
+        state = db.reset_account(
+            initial_balance=10000.0,
             personal_daily_cap_pct=args.personal_cap,
             risk_per_trade_pct=args.risk,
+            max_drawdown_limit_pct=args.max_loss_pct,
+            min_trading_days=args.min_trading_days,
+            funded_profit_split=args.profit_split,
+            archive_current_trades=True,
+            auto_sync_mt5=True,
         )
-        print("[*] Cuenta reiniciada exitosamente a $5,000.00 en FASE_1.")
+        print("=" * 78)
+        print("  REINICIO DE CUENTA Y CICLO (HISTORIAL ARCHIVADO + AUTO-SYNC MT5)")
+        print("=" * 78)
+        archived = state.get("archived_count", 0)
+        synced_login = state.get("synced_mt5_login")
+        if archived > 0:
+            print(f"  [+] Historial preservado: {archived} operaciones archivadas en 'archived_trades'.")
+        else:
+            print("  [*] Historial previo: Sin operaciones activas previas.")
+        if synced_login:
+            print(f"  [+] Balance sincronizado en vivo con MT5 (#{synced_login}): ${state['balance']:,.2f}")
+        else:
+            print(f"  [*] Balance base establecido: ${state['balance']:,.2f}")
+        print(f"  [*] Fase: {state['phase']} | Estado: {state['status']}")
+        print("=" * 78)
         print_console_report(db, rules, risk, engine)
+    elif args.command == "sync-mt5":
+        res = db.sync_with_mt5()
+        if res.get("success"):
+            print("=" * 78)
+            print("  SINCRONIZACIÓN EXITOSA CON METATRADER 5 (MT5)")
+            print("=" * 78)
+            print(f"  • Cuenta / Login   : #{res.get('login')}")
+            print(f"  • Servidor Broker  : {res.get('server')}")
+            print(f"  • Balance en MT5   : ${res.get('balance'):,.2f} {res.get('currency')}")
+            print(f"  • Equidad en MT5   : ${res.get('equity'):,.2f} {res.get('currency')}")
+            print("  • Base de datos SQLite actualizada correctamente.")
+            print("=" * 78)
+        else:
+            print(f"[!] Error al sincronizar con MT5: {res.get('reason')}")
+    elif args.command == "history":
+        closed = db.get_closed_trades(limit=20)
+        archived = db.get_archived_trades(limit=20)
+        print("=" * 78)
+        print("  HISTORIAL DE OPERACIONES (CICLO ACTIVO Y ARCHIVADAS)")
+        print("=" * 78)
+        print(f"  • Operaciones cerradas en ciclo activo: {len(closed)}")
+        for t in closed:
+            print(f"    - #{t['id']} {t['trading_date']} {t['symbol']} {t['side']} {t['lots']} lotes | PnL: ${t['pnl']:+,.2f} | Notas: {t.get('notes', '')}")
+        print(f"  • Operaciones archivadas de ciclos anteriores: {len(archived)}")
+        for a in archived:
+            print(f"    - [ARCHIVADO] {a['trading_date']} {a['symbol']} {a['side']} {a['lots']} lotes | PnL: ${a['pnl']:+,.2f} | Fase: {a['phase']}")
+        print("=" * 78)
     elif args.command == "simulate":
         run_simulation_demo(db, rules, risk, engine)
     elif args.command == "interactive":

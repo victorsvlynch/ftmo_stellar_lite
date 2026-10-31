@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
-title Panel de Control Maestro - FundedNext Stellar Lite ($5,000)
+title Panel de Control Maestro - FundedNext Stellar Lite ($10,000)
 chcp 65001 >nul
 
 :: ============================================================================
@@ -43,7 +43,7 @@ if !ERRORLEVEL! EQU 0 (
 :: 3. INTERFAZ GRÁFICA DEL PANEL DE CONTROL
 :: ============================================================================
 echo ==============================================================================
-echo        PANEL DE CONTROL MAESTRO -- FUNDEDNEXT STELLAR LITE ($5,000 USD)
+echo        PANEL DE CONTROL MAESTRO -- FUNDEDNEXT STELLAR LITE ($10,000 USD)
 echo        Estrategia Oficial: NY_OPEN (Oro GC=F / XAUUSD) ^| R:R 1:2
 echo ==============================================================================
 echo   • Servidor en la Nube : Oracle Cloud VPS (157.137.225.144) [ONLINE 24/7]
@@ -71,13 +71,14 @@ echo   │  9. Diagnóstico de Salud del Servidor (Uptime, Memoria, Servicios)  
 echo   │ 10. Streaming de Logs en Tiempo Real (Segundo a Segundo - journalctl) │
 echo   │ 11. Reiniciar Servicios en la Nube (Bot NY_OPEN + Webhook Server)     │
 echo   └───────────────────────────────────────────────────────────────────────┘
-echo   ┌─ [5] AUDITORÍA Y CONTROL ─────────────────────────────────────────────┐
-echo   │ 12. Correr Suite de Verificación Automatizada (10 Pruebas 100%% OK)    │
-echo   │ 13. Salir                                                             │
+echo   ┌─ [5] AUDITORÍA, PORTABILIDAD Y CONTROL ──────────────────────────────┐
+echo   │ 12. Correr Suite de Verificación Automatizada (11 Pruebas 100%% OK)    │
+echo   │ 13. Generar Pack Portable para Otra PC (exportar_todo.bat)            │
+echo   │ 14. Salir                                                             │
 echo   └───────────────────────────────────────────────────────────────────────┘
 echo.
 set "opt=1"
-set /p opt=" Seleccione una opción [1-13] (Por defecto 1): "
+set /p opt=" Seleccione una opción [1-14] (Por defecto 1): "
 
 if "%opt%"=="1" goto DASH_REMOTE
 if "%opt%"=="2" goto DASH_LOCAL
@@ -91,7 +92,8 @@ if "%opt%"=="9" goto STATUS_VPS
 if "%opt%"=="10" goto LOGS_STREAM
 if "%opt%"=="11" goto RESTART_VPS
 if "%opt%"=="12" goto TESTS
-if "%opt%"=="13" goto SALIR
+if "%opt%"=="13" goto EXPORT_PACK
+if "%opt%"=="14" goto SALIR
 goto MENU
 
 :DASH_REMOTE
@@ -162,6 +164,11 @@ cls
 python "%~dp0test_verification.py"
 echo.
 pause
+goto MENU
+
+:EXPORT_PACK
+cls
+call "%~dp0exportar_todo.bat"
 goto MENU
 
 :SALIR

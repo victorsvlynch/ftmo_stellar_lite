@@ -1,13 +1,16 @@
 """
 stellar_rules.py - Motor de Validación Estricta de Reglas FundedNext Stellar Lite.
+Configurado para el Plan Oficial: Stellar Lite 2-Step-10K USD (cloud.png)
 Implementa:
-- Fase 1 (+8% Target = $400 en $5K)
-- Fase 2 (+4% Target = $200 en $5K)
-- Cuenta Fondeada (Sin target, Profit Split 80% escalable a 90%)
-- Daily Loss Limit (4% Estático = $200 en $5K sobre balance inicial de jornada, reseteo 00:00 UTC)
-- Max Drawdown Limit (8% Estático = $400 en $5K, piso fijo en $4,600)
-- Mínimo 2 días operativos por fase
+- Cuenta Base: $10,000 USD
+- Fase 1 (+8% Target = $800 en $10K -> Meta: $10,800)
+- Fase 2 (+4% Target = $400 en $10K -> Meta: $10,400)
+- Cuenta Fondeada (Sin target obligatorio, Profit Split 80% escalable a 90%)
+- Daily Loss Limit (4% Estático = $400 en $10K sobre balance inicial de jornada, reseteo 00:00 UTC)
+- Max Drawdown Limit (8% Estático = $800 en $10K, piso fijo inamovible en $9,200)
+- Mínimo 2 días operativos por fase (Fase 1 y Fase 2)
 - 40% News Profit Cap Rule (NFP, CPI, FOMC)
+- EA / Trading Algorítmico Autorizado (Add-on EA en checkout)
 - Overnight & Weekend Trading permitido
 """
 
@@ -47,21 +50,25 @@ class RuleCheckResult:
 
 
 class StellarLiteRulesEngine:
-    """Validador oficial de reglas de fondeo FundedNext - Stellar Lite."""
+    """Validador oficial de reglas de fondeo FundedNext - Stellar Lite 2-Step $10K."""
 
     PHASE_1 = "FASE_1"
     PHASE_2 = "FASE_2"
     FUNDED = "FONDEADA"
     FAILED = "FALLADA"
 
-    PHASE_1_TARGET_PCT = 0.08          # +8% ($400 en $5,000)
-    PHASE_2_TARGET_PCT = 0.04          # +4% ($200 en $5,000)
-    DAILY_LOSS_LIMIT_PCT = 0.04        # 4% ($200 en $5,000 sobre balance inicio del día)
-    MAX_DRAWDOWN_LIMIT_PCT = 0.08      # 8% Estándar ($400 en $5,000 -> piso fijo $4,600)
+    PHASE_1_TARGET_PCT = 0.08          # +8% ($800 en $10,000)
+    PHASE_2_TARGET_PCT = 0.04          # +4% ($400 en $10,000)
+    DAILY_LOSS_LIMIT_PCT = 0.04        # 4% ($400 en $10,000 sobre balance inicio del día)
+    MAX_DRAWDOWN_LIMIT_PCT = 0.08      # 8% Estándar ($800 en $10,000 -> piso fijo $9,200)
     MIN_TRADING_DAYS = 2               # 2 días mínimos estándar por fase de evaluación
     NEWS_PROFIT_CAP_PCT = 0.40         # Máximo 40% del profit proveniente de noticias
-    DEFAULT_FUNDED_SPLIT = 0.80        # 80% split estándar inicial
+    DEFAULT_FUNDED_SPLIT = 0.80        # 80% split estándar inicial (Reward Share 80% en 1.png)
     SCALED_FUNDED_SPLIT = 0.90         # 90% split tras escalado (+10% en cuenta fondeada)
+    MAX_RISK_AT_ANY_TIME_PCT = 0.03    # 3% Max Risk At Any Time (Regla Oficial FundedNext, 1.png)
+    FIRST_WITHDRAWAL_DAYS = 10         # Retiros cada 10 días (1.png)
+    SUBSEQUENT_WITHDRAWAL_DAYS = 10    # Retiros subsecuentes cada 10 días
+    FEE_REFUND_CYCLE = "3rd Reward"    # Devolución de la tarifa ($64.99) en el 3er cobro de beneficios (1.png)
     ALLOW_OVERNIGHT_WEEKEND = True     # Permitido mantener operaciones overnight y fin de semana
 
     def __init__(
@@ -76,38 +83,33 @@ class StellarLiteRulesEngine:
         self.db = db
         acc = self.db.get_account_state()
 
-        # Add-ons seleccionados en FundedNext Checkout (cloud.png):
-        # 1. Maximum Loss Limit 10% (+25%) -> max_drawdown = 10% ($500 pérdida permitida, piso $4,500 en vez de $4,600)
-        # 2. No Minimum Trading Days (+20%) -> min_trading_days = 0 (aprobación inmediata al alcanzar el target)
-        # 3. Lifetime Reward 95% (+30%) -> funded_profit_split = 0.95 (95% de participación vitalicia)
-        # 4. EA (+ $5.00) -> ea_enabled = True (Trading algorítmico / Python bot formalmente autorizado)
+        # Configuración elegida en FundedNext Checkout (cloud.png - Stellar Lite 2-Step-10K USD):
+        # - Account Size: $10,000 USD ($59.99 base)
+        # - EA (+ $5.00) -> SELECCIONADO (Trading algorítmico / Python bot formalmente autorizado)
+        # - Maximum Loss Limit 10% (+25%) -> NO SELECCIONADO (Aplica 8% estándar = $800 pérdida máxima, piso $9,200)
+        # - No Minimum Trading Days (+20%) -> NO SELECCIONADO (Aplica estándar de 2 días mínimos por fase)
+        # - Lifetime Reward 95% (+30%) -> NO SELECCIONADO (Aplica 80% estándar inicial, escalable a 90%)
 
         if max_drawdown_limit_pct is not None:
             self.max_drawdown_limit_pct = float(max_drawdown_limit_pct)
         elif acc.get("max_drawdown_limit_pct") is not None:
             self.max_drawdown_limit_pct = float(acc["max_drawdown_limit_pct"])
-        elif use_cloud_addons:
-            self.max_drawdown_limit_pct = 0.10
         else:
-            self.max_drawdown_limit_pct = self.MAX_DRAWDOWN_LIMIT_PCT
+            self.max_drawdown_limit_pct = self.MAX_DRAWDOWN_LIMIT_PCT  # 0.08
 
         if min_trading_days is not None:
             self.min_trading_days = int(min_trading_days)
         elif acc.get("min_trading_days") is not None:
             self.min_trading_days = int(acc["min_trading_days"])
-        elif use_cloud_addons:
-            self.min_trading_days = 0
         else:
-            self.min_trading_days = self.MIN_TRADING_DAYS
+            self.min_trading_days = self.MIN_TRADING_DAYS  # 2 días
 
         if funded_profit_split is not None:
             self.funded_profit_split = float(funded_profit_split)
         elif acc.get("funded_profit_split") is not None:
             self.funded_profit_split = float(acc["funded_profit_split"])
-        elif use_cloud_addons:
-            self.funded_profit_split = 0.95
         else:
-            self.funded_profit_split = self.DEFAULT_FUNDED_SPLIT
+            self.funded_profit_split = self.DEFAULT_FUNDED_SPLIT  # 0.80
 
         self.daily_loss_limit_pct = (
             float(daily_loss_limit_pct)
@@ -215,9 +217,9 @@ class StellarLiteRulesEngine:
         self.db.update_account_state(equity=equity)
 
         # Cálculos de límites estáticos FundedNext Stellar Lite (ajustados con Add-ons si aplican)
-        daily_max_loss_allowance = round(initial_balance * self.daily_loss_limit_pct, 2)  # $200 en $5,000 (4%)
+        daily_max_loss_allowance = round(initial_balance * self.daily_loss_limit_pct, 2)  # $400 en $10,000 (4%)
         daily_loss_floor = round(day_start_balance - daily_max_loss_allowance, 2)
-        max_loss_floor = round(initial_balance * (1.0 - self.max_drawdown_limit_pct), 2)  # $4,500 en $5,000 (10% Add-on) o $4,600 (8%)
+        max_loss_floor = round(initial_balance * (1.0 - self.max_drawdown_limit_pct), 2)  # $9,200 en $10,000 (8% Estándar) o $9,000 (10% si Add-on)
 
         daily_loss_remaining = round(max(0.0, equity - daily_loss_floor), 2)
         max_loss_remaining = round(max(0.0, equity - max_loss_floor), 2)
@@ -282,8 +284,8 @@ class StellarLiteRulesEngine:
 
         if not hard_breach:
             if phase == self.PHASE_1:
-                profit_target_amount = round(initial_balance * self.PHASE_1_TARGET_PCT, 2)  # $400.00
-                profit_target_balance = round(initial_balance + profit_target_amount, 2)    # $5,400.00
+                profit_target_amount = round(initial_balance * self.PHASE_1_TARGET_PCT, 2)  # $800.00 en $10,000 (+8%)
+                profit_target_balance = round(initial_balance + profit_target_amount, 2)    # $10,800.00 en $10,000
                 if balance >= profit_target_balance:
                     target_reached = True
                     if trading_days >= self.min_trading_days:
@@ -308,8 +310,8 @@ class StellarLiteRulesEngine:
                         )
 
             elif phase == self.PHASE_2:
-                profit_target_amount = round(initial_balance * self.PHASE_2_TARGET_PCT, 2)  # $200.00
-                profit_target_balance = round(initial_balance + profit_target_amount, 2)    # $5,200.00
+                profit_target_amount = round(initial_balance * self.PHASE_2_TARGET_PCT, 2)  # $400.00 en $10,000 (+4%)
+                profit_target_balance = round(initial_balance + profit_target_amount, 2)    # $10,400.00 en $10,000
                 if balance >= profit_target_balance:
                     target_reached = True
                     if trading_days >= self.min_trading_days:
@@ -388,13 +390,19 @@ class StellarLiteRulesEngine:
             )
         elif phase == self.FUNDED:
             real_account_recommendations.append(
-                f"💎 [CUENTA FONDEADA ACTIVA]: Operando capital institucional con Profit Split al {profit_split * 100:.0f}% (Add-on Lifetime Reward 95% activo)."
+                f"💎 [CUENTA FONDEADA ACTIVA]: Operando capital institucional con Profit Split al {profit_split * 100:.0f}%."
             )
             real_account_recommendations.append(
                 f"🛡️ [PRESERVACIÓN DE CAPITAL]: Tu piso diario es ${daily_loss_floor:,.2f} y el piso inamovible de "
-                f"Max Drawdown ({self.max_drawdown_limit_pct * 100:.0f}%) es ${max_loss_floor:,.2f}. Retiros disponibles según calendario oficial FundedNext."
+                f"Max Drawdown ({self.max_drawdown_limit_pct * 100:.0f}%) es ${max_loss_floor:,.2f}."
             )
-            if profit_split < 0.95:
+            real_account_recommendations.append(
+                "💰 [CALENDARIO DE PAGOS]: Retiros disponibles cada 10 días. Reembolso del 100% de la tarifa pagada ($64.99 USD) al 3er cobro de recompensas."
+            )
+            real_account_recommendations.append(
+                "🛡️ [REGLA FUNDEDNEXT MAX RISK 3%]: El riesgo máximo total simultáneo en mercado no puede superar el 3.0% ($300.00 en $10K). Tu bot opera en 0.50% ($50) por trade (factor de seguridad 6x)."
+            )
+            if profit_split < self.SCALED_FUNDED_SPLIT:
                 needed = round(initial_balance * 0.10 - current_profit, 2)
                 real_account_recommendations.append(
                     f"📈 [ESCALADO A 90%]: Genera ${max(0.0, needed):,.2f} adicionales (+10% total) para escalar el "
@@ -410,12 +418,12 @@ class StellarLiteRulesEngine:
                 f"📅 [DÍAS OPERATIVOS]: {trading_days}/{min_days_req} días completados en {phase}."
             )
             real_account_recommendations.append(
-                "🛡️ [GESTIÓN DE RIESGO]: Mantener riesgo por trade entre 0.5% y 1.0%. Respeta el freno personal "
-                "diario del 2% y la regla anti-racha (máx. 3 pérdidas = stop por el resto del día)."
+                "🛡️ [GESTIÓN DE RIESGO]: Mantener riesgo por trade en 0.50% ($50 USD). Respeta el freno personal "
+                "diario del 2% ($200 USD), la regla anti-racha (máx. 3 pérdidas) y el límite FundedNext de 3% max risk ($300)."
             )
             real_account_recommendations.append(
                 "⚠️ [REGLA DE NOTICIAS]: No abras operaciones dentro de los 15 minutos previos o posteriores a NFP, "
-                "CPI o FOMC (máximo 40% de ganancias provenientes de noticias)."
+                "CPI o FOMC (máximo 40% de ganancias provenientes de noticias según regla oficial 1.png)."
             )
 
         return RuleCheckResult(

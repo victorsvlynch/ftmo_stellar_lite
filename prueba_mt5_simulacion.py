@@ -1,10 +1,10 @@
 """
 prueba_mt5_simulacion.py - Script de Prueba y Simulación Realista con MetaTrader 5 (MT5).
-FundedNext Stellar Lite ($5,000) - Estrategia Ganadora NY_OPEN (Oro / XAUUSD).
+FundedNext Stellar Lite ($10,000) - Estrategia Ganadora NY_OPEN (Oro / XAUUSD).
 
 Este script realiza la verificación en dos modos:
 1. MODO EN VIVO (MT5 Conectado): Se conecta a la terminal MT5 abierta en tu PC, extrae datos reales
-   del broker, calcula el riesgo del 0.5% ($25) y ejecuta una micro-orden demo con SL/TP y Break-Even.
+   del broker, calcula el riesgo del 0.5% ($50) y ejecuta una micro-orden demo con SL/TP y Break-Even.
 2. MODO SIMULACIÓN REALISTA (Dry-Run Protocol): Si MT5 no está abierto en este instante, emula con precisión
    de microsegundos todo el handshake del protocolo MT5, mapeo de símbolos, cálculo de lotes y validación
    de reglas FundedNext con los datos reales de mercado.
@@ -26,7 +26,7 @@ from mt5_bridge import MT5Bridge
 def run_realistic_simulation():
     print("=" * 85)
     print("  SIMULACIÓN REALISTA Y PROTOCOLO DE CONEXIÓN CON METATRADER 5 (MT5)")
-    print("  Modelo: FundedNext Stellar Lite ($5,000) | Estrategia Ganadora: NY_OPEN (Oro)")
+    print("  Modelo: FundedNext Stellar Lite ($10,000) | Estrategia Ganadora: NY_OPEN (Oro)")
     print("=" * 85)
 
     # 1. Verificar si el paquete oficial MetaTrader5 está instalado
@@ -89,14 +89,14 @@ def run_realistic_simulation():
     db = TradingDatabase("trading_ny_open.db")
     rules = StellarLiteRulesEngine(
         db=db,
-        max_drawdown_limit_pct=0.10,  # Add-on 10% Max Loss Limit
-        min_trading_days=0,           # Add-on No Minimum Trading Days
-        funded_profit_split=0.95,     # Add-on Lifetime Reward 95%
+        max_drawdown_limit_pct=0.08,  # 8% Estándar ($800 máx loss -> piso $9,200)
+        min_trading_days=2,           # 2 días mínimos por fase
+        funded_profit_split=0.80,     # 80% Profit Split estándar
     )
     risk = RiskManager(
         db=db,
-        default_risk_pct=0.005,       # 0.5% por operación = $25.00 en $5,000
-        personal_daily_cap_pct=0.02,  # 2.0% freno diario
+        default_risk_pct=0.005,       # 0.5% por operación = $50.00 en $10,000
+        personal_daily_cap_pct=0.02,  # 2.0% freno diario ($200)
         session_mode="NY_OPEN",
     )
     connector = MarketDataConnector()
@@ -115,8 +115,8 @@ def run_realistic_simulation():
         print(f"\n[PASO 3] Cotización de Referencia Oro Spot (XAU/USD): ${latest_price:,.2f}")
 
     # 5. Cálculo de Dimensionamiento de Posición Institucional (Risk Management)
-    account_balance = 5000.0
-    risk_pct = 0.005  # 0.5% de riesgo exacto ($25.00)
+    account_balance = 10000.0
+    risk_pct = 0.005  # 0.5% de riesgo exacto ($50.00)
     sl_distance_usd = 6.50  # Distancia de Stop Loss en precio ($6.50 por onza)
     entry_sim = round(latest_price, 2)
     sl_sim = round(entry_sim - sl_distance_usd, 2)
@@ -246,12 +246,12 @@ def run_realistic_simulation():
     print(f"         -> Riesgo de la posición queda reducido a: $0.00 (Trade Gratuito).")
 
     # 7. Verificación de Reglas FundedNext
-    print("\n[PASO 8] Validación de Reglas FundedNext Stellar Lite ($5K):")
+    print("\n[PASO 8] Validación de Reglas FundedNext Stellar Lite ($10K):")
     eval_rules = rules.evaluate_account()
     print(f"         Fase de Cuenta   : {eval_rules.phase} | Estado: {eval_rules.status}")
     print(f"         Piso Diario (4%) : ${eval_rules.daily_loss_floor:,.2f} (Margen: ${eval_rules.daily_loss_remaining:,.2f})")
-    print(f"         Piso Max DD(10%) : ${eval_rules.max_loss_floor:,.2f} (Margen: ${eval_rules.max_loss_remaining:,.2f})")
-    print(f"         Profit Split     : {eval_rules.profit_split * 100:.0f}% de por vida")
+    print(f"         Piso Max DD (8%) : ${eval_rules.max_loss_floor:,.2f} (Margen: ${eval_rules.max_loss_remaining:,.2f})")
+    print(f"         Profit Split     : {eval_rules.profit_split * 100:.0f}%")
 
     print("\n" + "=" * 85)
     print("  SIMULACIÓN REALISTA COMPLETADA CON ÉXITO")

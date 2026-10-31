@@ -1,5 +1,5 @@
 """
-test_verification.py - Suite de Verificación Automatizada para FundedNext / FTMO Stellar Lite ($5,000).
+test_verification.py - Suite de Verificación Automatizada para FundedNext Stellar Lite 2-Step ($10,000 USD).
 Valida:
 1. Filtro Anti-Fakeouts en ORB (Cierre de vela 15m).
 2. Filtro de Tendencia Macro (EMA 200 en 1H).
@@ -8,6 +8,9 @@ Valida:
 5. Blindaje con Break-Even a +1R.
 6. Cierre Forzoso de Fin de Semana (Viernes 15:30 EST).
 7. Módulo de Alertas Telegram.
+8. Validación de Reglas Oficiales Stellar Lite 2-Step $10K (Piso $9,200, Targets $800/$400, 2 Días Mínimos).
+9. Verificación de Promoción de Fase y Split Institucional (80% / 90%).
+10. Portafolio Multi-Activo (S&P 500 & EUR/USD) con Dimensionamiento Exacto para $10K (0.5% = $50).
 """
 
 import os
@@ -239,66 +242,96 @@ def run_tests():
     print("  PASS: Modulo Telegram funciona con resiliencia ante ausencia de token.")
 
     # -------------------------------------------------------------------------
-    # TEST 8: Validacion de Target Alcanzado & Recomendaciones Cuenta Real (Regla Estándar 2 Días)
+    # TEST 8: Validacion de Target Alcanzado & Recomendaciones Cuenta Real (Regla Estándar 2 Días en $10K)
     # -------------------------------------------------------------------------
-    print("\n[TEST 8] Validacion de Target Alcanzado, Bloqueo Anti-Overtrading & Micro-Lote (Regla 2 Días)")
-    # Simular cuenta con $5,723.92 en Fase 2 bajo regla estándar de 2 días
+    print("\n[TEST 8] Validacion de Target Alcanzado, Bloqueo Anti-Overtrading & Micro-Lote (Regla 2 Días en $10K)")
+    # Simular cuenta con $10,850.00 en Fase 1 (Target +8% = $800 superado) con 0 días completados
     rules_engine.min_trading_days = 2
-    db.update_account_state(balance=5723.92, equity=5723.92, phase="FASE_2", status="ACTIVE")
+    db.update_account_state(
+        initial_balance=10000.0,
+        balance=10850.0,
+        equity=10850.0,
+        phase="FASE_1",
+        status="ACTIVE",
+    )
     eval_res = rules_engine.evaluate_account()
-    assert eval_res.target_reached is True, "Expected target_reached=True for $5723.92 in Fase 2"
+    assert eval_res.target_reached is True, "Expected target_reached=True for $10,850.00 in Fase 1"
     assert eval_res.waiting_min_days is True, "Expected waiting_min_days=True since trading days < 2"
     assert len(eval_res.real_account_recommendations) > 0, "Expected institutional recommendations"
-    print("  PASS: Deteccion de target alcanzado y generacion de recomendaciones para cuenta real.")
+    print("  PASS: Deteccion de target alcanzado ($10,850 >= $10,800) y generacion de recomendaciones para cuenta real.")
 
     # Probar que run_single_cycle bloquea si hoy ya hay trades
     today_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     db.update_account_state(current_trading_day=today_str)
     # Registrar un trade ficticio cerrado hoy
-    db.record_trade_open(symbol="GC=F", provider="yfinance", side="BUY", lots=0.01, units=1.0, entry_price=2000.0, stop_loss=1990.0, take_profit=2020.0, rr_ratio=2.0, phase="FASE_2", strategy="TEST")
+    db.record_trade_open(symbol="GC=F", provider="yfinance", side="BUY", lots=0.01, units=1.0, entry_price=2000.0, stop_loss=1990.0, take_profit=2020.0, rr_ratio=2.0, phase="FASE_1", strategy="TEST")
     open_t = db.get_open_trades()
-    db.record_trade_close(trade_id=open_t[0]["id"], exit_price=2010.0, pnl=8.5, notes="TEST_CLOSE", commission=1.0, spread_cost=0.5)
+    db.record_trade_close(trade_id=open_t[0]["id"], exit_price=2010.0, pnl=10.0, notes="TEST_CLOSE", commission=1.0, spread_cost=0.5)
 
     cycle_res = engine.run_single_cycle(ignore_session_filter=True)
     assert cycle_res["action"] == "TARGET_REACHED_TODAY_SECURED", f"Expected TARGET_REACHED_TODAY_SECURED, got {cycle_res['action']}"
     print("  PASS: Bloqueo anti-overtrading activado: no permite abrir nuevas ordenes si el target ya fue alcanzado hoy.")
 
     # -------------------------------------------------------------------------
-    # TEST 9: Validacion de Add-ons FundedNext Checkout (cloud.png)
+    # TEST 9: Validacion de Parametros y Reglas Oficiales FundedNext Stellar Lite 2-Step 10K (cloud.png)
     # -------------------------------------------------------------------------
-    print("\n[TEST 9] Validacion de Add-ons FundedNext (cloud.png: No Min Days, 10% Max Loss, 95% Split)")
-    rules_engine.min_trading_days = 0
-    rules_engine.max_drawdown_limit_pct = 0.10
-    rules_engine.funded_profit_split = 0.95
-    db.update_account_state(balance=5723.92, equity=5723.92, phase="FASE_2", status="ACTIVE")
-    eval_addon = rules_engine.evaluate_account()
-    assert eval_addon.phase == "FONDEADA", f"Expected promotion to FONDEADA, got {eval_addon.phase}"
-    assert eval_addon.profit_split == 0.95, f"Expected 95% profit split, got {eval_addon.profit_split}"
-    assert eval_addon.max_loss_floor == 4500.0, f"Expected $4,500.00 floor (10% Max DD), got {eval_addon.max_loss_floor}"
-    print("  PASS: Aprobacion instantanea a FONDEADA con No Min Trading Days, Piso $4,500 (10% DD) y Split 95%.")
+    print("\n[TEST 9] Validacion de Reglas Oficiales Stellar Lite 2-Step $10K USD (cloud.png)")
+    rules_engine.min_trading_days = 2
+    rules_engine.max_drawdown_limit_pct = 0.08  # 8% Estándar ($800)
+    rules_engine.funded_profit_split = 0.80     # 80% Split Estándar
+    db.update_account_state(
+        initial_balance=10000.0,
+        balance=10000.0,
+        equity=10000.0,
+        day_start_balance=10000.0,
+        phase="FASE_1",
+        status="ACTIVE",
+    )
+    eval_std = rules_engine.evaluate_account()
+    assert eval_std.daily_loss_floor == 9600.0, f"Expected $9,600.00 daily loss floor (4% of 10K), got {eval_std.daily_loss_floor}"
+    assert eval_std.max_loss_floor == 9200.0, f"Expected $9,200.00 max loss floor (8% of 10K), got {eval_std.max_loss_floor}"
+    assert eval_std.profit_target_amount == 800.0, f"Expected $800.00 target for Phase 1 (+8%), got {eval_std.profit_target_amount}"
+    assert eval_std.profit_target_balance == 10800.0, f"Expected $10,800.00 target balance, got {eval_std.profit_target_balance}"
+    print("  PASS: Parametros $10K confirmados: Piso Diario $9,600 (4%), Piso Max DD $9,200 (8%), Meta Fase 1 $10,800 (+8%).")
+
+    # Probar pase a Fase 2 cuando se cumplen los 2 días operativos requeridos
+    with db._get_connection() as conn:
+        conn.execute(
+            "INSERT INTO trades (symbol, provider, side, lots, units, entry_price, stop_loss, take_profit, phase, status, opened_at, trading_date) VALUES ('GC=F', 'yfinance', 'BUY', 0.01, 1.0, 2000, 1990, 2020, 'FASE_1', 'CLOSED', '2026-10-29', '2026-10-29')"
+        )
+        conn.execute(
+            "INSERT INTO trades (symbol, provider, side, lots, units, entry_price, stop_loss, take_profit, phase, status, opened_at, trading_date) VALUES ('GC=F', 'yfinance', 'BUY', 0.01, 1.0, 2000, 1990, 2020, 'FASE_1', 'CLOSED', '2026-10-30', '2026-10-30')"
+        )
+        conn.commit()
+    db.update_account_state(balance=10850.0, equity=10850.0)
+    eval_promoted = rules_engine.evaluate_account()
+    assert eval_promoted.phase == "FASE_2", f"Expected promotion to FASE_2, got {eval_promoted.phase}"
+    assert eval_promoted.profit_target_amount == 400.0, f"Expected $400.00 target for Phase 2 (+4%), got {eval_promoted.profit_target_amount}"
+    assert eval_promoted.profit_target_balance == 10400.0, f"Expected $10,400.00 target balance in Phase 2, got {eval_promoted.profit_target_balance}"
+    print("  PASS: Promocion a FASE 2 certificada tras 2 dias minimos. Nueva meta Fase 2: $10,400 (+4% = $400).")
 
     # -------------------------------------------------------------------------
-    # TEST 10: Validacion de Portafolio Multi-Activo (S&P 500 & EUR/USD)
+    # TEST 10: Portafolio Profesional Multi-Activo con Capital de $10,000 USD
     # -------------------------------------------------------------------------
-    print("\n[TEST 10] Portafolio Profesional: S&P 500 (ES=F / US500) & EUR/USD (EURUSD=X)")
+    print("\n[TEST 10] Portafolio Profesional en Cuenta $10K: S&P 500 (ES=F / US500) & EUR/USD (EURUSD=X)")
     rm_portfolio = RiskManager(db=db, session_mode="PORTFOLIO_DUAL")
     
-    # 1. Dimensionamiento de Posición EUR/USD (25 pips de SL -> $25 USD de riesgo = 0.5%)
+    # 1. Dimensionamiento de Posición EUR/USD (25 pips de SL -> $50 USD de riesgo = 0.5% en $10K)
     pos_eur = rm_portfolio.calculate_position_size(
-        balance=5000.0,
+        balance=10000.0,
         symbol="EURUSD=X",
         side="BUY",
         entry_price=1.10000,
         stop_loss=1.09750, # 25 pips
         risk_pct=0.005,
     )
-    assert pos_eur.lots == 0.10, f"Expected 0.10 lots for EUR/USD with 25 pips SL, got {pos_eur.lots}"
-    assert abs(pos_eur.risk_amount_usd - 25.0) < 0.50, f"Expected ~$25.00 risk, got {pos_eur.risk_amount_usd}"
-    print(f"  PASS: EUR/USD -> Lotaje: {pos_eur.lots} lotes | Riesgo: ${pos_eur.risk_amount_usd:.2f} USD (0.50%) | TP: {pos_eur.take_profit}")
+    assert pos_eur.lots == 0.20, f"Expected 0.20 lots for EUR/USD with 25 pips SL on 10K, got {pos_eur.lots}"
+    assert abs(pos_eur.risk_amount_usd - 50.0) < 0.50, f"Expected ~$50.00 risk, got {pos_eur.risk_amount_usd}"
+    print(f"  PASS: EUR/USD -> Lotaje: {pos_eur.lots} lotes | Riesgo: ${pos_eur.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_eur.take_profit}")
 
-    # 2. Dimensionamiento de Posición S&P 500 (15 puntos de SL -> $25 USD de riesgo = 0.5%)
+    # 2. Dimensionamiento de Posición S&P 500 (15 puntos de SL -> $50 USD de riesgo = 0.5% en $10K)
     pos_sp = rm_portfolio.calculate_position_size(
-        balance=5000.0,
+        balance=10000.0,
         symbol="ES=F",
         side="SELL",
         entry_price=5850.0,
@@ -306,8 +339,8 @@ def run_tests():
         risk_pct=0.005,
     )
     assert pos_sp.lots > 0.0, f"Expected valid lots for S&P 500, got {pos_sp.lots}"
-    assert abs(pos_sp.risk_amount_usd - 25.0) < 1.0, f"Expected ~$25.00 risk for S&P 500, got {pos_sp.risk_amount_usd}"
-    print(f"  PASS: S&P 500 -> Lotaje: {pos_sp.lots} lotes | Riesgo: ${pos_sp.risk_amount_usd:.2f} USD (0.50%) | TP: {pos_sp.take_profit}")
+    assert abs(pos_sp.risk_amount_usd - 50.0) < 1.0, f"Expected ~$50.00 risk for S&P 500, got {pos_sp.risk_amount_usd}"
+    print(f"  PASS: S&P 500 -> Lotaje: {pos_sp.lots} lotes | Riesgo: ${pos_sp.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_sp.take_profit}")
 
     # 3. Verificación de Horarios Diferenciados de Sesión:
     # A. 04:00 EST (Apertura de Londres): EUR/USD activo, S&P 500 inactivo
@@ -339,13 +372,53 @@ def run_tests():
     assert sig_sp.orb_high == 5855.0, f"Expected ORB High 5855.0 from 09:30 EST bar, got {sig_sp.orb_high}"
     print(f"  PASS: S&P 500 ORB 15m (09:30 EST) confirmado con exito: BUY @ {sig_sp.current_price} | SL: {sig_sp.stop_loss} | TP: {sig_sp.take_profit}")
 
+    # -------------------------------------------------------------------------
+    # TEST 11: Validacion de Regla FundedNext: Max Risk 3% At Any Time (1.png)
+    # -------------------------------------------------------------------------
+    print("\n[TEST 11] Validacion de Regla Oficial FundedNext: Max Risk 3% At Any Time (1.png)")
+    # Limpiar trades para test aislado
+    with db._get_connection() as conn:
+        conn.execute("DELETE FROM trades")
+        conn.commit()
+
+    # 1. Simular trade abierto con $200 de riesgo expuesto (ej. 20 pips en EUR/USD con 1.0 lote = $200)
+    db.record_trade_open(
+        symbol="EURUSD=X", provider="yfinance", side="BUY", lots=1.0, units=100000.0,
+        entry_price=1.1000, stop_loss=1.0980, take_profit=1.1040, rr_ratio=2.0, phase="FASE_1", strategy="TEST"
+    )
+    open_risk_1 = risk_mgr.calculate_current_open_risk()
+    assert open_risk_1 == 200.0, f"Expected $200.00 open risk, got {open_risk_1}"
+    print(f"  PASS: Riesgo actual en mercado correctamente medido: ${open_risk_1:,.2f} USD (2.0% de $10K).")
+
+    # 2. Intentar validar una nueva orden que agregue $150 de riesgo adicional ($200 + $150 = $350 > $300 límite 3%)
+    check_over_risk = risk_mgr.validate_pre_trade(estimated_new_trade_risk=150.0, ignore_session_filter=True)
+    assert check_over_risk.allowed is False, "Expected trade to be blocked by Max Risk 3% rule"
+    assert "MAX RISK 3%" in check_over_risk.reason, f"Expected MAX RISK 3% reason, got: {check_over_risk.reason}"
+    print(f"  PASS: Bloqueo exitoso ante intento de exceder 3.0% de riesgo abierto simultáneo: {check_over_risk.reason[:75]}...")
+
+    # 3. Blindar la primera posición a Break-Even (is_break_even=1) -> Riesgo cae a $0.00
+    open_trades_list = db.get_open_trades()
+    db.update_trade_sl(trade_id=open_trades_list[0]["id"], new_sl=1.1000, is_break_even=1)
+    open_risk_be = risk_mgr.calculate_current_open_risk()
+    assert open_risk_be == 0.0, f"Expected $0.00 risk after Break-Even, got {open_risk_be}"
+    
+    # Ahora la nueva orden con $150 de riesgo sí debe ser permitida ($0 + $150 = $150 < $300)
+    check_after_be = risk_mgr.validate_pre_trade(estimated_new_trade_risk=150.0, ignore_session_filter=True)
+    assert check_after_be.allowed is True, f"Expected allowed after BE, got {check_after_be.reason}"
+    print("  PASS: Al blindar la orden a Break-Even, el riesgo expuesto se libera ($0.00) y autoriza nuevas operaciones.")
+
     del engine
     del rules_engine
+    del rm_portfolio
+    del risk_mgr
     del db
     import gc
     gc.collect()
-    if os.path.exists(test_db_path):
-        os.remove(test_db_path)
+    try:
+        if os.path.exists(test_db_path):
+            os.remove(test_db_path)
+    except Exception:
+        pass
     print("\n==================================================")
     print("TODAS LAS PRUEBAS COMPLETADAS CON EXITO (100% OK)")
     print("==================================================")

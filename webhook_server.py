@@ -1,6 +1,6 @@
 """
 webhook_server.py - Servidor HTTP de Señales y Webhooks para MetaTrader 5 (MT5).
-FundedNext Stellar Lite ($5,000) - Estrategia Ganadora: NY_OPEN (Oro / XAUUSD).
+FundedNext Stellar Lite ($10,000) - Estrategia Ganadora: NY_OPEN (Oro / XAUUSD).
 
 Permite la OP despierta 24/7 en Oracle Cloud:
 - El bot corre 24/7 en Linux analizando velas y gestionando riesgo.
@@ -239,9 +239,9 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
             db = TradingDatabase(DB_FILE)
             rules = StellarLiteRulesEngine(
                 db=db,
-                max_drawdown_limit_pct=0.10,
-                min_trading_days=0,
-                funded_profit_split=0.95,
+                max_drawdown_limit_pct=0.08,
+                min_trading_days=2,
+                funded_profit_split=0.80,
             )
             state = rules.evaluate_account()
             acc = db.get_account_state()
@@ -341,7 +341,7 @@ def run_server(port: int = PORT) -> None:
     httpd = ThreadedHTTPServer(server_address, WebhookRequestHandler)
     logger.info("=" * 75)
     logger.info(f" SERVIDOR WEBHOOK MT5 ACTIVO EN PUERTO {port} (0.0.0.0:{port})")
-    logger.info(" Estrategia: FundedNext Stellar Lite ($5,000) - NY_OPEN")
+    logger.info(" Estrategia: FundedNext Stellar Lite ($10,000) - NY_OPEN")
     logger.info(" Endpoints disponibles:")
     logger.info(f"  * GET  http://157.137.225.144:{port}/api/health")
     logger.info(f"  * GET  http://157.137.225.144:{port}/api/signal")

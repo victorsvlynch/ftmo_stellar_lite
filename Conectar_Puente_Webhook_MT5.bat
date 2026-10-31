@@ -30,7 +30,7 @@ if not exist "%KEY%" (
 cls
 echo ==============================================================================
 echo   GESTOR DEL PUENTE WEBHOOK MT5 -- ORACLE CLOUD VPS (157.137.225.144)
-echo   Modelo: FundedNext Stellar Lite ($5,000) -- Estrategia: NY_OPEN (Oro)
+echo   Modelo: FundedNext Stellar Lite ($10,000) -- Estrategia: NY_OPEN (Oro)
 echo ==============================================================================
 echo.
 

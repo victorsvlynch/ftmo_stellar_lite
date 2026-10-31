@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
 //|                                   StellarLite_Webhook_Bridge.mq5 |
-//|              FundedNext Stellar Lite ($5,000) - Webhook Bridge EA |
+//|             FundedNext Stellar Lite ($10,000) - Webhook Bridge EA |
 //|          Conecta MetaTrader 5 con el Motor Cuantitativo 24/7 OCI |
 //+------------------------------------------------------------------+
 #property copyright   "FundedNext Stellar Lite Quantitative Engine"
@@ -200,7 +200,7 @@ void UpdateChartDashboard()
    string sep = "========================================================================\n";
    string text = "";
    text += sep;
-   text += "  FUNDEDNEXT STELLAR LITE ($5,000) -- WEBHOOK BRIDGE EA MT5\n";
+   text += "  FUNDEDNEXT STELLAR LITE ($10,000) -- WEBHOOK BRIDGE EA MT5\n";
    text += "  Estrategia Ganadora: NY_OPEN (Oro / XAUUSD) | R:R 1:2 + Break-Even\n";
    text += sep;
    text += StringFormat("  Servidor Oracle VPS: %s\n", InpServerUrl);
@@ -527,7 +527,7 @@ int OnInit()
 {
    Print("==================================================================");
    Print("  INICIANDO EXPERT ADVISOR: STELLARLITE WEBHOOK BRIDGE (MT5)     ");
-   Print("  Modelo: FundedNext Stellar Lite ($5,000) | NY_OPEN (Oro)        ");
+   Print("  Modelo: FundedNext Stellar Lite ($10,000) | NY_OPEN (Oro)        ");
    Print("==================================================================");
 
    ExtTrade.SetExpertMagicNumber(InpMagicNumber);

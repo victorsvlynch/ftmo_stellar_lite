@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 configurar_telegram.py - Asistente de Configuración Rápida de Alertas Telegram.
-Modelo: FundedNext Stellar Lite ($5,000)
+Modelo: FundedNext Stellar Lite ($10,000)
 Destinatario: @victorsvlynch
 """
 

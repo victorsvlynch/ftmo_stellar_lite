@@ -74,7 +74,7 @@ case "${ACTION}" in
         python3 "${APP_DIR}/main.py" multi-detail-status
         ;;
     reset-all)
-        echo "[*] Reiniciando todas las bases de datos a \$5,000.00..."
+        echo "[*] Reiniciando todas las bases de datos a \$10,000.00..."
         python3 "${APP_DIR}/main.py" reset-all
         ;;
     *)

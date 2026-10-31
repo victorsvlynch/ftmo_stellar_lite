@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 title Centro de Control Multi-Servicios - FTMO Stellar Lite (5 Estrategias)
 set "KEY=%USERPROFILE%\.ssh\ssh-key-2026-10-26.key"
 if not exist "%KEY%" set "KEY=%USERPROFILE%\.ssh\oracle_vps.key"
@@ -18,7 +18,7 @@ echo  5. Abrir Tablero en Vivo Consolidado (Live Multi-Dashboard Compacto)
 echo  6. Abrir Tablero en Vivo DETALLADO (Live con Operaciones Abiertas y Cerradas)
 echo  7. Ver Logs en Vivo de Todas las Estrategias (Combined Logs)
 echo  8. Ver Logs Individuales por Estrategia (Submenu 1 a 5)
-echo  9. Reiniciar las 5 Cuentas a $5,000.00 Limpios (Reset All DBs)
+echo  9. Reiniciar las 5 Cuentas a $10,000.00 Limpios (Reset All DBs)
 echo 10. Salir
 echo ==============================================================================
 set /p opt="Seleccione una opcion [1-10]: "
@@ -100,7 +100,7 @@ goto SUBMENU_LOGS
 :RESET
 cls
 echo ==============================================================================
-echo ADVERTENCIA: Esta accion reiniciara los balances de las 5 modalidades a $5,000.
+echo ADVERTENCIA: Esta accion reiniciara los balances de las 5 modalidades a $10,000.
 echo ==============================================================================
 set /p confirm="Esta seguro de reiniciar las 5 cuentas? (S/N): "
 if /i "%confirm%"=="S" (

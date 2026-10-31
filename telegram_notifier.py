@@ -5,7 +5,7 @@ Envía alertas inmediatas a tu teléfono móvil (@victorsvlynch) sobre:
 - Apertura de operaciones institucionales (con SL, TP, lotaje y riesgo en USD)
 - Activación de Break-Even (+1R protegido sin riesgo)
 - Cierre de operaciones (con PnL realizado y balance actualizado)
-- Alertas de riesgo y cumplimiento de objetivos FundedNext Stellar Lite ($5,000)
+- Alertas de riesgo y cumplimiento de objetivos FundedNext Stellar Lite ($10,000)
 """
 
 import os
@@ -98,7 +98,7 @@ class TelegramNotifier:
         msg = (
             f"<b>🚀 ORDEN INSTITUCIONAL #{trade_id} ABIERTA</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"<b>Cuenta:</b> FundedNext Stellar Lite ($5,000)\n"
+            f"<b>Cuenta:</b> FundedNext Stellar Lite ($10,000)\n"
             f"<b>Estrategia:</b> <code>{strategy}</code>\n"
             f"<b>Activo:</b> <b>{sym_clean}</b>\n"
             f"<b>Acción:</b> <b>{emoji}</b>\n"
@@ -123,7 +123,7 @@ class TelegramNotifier:
         price: float,
         sl: float,
         tp: float,
-        risk_usd: float = 25.0,
+        risk_usd: float = 50.0,
         risk_pct: float = 0.005,
         strategy: str = "NY_OPEN",
         comment: str = "Señal Manual Móvil",
@@ -147,7 +147,7 @@ class TelegramNotifier:
             f"<b>Precio Referencia:</b> ${price:,.2f}\n"
             f"<b>Stop Loss (SL):</b> <code>{sl:.2f}</code>\n"
             f"<b>Take Profit (TP):</b> <code>{tp:.2f}</code> (R:R 1:2)\n"
-            f"<b>Riesgo Máximo:</b> ${risk_usd:,.2f} ({risk_pct * 100:.2f}% de $5,000)\n"
+            f"<b>Riesgo Máximo:</b> ${risk_usd:,.2f} ({risk_pct * 100:.2f}% de $10,000)\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📲 <b>PASOS PARA EJECUTAR EN TU CELULAR:</b>\n"
             f"1. Abre <b>MetaTrader 5</b> en tu móvil.\n"

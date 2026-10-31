@@ -81,12 +81,13 @@ class RiskManager:
     """Gestor de Riesgo Institucional para cuentas FundedNext Stellar Lite."""
 
     MAX_CONSECUTIVE_LOSSES_TILT = 3
+    MAX_OPEN_RISK_EXPOSURE_PCT = 0.03  # Regla Oficial FundedNext (1.png): Max Risk 3% At Any Time ($300 en $10K)
 
     def __init__(
         self,
         db: TradingDatabase,
-        default_risk_pct: float = 0.005,       # 0.5% por operación por defecto
-        personal_daily_cap_pct: float = 0.02,  # 2.0% freno de mano personal (la mitad del 4% oficial)
+        default_risk_pct: float = 0.005,       # 0.5% por operación por defecto ($50 en $10,000)
+        personal_daily_cap_pct: float = 0.02,  # 2.0% freno de mano personal ($200 en $10,000)
         rr_ratio: float = 2.0,                 # Ratio Riesgo:Beneficio 1:2 estricto
         session_mode: str = "NY_OPEN",         # "NY_OPEN", "LONDON_OPEN", "COMBO_DUAL", "COMBO_TRIO", "ALL"
     ) -> None:
@@ -361,19 +362,47 @@ class RiskManager:
                 break
         return consecutive_losses
 
+    def calculate_current_open_risk(self) -> float:
+        """
+        Calcula la suma del riesgo monetario real expuesto de todas las operaciones abiertas
+        (excluyendo operaciones ya blindadas con Break-Even o con SL en o más allá del precio de entrada).
+        Cumplimiento estricto de la regla FundedNext: 'Max Risk: 3% At any time' (1.png).
+        """
+        open_trades = self.db.get_open_trades()
+        total_risk = 0.0
+        for t in open_trades:
+            if int(t.get("is_break_even", 0)) == 1:
+                continue
+            entry = float(t["entry_price"])
+            sl = float(t["stop_loss"])
+            side = str(t["side"]).upper()
+            units = float(t["units"])
+
+            # Si el SL ya está en ganancia o en entrada, el riesgo efectivo es 0.0
+            if side == "BUY" and sl >= entry:
+                continue
+            if side == "SELL" and sl <= entry:
+                continue
+
+            trade_risk = abs(entry - sl) * units
+            total_risk += trade_risk
+        return round(total_risk, 2)
+
     def validate_pre_trade(
         self,
         floating_pnl: float = 0.0,
         now_utc: Optional[datetime] = None,
         ignore_session_filter: bool = False,
         symbol: Optional[str] = None,
+        estimated_new_trade_risk: float = 0.0,
     ) -> PreTradeRiskCheck:
         """
         Ejecuta todas las validaciones de riesgo previas a abrir una nueva operación:
         1. Estado activo de la cuenta (no FALLADA).
         2. Freno de Mano Personal (Personal Daily Loss Cap, ej. 2%).
         3. Alerta de Racha Negativa (Tilt Alert tras 3 pérdidas consecutivas en el día).
-        4. Filtro de Sesión de Mercado (Londres / Apertura NY 08:30 - 11:30 EST / Combo 24H).
+        4. Regla Oficial FundedNext: Max Risk 3% At Any Time (Límite simultáneo de riesgo).
+        5. Filtro de Sesión de Mercado (Londres / Apertura NY 08:30 - 11:30 EST / Combo 24H).
         """
         dt_utc = now_utc or datetime.now(timezone.utc)
         acc = self.db.get_account_state()
@@ -391,6 +420,7 @@ class RiskManager:
 
         day_start_balance = float(acc["day_start_balance"])
         balance = float(acc["balance"])
+        initial_balance = float(acc.get("initial_balance", balance))
         equity = balance + floating_pnl
         personal_cap_pct = float(acc.get("personal_daily_cap_pct", self.personal_daily_cap_pct))
 
@@ -439,7 +469,27 @@ class RiskManager:
                 daily_pnl_pct=round(daily_pnl_pct, 4),
             )
 
-        # 3. Filtro por Sesión de Mercado
+        # 3. Regla Oficial FundedNext (1.png): Max Risk 3% At Any Time
+        current_open_risk = self.calculate_current_open_risk()
+        max_allowed_risk = initial_balance * self.MAX_OPEN_RISK_EXPOSURE_PCT
+        if (current_open_risk + estimated_new_trade_risk) > (max_allowed_risk + 1e-4):
+            reason = (
+                f"REGLA FUNDEDNEXT MAX RISK 3% AT ANY TIME: Riesgo abierto simultáneo (${current_open_risk:,.2f}) "
+                f"+ nuevo trade (${estimated_new_trade_risk:,.2f}) = ${current_open_risk + estimated_new_trade_risk:,.2f}, "
+                f"supera el límite oficial de 3.0% (${max_allowed_risk:,.2f}). Operación bloqueada."
+            )
+            self.db.log_event("MAX_RISK_3PCT_BLOCKED", acc["phase"], reason)
+            return PreTradeRiskCheck(
+                allowed=False,
+                reason=reason,
+                active_session=session_name,
+                consecutive_losses_today=consecutive_losses,
+                tilt_locked=False,
+                personal_cap_triggered=False,
+                daily_pnl_pct=round(daily_pnl_pct, 4),
+            )
+
+        # 4. Filtro por Sesión de Mercado
         if not ignore_session_filter and not session_ok:
             reason = (
                 f"FILTRO DE SESIÓN: Fuera de ventana operativa ({self.session_mode}). "

@@ -1,9 +1,9 @@
-﻿@echo off
+@echo off
 chcp 65001 > nul
 setlocal EnableDelayedExpansion
 
 echo ============================================================
-echo   AUTO-PUSH: FTMO Stellar Lite ($5K) (Batch Runner)
+echo   AUTO-PUSH: FundedNext Stellar Lite ($10,000 USD) (Batch Runner)
 echo ============================================================
 
 cd /d "%~dp0\..\.."

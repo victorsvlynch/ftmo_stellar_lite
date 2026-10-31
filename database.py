@@ -6,8 +6,11 @@ y snapshots diarios en `trading_history.db`.
 
 import os
 import sqlite3
+import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
+
+logger = logging.getLogger("TradingDatabase")
 
 
 DB_DEFAULT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trading_history.db")
@@ -41,10 +44,10 @@ class TradingDatabase:
                 """
                 CREATE TABLE IF NOT EXISTS account_state (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
-                    initial_balance REAL NOT NULL DEFAULT 5000.0,
-                    balance REAL NOT NULL DEFAULT 5000.0,
-                    equity REAL NOT NULL DEFAULT 5000.0,
-                    day_start_balance REAL NOT NULL DEFAULT 5000.0,
+                    initial_balance REAL NOT NULL DEFAULT 10000.0,
+                    balance REAL NOT NULL DEFAULT 10000.0,
+                    equity REAL NOT NULL DEFAULT 10000.0,
+                    day_start_balance REAL NOT NULL DEFAULT 10000.0,
                     current_trading_day TEXT NOT NULL,
                     phase TEXT NOT NULL DEFAULT 'FASE_1',
                     status TEXT NOT NULL DEFAULT 'ACTIVE',
@@ -95,9 +98,9 @@ class TradingDatabase:
                 "ALTER TABLE trades ADD COLUMN commission REAL DEFAULT 0.0",
                 "ALTER TABLE trades ADD COLUMN spread_cost REAL DEFAULT 0.0",
                 "ALTER TABLE trades ADD COLUMN is_break_even INTEGER DEFAULT 0",
-                "ALTER TABLE account_state ADD COLUMN max_drawdown_limit_pct REAL DEFAULT 0.10",
-                "ALTER TABLE account_state ADD COLUMN min_trading_days INTEGER DEFAULT 0",
-                "ALTER TABLE account_state ADD COLUMN funded_profit_split REAL DEFAULT 0.95",
+                "ALTER TABLE account_state ADD COLUMN max_drawdown_limit_pct REAL DEFAULT 0.08",
+                "ALTER TABLE account_state ADD COLUMN min_trading_days INTEGER DEFAULT 2",
+                "ALTER TABLE account_state ADD COLUMN funded_profit_split REAL DEFAULT 0.80",
                 "ALTER TABLE account_state ADD COLUMN ea_enabled INTEGER DEFAULT 1",
             ):
                 try:
@@ -128,6 +131,41 @@ class TradingDatabase:
                     event_type TEXT NOT NULL,
                     phase TEXT NOT NULL,
                     message TEXT NOT NULL
+                )
+                """
+            )
+
+            # Tabla permanente de histórico archivado de trades (persiste tras resets y retiros)
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS archived_trades (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    original_trade_id INTEGER,
+                    symbol TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    side TEXT NOT NULL,
+                    lots REAL NOT NULL,
+                    units REAL NOT NULL,
+                    entry_price REAL NOT NULL,
+                    stop_loss REAL NOT NULL,
+                    take_profit REAL NOT NULL,
+                    exit_price REAL,
+                    pnl REAL NOT NULL DEFAULT 0.0,
+                    gross_pnl REAL NOT NULL DEFAULT 0.0,
+                    commission REAL NOT NULL DEFAULT 0.0,
+                    spread_cost REAL NOT NULL DEFAULT 0.0,
+                    rr_ratio REAL NOT NULL DEFAULT 2.0,
+                    phase TEXT NOT NULL,
+                    strategy TEXT NOT NULL DEFAULT 'NY_ORB_15M',
+                    is_news_window INTEGER NOT NULL DEFAULT 0,
+                    is_break_even INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'CLOSED',
+                    opened_at TEXT NOT NULL,
+                    closed_at TEXT,
+                    trading_date TEXT NOT NULL,
+                    notes TEXT DEFAULT '',
+                    archived_at TEXT NOT NULL,
+                    archive_cycle TEXT DEFAULT 'RESET'
                 )
                 """
             )
@@ -166,8 +204,9 @@ class TradingDatabase:
                     INSERT INTO account_state (
                         id, initial_balance, balance, equity, day_start_balance,
                         current_trading_day, phase, status, fail_reason, profit_split,
-                        personal_daily_cap_pct, risk_per_trade_pct, updated_at
-                    ) VALUES (1, 5000.0, 5000.0, 5000.0, 5000.0, ?, 'FASE_1', 'ACTIVE', '', 0.0, 0.02, 0.005, ?)
+                        personal_daily_cap_pct, risk_per_trade_pct, max_drawdown_limit_pct,
+                        min_trading_days, funded_profit_split, ea_enabled, updated_at
+                    ) VALUES (1, 10000.0, 10000.0, 10000.0, 10000.0, ?, 'FASE_1', 'ACTIVE', '', 0.0, 0.02, 0.005, 0.08, 2, 0.80, 1, ?)
                     """,
                     (today_str, now_utc.isoformat()),
                 )
@@ -198,15 +237,67 @@ class TradingDatabase:
 
     def reset_account(
         self,
-        initial_balance: float = 5000.0,
+        initial_balance: float = 10000.0,
         personal_daily_cap_pct: float = 0.02,
         risk_per_trade_pct: float = 0.005,
+        max_drawdown_limit_pct: float = 0.08,
+        min_trading_days: int = 2,
+        funded_profit_split: float = 0.80,
+        archive_current_trades: bool = True,
+        auto_sync_mt5: bool = True,
     ) -> Dict[str, Any]:
-        """Reinicia la cuenta a Fase 1 y limpia el historial de trades."""
+        """
+        Reinicia la cuenta a Fase 1 o nuevo ciclo.
+        1. Preserva el historial completo de operaciones archivándolo en 'archived_trades'.
+        2. Si auto_sync_mt5 está activo y MT5 en ejecución, sincroniza initial_balance con el saldo real del broker.
+        """
         now_utc = datetime.now(timezone.utc)
         today_str = now_utc.strftime("%Y-%m-%d")
+
+        # Intentar auto-sincronizar con MetaTrader 5 si está en ejecución
+        synced_mt5_login = None
+        if auto_sync_mt5:
+            try:
+                from mt5_bridge import MT5Bridge
+                bridge = MT5Bridge()
+                if bridge.initialize():
+                    summary = bridge.get_account_summary()
+                    live_bal = float(summary.get("balance", 0.0))
+                    if live_bal > 0:
+                        initial_balance = live_bal
+                        synced_mt5_login = summary.get("login")
+                        logger.info(f"[*] Saldo sincronizado con MetaTrader 5 #{synced_mt5_login}: ${initial_balance:,.2f}")
+                    bridge.shutdown()
+            except Exception as e:
+                logger.debug(f"Auto-sync MT5 omitido: {e}")
+
+        archived_count = 0
         with self._get_connection() as conn:
             cursor = conn.cursor()
+
+            # Archivar historial de operaciones previo antes de limpiar el ciclo activo
+            if archive_current_trades:
+                cursor.execute("SELECT COUNT(*) AS cnt FROM trades")
+                row_cnt = cursor.fetchone()
+                if row_cnt and row_cnt["cnt"] > 0:
+                    archived_count = int(row_cnt["cnt"])
+                    cursor.execute(
+                        """
+                        INSERT INTO archived_trades (
+                            original_trade_id, symbol, provider, side, lots, units, entry_price, stop_loss,
+                            take_profit, exit_price, pnl, gross_pnl, commission, spread_cost, rr_ratio,
+                            phase, strategy, is_news_window, is_break_even, status, opened_at, closed_at,
+                            trading_date, notes, archived_at, archive_cycle
+                        )
+                        SELECT id, symbol, provider, side, lots, units, entry_price, stop_loss,
+                               take_profit, exit_price, pnl, gross_pnl, commission, spread_cost, rr_ratio,
+                               phase, strategy, is_news_window, is_break_even, status, opened_at, closed_at,
+                               trading_date, notes, ?, 'RESET_CYCLE'
+                        FROM trades
+                        """,
+                        (now_utc.isoformat(),)
+                    )
+
             cursor.execute("DELETE FROM trades")
             cursor.execute("DELETE FROM trading_days")
             cursor.execute("DELETE FROM audit_events")
@@ -224,6 +315,10 @@ class TradingDatabase:
                     profit_split = 0.0,
                     personal_daily_cap_pct = ?,
                     risk_per_trade_pct = ?,
+                    max_drawdown_limit_pct = ?,
+                    min_trading_days = ?,
+                    funded_profit_split = ?,
+                    ea_enabled = 1,
                     updated_at = ?
                 WHERE id = 1
                 """,
@@ -235,12 +330,80 @@ class TradingDatabase:
                     today_str,
                     personal_daily_cap_pct,
                     risk_per_trade_pct,
+                    max_drawdown_limit_pct,
+                    min_trading_days,
+                    funded_profit_split,
                     now_utc.isoformat(),
                 ),
             )
             conn.commit()
-        self.log_event("ACCOUNT_RESET", "FASE_1", f"Cuenta reiniciada con balance ${initial_balance:,.2f}")
-        return self.get_account_state()
+
+        audit_msg = f"Reinicio de ciclo a ${initial_balance:,.2f}"
+        if synced_mt5_login:
+            audit_msg += f" (Sincronizado en vivo con MT5 #{synced_mt5_login})"
+        if archived_count > 0:
+            audit_msg += f" | {archived_count} operaciones archivadas permanentemente"
+        self.log_event("ACCOUNT_RESET", "FASE_1", audit_msg)
+
+        state = self.get_account_state()
+        state["archived_count"] = archived_count
+        state["synced_mt5_login"] = synced_mt5_login
+        return state
+
+    def sync_with_mt5(self) -> Dict[str, Any]:
+        """
+        Sincroniza en tiempo real el balance y equidad de la base de datos
+        con la cuenta activa en MetaTrader 5.
+        """
+        try:
+            from mt5_bridge import MT5Bridge
+            bridge = MT5Bridge()
+            if not bridge.initialize():
+                return {"success": False, "reason": "No se pudo conectar a MetaTrader 5 (¿terminal abierta y AlgoTrading activo?)"}
+            summary = bridge.get_account_summary()
+            bal = float(summary.get("balance", 0.0))
+            eq = float(summary.get("equity", 0.0))
+            bridge.shutdown()
+            if bal <= 0:
+                return {"success": False, "reason": "Balance inválido retornado por MT5"}
+
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    UPDATE account_state
+                    SET balance = ?, equity = ?, updated_at = ?
+                    WHERE id = 1
+                    """,
+                    (bal, eq, datetime.now(timezone.utc).isoformat()),
+                )
+                conn.commit()
+
+            self.log_event("SINCRONIZACION_MT5", "ALL", f"Sincronizado con MT5 #{summary.get('login')}: Balance ${bal:,.2f}, Equidad ${eq:,.2f}")
+            return {
+                "success": True,
+                "login": summary.get("login"),
+                "server": summary.get("server"),
+                "balance": bal,
+                "equity": eq,
+                "currency": summary.get("currency", "USD"),
+            }
+        except Exception as e:
+            return {"success": False, "reason": str(e)}
+
+    def get_archived_trades(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Devuelve el historial de operaciones archivadas de ciclos anteriores."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM archived_trades ORDER BY id DESC LIMIT ?", (limit,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_closed_trades(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Devuelve las últimas operaciones cerradas del ciclo actual."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM trades WHERE status = 'CLOSED' ORDER BY id DESC LIMIT ?", (limit,))
+            return [dict(row) for row in cursor.fetchall()]
 
     def record_trade_open(
         self,
