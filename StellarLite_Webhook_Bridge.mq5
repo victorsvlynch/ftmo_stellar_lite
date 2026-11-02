@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "FundedNext Stellar Lite Quantitative Engine"
 #property link        "https://github.com/victorsvlynch/ftmo_stellar_lite"
-#property version     "2.00"
+#property version     "2.10"
 #property description "Expert Advisor de Enlace Webhook con el Bot de Python en Oracle Cloud VPS (157.137.225.144:8000)."
 #property description "Recibe senales institucionales de NY_OPEN (Oro / XAUUSD) y ejecuta ordenes con SL, TP y Break-Even."
 
@@ -452,44 +452,81 @@ void ProcessCloudAction(const string json)
    // C. MODIFICACION DE STOP LOSS A BREAK-EVEN
    else if(action == "MODIFY_SL")
    {
+      bool found = false;
       for(int i = PositionsTotal() - 1; i >= 0; i--)
       {
          ulong ticket = PositionGetTicket(i);
          if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
          {
+            found = true;
+            string posSym = PositionGetString(POSITION_SYMBOL);
             double curTp = PositionGetDouble(POSITION_TP);
+            double curSl = PositionGetDouble(POSITION_SL);
             double entryPrice = PositionGetDouble(POSITION_PRICE_OPEN);
-            int digits = (int)SymbolInfoInteger(PositionGetString(POSITION_SYMBOL), SYMBOL_DIGITS);
+            int digits = (int)SymbolInfoInteger(posSym, SYMBOL_DIGITS);
+            double pt = SymbolInfoDouble(posSym, SYMBOL_POINT);
             
             // Si es Break-Even o el precio de SL enviado difiere de la escala del broker,
             // fijar el SL exactamente al precio de apertura de la posición en MT5 (Riesgo = $0.00)
             bool isBe = (StringFind(comment, "Break-Even") >= 0 || StringFind(comment, "BREAK_EVEN") >= 0);
             double newSl = (isBe || (sl > 0 && MathAbs(entryPrice - sl) > 20.0)) ? NormalizeDouble(entryPrice, digits) : NormalizeDouble(sl, digits);
 
-            PrintFormat("[EA MT5] Blindando posicion #%I64u con Break-Even: Nuevo SL: %.2f (Precio Entrada: %.2f)", ticket, newSl, entryPrice);
+            // A. Si el Stop Loss ya esta exactamente en el nivel deseado (o diferencia menor a medio punto)
+            if(MathAbs(curSl - newSl) < (pt * 0.5))
+            {
+               ExtLastActionMsg = StringFormat("Posicion #%I64u ya blindada (SL: %.*f)", ticket, digits, curSl);
+               PrintFormat("[EA MT5] [AL DIA] Posicion #%I64u ya tiene SL configurado a %.*f. Confirmando accion #%d a la nube.", 
+                           ticket, digits, curSl, actionId);
+               ConfirmActionToCloud(actionId, ticket, curSl, true);
+               break;
+            }
+
+            PrintFormat("[EA MT5] Blindando posicion #%I64u con Break-Even: Nuevo SL: %.*f (Precio Entrada: %.*f)", 
+                        ticket, digits, newSl, digits, entryPrice);
             if(ExtTrade.PositionModify(ticket, newSl, curTp))
             {
-               ExtLastActionMsg = StringFormat("Posicion #%I64u blindada a Break-Even (SL: %.2f)", ticket, newSl);
+               ExtLastActionMsg = StringFormat("Posicion #%I64u blindada a Break-Even (SL: %.*f)", ticket, digits, newSl);
                PrintFormat("[EA MT5] [EXITO] Posicion #%I64u modificada a Break-Even.", ticket);
                ConfirmActionToCloud(actionId, ticket, newSl, true);
             }
             else
             {
-               PrintFormat("[EA MT5] [AVISO] Fallo al modificar SL a Break-Even: %s", ExtTrade.ResultComment());
+               uint retCode = ExtTrade.ResultRetcode();
+               string retMsg = ExtTrade.ResultComment();
+               // B. Si MT5 reporta que no hay cambios (TRADE_RETCODE_NO_CHANGES = 10025 o 'No changes')
+               if(retCode == 10025 || StringFind(retMsg, "No changes") >= 0 || StringFind(retMsg, "no changes") >= 0)
+               {
+                  ExtLastActionMsg = StringFormat("Posicion #%I64u ya blindada a Break-Even (SL: %.*f)", ticket, digits, newSl);
+                  PrintFormat("[EA MT5] [AL DIA] Posicion #%I64u sin cambios requeridos (SL ya en %.*f). Confirmando a la nube.", 
+                              ticket, digits, newSl);
+                  ConfirmActionToCloud(actionId, ticket, newSl, true);
+               }
+               else
+               {
+                  PrintFormat("[EA MT5] [AVISO] Fallo al modificar SL a Break-Even: %s (Codigo: %u)", retMsg, retCode);
+               }
             }
             break;
          }
+      }
+      if(!found)
+      {
+         PrintFormat("[EA MT5] [AVISO] No se encontro posicion abierta con Magic %I64u para MODIFY_SL. Confirmando accion #%d para liberar cola.", 
+                     InpMagicNumber, actionId);
+         ConfirmActionToCloud(actionId, 0, 0.0, true);
       }
    }
    
    // D. CIERRE FORZOSO O DE FIN DE SEMANA (CLOSE)
    else if(action == "CLOSE_POSITION" || action == "CLOSE_ALL")
    {
+      bool found = false;
       for(int i = PositionsTotal() - 1; i >= 0; i--)
       {
          ulong ticket = PositionGetTicket(i);
          if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
          {
+            found = true;
             PrintFormat("[EA MT5] Cerrando posicion #%I64u a precio de mercado...", ticket);
             bool closedSuccess = false;
             ENUM_ORDER_TYPE_FILLING fillModes[] = {ORDER_FILLING_IOC, ORDER_FILLING_FOK, ORDER_FILLING_RETURN};
@@ -516,6 +553,12 @@ void ProcessCloudAction(const string json)
             }
             break;
          }
+      }
+      if(!found)
+      {
+         PrintFormat("[EA MT5] [AVISO] No se encontro posicion abierta para cerrar (Magic %I64u). Confirmando accion #%d a la nube.", 
+                     InpMagicNumber, actionId);
+         ConfirmActionToCloud(actionId, 0, 0.0, true);
       }
    }
 }
@@ -588,7 +631,11 @@ void CheckAutonomousStructuralTrailing()
             initialRiskDist = MathAbs(openPrice - curSl);
          if(initialRiskDist <= (5 * pt))
          {
-            if(digits >= 4) initialRiskDist = 250 * pt;
+            // Si ya esta en Break-Even pero tiene Take Profit definido (R:R 1:2.0),
+            // deducir 1R directamente del Take Profit: 1R = |curTp - openPrice| / 2.0
+            if(curTp > 0.0 && MathAbs(curTp - openPrice) > (10 * pt))
+               initialRiskDist = MathAbs(curTp - openPrice) / 2.0;
+            else if(digits >= 4) initialRiskDist = 250 * pt;
             else if(openPrice > 1000) initialRiskDist = (StringFind(sym, "XAU") >= 0 || StringFind(sym, "GOLD") >= 0) ? 6.50 : 15.0;
             else initialRiskDist = 50 * pt;
          }
