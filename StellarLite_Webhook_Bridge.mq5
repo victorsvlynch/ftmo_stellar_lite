@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "FundedNext Stellar Lite Quantitative Engine"
 #property link        "https://github.com/victorsvlynch/ftmo_stellar_lite"
-#property version     "2.11"
+#property version     "2.20"
 #property description "Expert Advisor de Enlace Webhook con el Bot de Python en Oracle Cloud VPS (157.137.225.144:8000)."
 #property description "Recibe senales institucionales de NY_OPEN (Oro / XAUUSD) y ejecuta ordenes con SL, TP y Break-Even."
 
@@ -740,7 +740,29 @@ void CheckAutonomousStructuralTrailing()
 void OnTimer()
 {
    ExtLastPollTime = TimeCurrent();
-   string signalUrl = InpServerUrl + "/api/signal";
+
+   // Extraer ticks en tiempo real del broker para alimentar el feed de MT5 hacia la nube (Sandbox + Live)
+   string symGold = ResolveBrokerSymbol("XAUUSD");
+   string symEur  = ResolveBrokerSymbol("EURUSD");
+   string symSp   = ResolveBrokerSymbol("US500");
+
+   MqlTick tickGold, tickEur, tickSp;
+   string feedParams = "";
+   bool hasGold = (symGold != "INACTIVE" && symGold != "") ? SymbolInfoTick(symGold, tickGold) : false;
+   bool hasEur  = (symEur != "INACTIVE" && symEur != "") ? SymbolInfoTick(symEur, tickEur) : false;
+   bool hasSp   = (symSp != "INACTIVE" && symSp != "") ? SymbolInfoTick(symSp, tickSp) : false;
+
+   if(hasGold || hasEur || hasSp)
+   {
+      feedParams = StringFormat(
+         "?feed=1&xau_bid=%.2f&xau_ask=%.2f&eur_bid=%.5f&eur_ask=%.5f&sp_bid=%.2f&sp_ask=%.2f",
+         hasGold ? tickGold.bid : 0.0, hasGold ? tickGold.ask : 0.0,
+         hasEur ? tickEur.bid : 0.0, hasEur ? tickEur.ask : 0.0,
+         hasSp ? tickSp.bid : 0.0, hasSp ? tickSp.ask : 0.0
+      );
+   }
+
+   string signalUrl = InpServerUrl + "/api/signal" + feedParams;
    string resp;
    int status;
    

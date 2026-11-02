@@ -622,7 +622,7 @@ MODALITIES_METADATA = [
         "label": "PORTFOLIO MT5 [EN VIVO]",
         "db": "trading_ny_open.db",
         "symbol": "GC=F,EURUSD=X,ES=F",
-        "provider": "yfinance",
+        "provider": "mt5",
         "session": "PORTFOLIO_DUAL",
         "hours": "03:00-11:30 EST",
         "service": "stellar_ny_open.service",
@@ -634,7 +634,7 @@ MODALITIES_METADATA = [
         "label": "ORO TEST [SANDBOX]",
         "db": "trading_test_oro.db",
         "symbol": "GC=F",
-        "provider": "yfinance",
+        "provider": "mt5",
         "session": "NY_OPEN",
         "hours": "08:30-11:30 EST",
         "service": "stellar_test_oro.service",
@@ -646,7 +646,7 @@ MODALITIES_METADATA = [
         "label": "EURUSD TEST [SANDBOX]",
         "db": "trading_test_eurusd.db",
         "symbol": "EURUSD=X",
-        "provider": "yfinance",
+        "provider": "mt5",
         "session": "PORTFOLIO_DUAL",
         "hours": "03-06 & 08:30-11",
         "service": "stellar_test_eurusd.service",
@@ -658,7 +658,7 @@ MODALITIES_METADATA = [
         "label": "SP500 TEST [SANDBOX]",
         "db": "trading_test_sp500.db",
         "symbol": "ES=F",
-        "provider": "yfinance",
+        "provider": "mt5",
         "session": "PORTFOLIO_DUAL",
         "hours": "09:30-11:30 EST",
         "service": "stellar_test_sp500.service",
@@ -682,7 +682,7 @@ class MultiPriceWorker:
         while self.running:
             for sym in ["GC=F", "EURUSD=X", "ES=F"]:
                 try:
-                    p = self.connector.get_latest_price(symbol=sym, provider="yfinance")
+                    p = self.connector.get_latest_price(symbol=sym, provider="mt5")
                     if p > 0:
                         with self.lock:
                             self.prices[sym] = p
@@ -1081,8 +1081,8 @@ def parse_args() -> argparse.Namespace:
         "--provider",
         type=str,
         default="yfinance",
-        choices=["yfinance", "ccxt", "multi"],
-        help="Proveedor de datos ('yfinance', 'ccxt' o 'multi').",
+        choices=["yfinance", "ccxt", "multi", "mt5"],
+        help="Proveedor de datos ('yfinance', 'ccxt', 'multi' o 'mt5').",
     )
     parser.add_argument(
         "--risk",

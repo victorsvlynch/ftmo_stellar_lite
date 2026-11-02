@@ -5,6 +5,8 @@ Breakout de Rango de Apertura de Nueva York (NY ORB 15m) con Gestión R:R 1:2.
 
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
+import os
+import json
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
@@ -79,6 +81,118 @@ class MarketDataConnector:
         if any(k in clean_upper for k in ("US100", "NAS100", "USTEC")):
             return "NQ=F"
         return symbol
+
+    @staticmethod
+    def resolve_mt5_symbol(symbol: str) -> str:
+        """Resuelve el símbolo estándar o ticker de Yahoo a la nomenclatura oficial de MT5 (FundedNext)."""
+        clean = symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
+        if any(k in clean for k in ("GC", "XAU", "GOLD")):
+            return "XAUUSD"
+        if "EUR" in clean:
+            return "EURUSD"
+        if any(k in clean for k in ("ES", "500", "SPX")):
+            return "US500"
+        return clean
+
+    @classmethod
+    def get_mt5_tick(cls, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Obtiene el tick oficial de MT5 (Bid, Ask, Mid, Spread) con latencia mínima:
+        1. En Windows con MetaTrader5 disponible: consulta nativa por IPC (< 1ms).
+        2. En Linux (VPS) o fallback: lee mt5_feed.json o consulta http://localhost:8000/api/feed.
+        Retorna: {"symbol": str, "bid": float, "ask": float, "mid": float, "spread": float, "age_s": float} o None.
+        """
+        mt5_sym = cls.resolve_mt5_symbol(symbol)
+        now_dt = datetime.now(timezone.utc)
+
+        # 1. Intento nativo en Windows
+        try:
+            import MetaTrader5 as mt5
+            if not mt5.terminal_info():
+                mt5.initialize()
+            if mt5.terminal_info():
+                tick = mt5.symbol_info_tick(mt5_sym)
+                if tick and tick.bid > 0 and tick.ask > 0:
+                    mid = round((tick.bid + tick.ask) / 2.0, 5)
+                    sp = round(tick.ask - tick.bid, 5)
+                    return {
+                        "symbol": mt5_sym,
+                        "bid": float(tick.bid),
+                        "ask": float(tick.ask),
+                        "mid": mid,
+                        "spread": sp,
+                        "age_s": 0.001,
+                        "source": "MT5_Native_IPC",
+                    }
+        except Exception:
+            pass
+
+        # 2. Intento de lectura desde cache mt5_feed.json en disco
+        feed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mt5_feed.json")
+        if os.path.exists(feed_file):
+            try:
+                with open(feed_file, "r", encoding="utf-8") as f:
+                    feed = json.load(f)
+                up_str = feed.get("updated_at", "")
+                age_s = 9999.0
+                if up_str:
+                    age_s = max(0.0, (now_dt - datetime.fromisoformat(up_str)).total_seconds())
+                syms = feed.get("symbols", {})
+                item = syms.get(symbol) or syms.get(mt5_sym) or syms.get(symbol.upper())
+                if item and age_s <= 35.0:
+                    res = dict(item)
+                    res["age_s"] = round(age_s, 2)
+                    res["source"] = "MT5_Feed_Cache"
+                    return res
+            except Exception:
+                pass
+
+        # 3. Intento vía HTTP loopback hacia el servidor webhook
+        try:
+            import urllib.request
+            url = "http://127.0.0.1:8000/api/feed"
+            req = urllib.request.Request(url, headers={"User-Agent": "TradingEngine/1.0"})
+            with urllib.request.urlopen(req, timeout=1.0) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    age_s = float(data.get("age_seconds", 9999.0))
+                    syms = data.get("symbols", {})
+                    item = syms.get(symbol) or syms.get(mt5_sym) or syms.get(symbol.upper())
+                    if item and age_s <= 35.0:
+                        res = dict(item)
+                        res["age_s"] = age_s
+                        res["source"] = "MT5_Feed_HTTP"
+                        return res
+        except Exception:
+            pass
+
+        return None
+
+    @classmethod
+    def _fetch_mt5_ohlcv(cls, symbol: str, timeframe: str = "15m", limit: int = 120) -> Optional[pd.DataFrame]:
+        """Obtiene velas históricas directas de MT5 mediante la librería oficial en Windows."""
+        try:
+            import MetaTrader5 as mt5
+            if not mt5.terminal_info():
+                if not mt5.initialize():
+                    return None
+            broker_sym = cls.resolve_mt5_symbol(symbol)
+            tf = mt5.TIMEFRAME_M15 if timeframe == "15m" else mt5.TIMEFRAME_H1
+            rates = mt5.copy_rates_from_pos(broker_sym, tf, 0, limit)
+            if rates is None or len(rates) == 0:
+                return None
+            df = pd.DataFrame(rates)
+            tz_ny = "America/New_York"
+            df["datetime"] = pd.to_datetime(df["time"], unit="s", utc=True).dt.tz_convert(tz_ny)
+            df.set_index("datetime", inplace=True)
+            df.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close", "tick_volume": "Volume"}, inplace=True)
+            cols = ["Open", "High", "Low", "Close", "Volume"]
+            res = df[cols].astype(float)
+            res.attrs["is_synthetic"] = False
+            res.attrs["data_source"] = "MT5_Native_Broker"
+            return res
+        except Exception:
+            return None
 
     @staticmethod
     def _fetch_yahoo_direct(
@@ -174,6 +288,30 @@ class MarketDataConnector:
             except Exception:
                 pass
 
+        # Conector MT5 (Broker Directo en Windows o Híbrido en Nube)
+        if provider_clean in ("mt5", "mt5_bridge", "broker"):
+            # A. Intento nativo directo en MT5 (Windows)
+            df_mt5 = self._fetch_mt5_ohlcv(symbol, timeframe="15m", limit=limit)
+            if df_mt5 is not None and not df_mt5.empty:
+                return df_mt5
+
+            # B. Intento Híbrido en Nube / VPS: Velas base Yahoo Direct + Tick actual de MT5
+            df_direct = self._fetch_yahoo_direct(symbol=symbol, interval="15m", range_str="5d")
+            if df_direct is not None and not df_direct.empty:
+                tick = self.get_mt5_tick(symbol)
+                if tick and float(tick.get("mid", 0.0)) > 0:
+                    last_mid = float(tick["mid"])
+                    df_direct.iloc[-1, df_direct.columns.get_loc("Close")] = last_mid
+                    df_direct.iloc[-1, df_direct.columns.get_loc("High")] = max(
+                        float(df_direct.iloc[-1]["High"]), last_mid
+                    )
+                    df_direct.iloc[-1, df_direct.columns.get_loc("Low")] = min(
+                        float(df_direct.iloc[-1]["Low"]), last_mid
+                    )
+                    df_direct.attrs["data_source"] = f"MT5_Feed_Hybrid ({tick.get('source', 'MT5')})"
+                    df_direct.attrs["is_synthetic"] = False
+                    return df_direct
+
         # 1. Conector principal de alta velocidad: REST v8 Directo (Sin Rate-Limits)
         df_direct = self._fetch_yahoo_direct(symbol=symbol, interval="15m", range_str="5d")
         if df_direct is not None and not df_direct.empty:
@@ -235,6 +373,12 @@ class MarketDataConnector:
             except Exception:
                 pass
 
+        # Conector MT5 (Broker Directo en Windows)
+        if provider_clean in ("mt5", "mt5_bridge", "broker"):
+            df_mt5 = self._fetch_mt5_ohlcv(symbol, timeframe="1h", limit=limit)
+            if df_mt5 is not None and not df_mt5.empty:
+                return df_mt5
+
         # 1. Conector principal de alta velocidad: REST v8 Directo (Sin Rate-Limits)
         df_direct = self._fetch_yahoo_direct(symbol=symbol, interval="1h", range_str="1mo")
         if df_direct is not None and not df_direct.empty:
@@ -266,6 +410,12 @@ class MarketDataConnector:
 
     def get_latest_price(self, symbol: str = "GC=F", provider: str = "yfinance") -> float:
         """Obtiene el último precio de mercado disponible."""
+        prov_clean = provider.lower().strip()
+        if prov_clean in ("mt5", "mt5_bridge", "broker"):
+            tick = self.get_mt5_tick(symbol)
+            if tick and float(tick.get("bid", 0.0)) > 0:
+                return round(float(tick["bid"]), 5)
+
         df = self.fetch_ohlcv_15m(symbol=symbol, provider=provider, limit=5, allow_synthetic=False)
         if df.empty:
             df = self._generate_fallback_ohlcv(symbol=symbol, limit=5, freq="15min")

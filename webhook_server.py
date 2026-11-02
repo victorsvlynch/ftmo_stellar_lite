@@ -170,6 +170,102 @@ def queue_action(
     return act_id
 
 
+MT5_FEED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mt5_feed.json")
+LATEST_MT5_FEED: Dict[str, Any] = {
+    "updated_at": "",
+    "symbols": {},
+}
+
+
+def update_live_ticks_from_query(qs: Dict[str, Any], now_utc: Optional[datetime] = None) -> None:
+    dt = now_utc or datetime.now(timezone.utc)
+    now_iso = dt.isoformat()
+    symbols_data: Dict[str, Any] = {}
+
+    def _parse_val(key: str) -> float:
+        vals = qs.get(key, [])
+        if vals:
+            try:
+                return float(vals[0])
+            except (ValueError, TypeError):
+                return 0.0
+        return 0.0
+
+    # Oro / XAUUSD
+    xau_bid = _parse_val("xau_bid")
+    xau_ask = _parse_val("xau_ask")
+    if xau_bid > 0 and xau_ask > 0:
+        sp = round(xau_ask - xau_bid, 4)
+        mid = round((xau_bid + xau_ask) / 2.0, 4)
+        gold_item = {"symbol": "XAUUSD", "bid": xau_bid, "ask": xau_ask, "mid": mid, "spread": sp, "updated_at": now_iso}
+        symbols_data["XAUUSD"] = gold_item
+        symbols_data["GC=F"] = gold_item
+        symbols_data["GOLD"] = gold_item
+
+    # EUR/USD
+    eur_bid = _parse_val("eur_bid")
+    eur_ask = _parse_val("eur_ask")
+    if eur_bid > 0 and eur_ask > 0:
+        sp = round(eur_ask - eur_bid, 5)
+        mid = round((eur_bid + eur_ask) / 2.0, 5)
+        eur_item = {"symbol": "EURUSD", "bid": eur_bid, "ask": eur_ask, "mid": mid, "spread": sp, "updated_at": now_iso}
+        symbols_data["EURUSD"] = eur_item
+        symbols_data["EURUSD=X"] = eur_item
+
+    # S&P 500
+    sp_bid = _parse_val("sp_bid")
+    sp_ask = _parse_val("sp_ask")
+    if sp_bid > 0 and sp_ask > 0:
+        sp = round(sp_ask - sp_bid, 2)
+        mid = round((sp_bid + sp_ask) / 2.0, 2)
+        sp_item = {"symbol": "US500", "bid": sp_bid, "ask": sp_ask, "mid": mid, "spread": sp, "updated_at": now_iso}
+        symbols_data["US500"] = sp_item
+        symbols_data["ES=F"] = sp_item
+        symbols_data["SPX500"] = sp_item
+
+    if symbols_data:
+        global LATEST_MT5_FEED
+        LATEST_MT5_FEED = {
+            "updated_at": now_iso,
+            "symbols": symbols_data,
+        }
+        try:
+            tmp = MT5_FEED_FILE + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(LATEST_MT5_FEED, f)
+            os.replace(tmp, MT5_FEED_FILE)
+        except Exception as ex:
+            logger.debug(f"Error escribiendo {MT5_FEED_FILE}: {ex}")
+
+
+def get_current_mt5_feed(now_utc: Optional[datetime] = None) -> Dict[str, Any]:
+    dt = now_utc or datetime.now(timezone.utc)
+    feed = dict(LATEST_MT5_FEED)
+    if not feed.get("symbols") and os.path.exists(MT5_FEED_FILE):
+        try:
+            with open(MT5_FEED_FILE, "r", encoding="utf-8") as f:
+                disk_feed = json.load(f)
+                feed.update(disk_feed)
+        except Exception:
+            pass
+
+    updated_at_str = feed.get("updated_at", "")
+    age_s = 9999.0
+    if updated_at_str:
+        try:
+            feed_dt = datetime.fromisoformat(updated_at_str)
+            age_s = max(0.0, (dt - feed_dt).total_seconds())
+        except Exception:
+            pass
+
+    return {
+        "status": "ONLINE" if age_s < 30.0 else "STALE",
+        "age_seconds": round(age_s, 2),
+        "updated_at": updated_at_str,
+        "symbols": feed.get("symbols", {}),
+    }
+
+
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
     allow_reuse_address = True
@@ -194,8 +290,20 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        qs = parse_qs(parsed.query)
         now_utc = datetime.now(timezone.utc)
         now_str = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+        # Ingestar feed de ticks en tiempo real desde el EA de MT5
+        if "feed" in qs or "xau_bid" in qs or "eur_bid" in qs or "sp_bid" in qs:
+            update_live_ticks_from_query(qs, now_utc)
+
+        # 0. Feed de Mercado en Tiempo Real para Sandbox y Motores de Trading
+        if path == "/api/feed":
+            feed = get_current_mt5_feed(now_utc)
+            self._set_json_headers(200)
+            self.wfile.write(json.dumps(feed).encode("utf-8"))
+            return
 
         # 1. Chequeo de Salud / Ping
         if path == "/api/health" or path == "":
@@ -286,6 +394,7 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        now_utc = datetime.now(timezone.utc)
         content_len = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_len).decode("utf-8") if content_len > 0 else "{}"
 
@@ -293,6 +402,34 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
             data = json.loads(body)
         except Exception:
             data = {}
+
+        # 0. Ingestar feed de ticks por POST JSON
+        if path == "/api/feed":
+            raw_syms = data.get("symbols", {})
+            now_iso = now_utc.isoformat()
+            if raw_syms:
+                global LATEST_MT5_FEED
+                parsed_syms = {}
+                for k, v in raw_syms.items():
+                    if isinstance(v, dict):
+                        b = float(v.get("bid", 0.0))
+                        a = float(v.get("ask", 0.0))
+                        m = float(v.get("mid", (b + a) / 2.0 if (b and a) else 0.0))
+                        sp = float(v.get("spread", a - b if (a and b) else 0.0))
+                        item = {"symbol": k, "bid": b, "ask": a, "mid": m, "spread": sp, "updated_at": now_iso}
+                        parsed_syms[k] = item
+                if parsed_syms:
+                    LATEST_MT5_FEED = {"updated_at": now_iso, "symbols": parsed_syms}
+                    try:
+                        tmp = MT5_FEED_FILE + ".tmp"
+                        with open(tmp, "w", encoding="utf-8") as f:
+                            json.dump(LATEST_MT5_FEED, f)
+                        os.replace(tmp, MT5_FEED_FILE)
+                    except Exception as ex:
+                        logger.debug(f"Error escribiendo {MT5_FEED_FILE}: {ex}")
+            self._set_json_headers(200)
+            self.wfile.write(json.dumps({"status": "FEED_UPDATED", "symbols_count": len(raw_syms)}).encode("utf-8"))
+            return
 
         # 1. Confirmación de Ejecución enviada por el EA de MT5
         if path == "/api/confirm":

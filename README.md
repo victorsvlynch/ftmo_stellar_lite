@@ -941,3 +941,31 @@ Si la empresa de fondeo requiere evidencia o grabación en video de la operativa
 
 ### 4. Integración Continua (GitHub Actions)
 Configurado en `.github/workflows/release.yml`. Cada `push` a la rama `main` ejecuta la suite completa de pruebas [`test_verification.py`](test_verification.py). Si las 11 pruebas son superadas con éxito (100% OK), genera automáticamente un nuevo Release en GitHub.
+
+---
+
+## ⚡ Conexión Directa de Feed MT5 a Sandbox (Zero-Latency Bridge)
+
+Para eliminar cualquier divergencia o micro-latencia entre los resultados de **MetaTrader 5 (En Vivo)** y el **Laboratorio de Pruebas (Sandbox)**, el sistema integra la **Opción 1: Conexión de Feed Tick a Tick Directo de MT5**:
+
+```mermaid
+flowchart LR
+    subgraph WindowsMT5 ["MetaTrader 5 (Windows Terminal)"]
+        EA["StellarLite_Webhook_Bridge.ex5 (v2.20)"]
+        EA -->|1. OnTimer 1s: Lee Ticks Reales del Broker| Ticks["MqlTick Bid/Ask:
+XAUUSD, EURUSD, US500"]
+    end
+
+    subgraph OCI_VPS ["Oracle Cloud VPS / Local Engine"]
+        Ticks -->|2. WebRequest GET /api/signal?feed=1| Webhook["webhook_server.py (Port 8000)"]
+        Webhook -->|3. Cache Atómico| Feed["mt5_feed.json / LATEST_MT5_FEED"]
+        Feed -->|4. --provider mt5| Engine["trading_engine.py / main.py"]
+        Engine -->|5. Mismo Precio y Spread| SB["Sandbox 10K (Oro, EURUSD, SP500)"]
+    end
+```
+
+### Características de la Arquitectura:
+1. **Identidad 1:1 de Precios:** Sandbox ya no depende exclusivamente de velas agregadas con retraso de Yahoo Finance. Ahora opera sobre el flujo de **`Bid`, `Ask` y `Spread` institucional** del broker FundedNext.
+2. **Sub-Milisegundo en Windows:** En la máquina Windows local donde corre MT5, [`trading_engine.py`](trading_engine.py) utiliza la API nativa `MetaTrader5` con latencia por IPC de **< 1 ms**.
+3. **Bridge Bidireccional en VPS:** En el servidor en la nube (`Ubuntu 22.04`), el EA transmite los ticks de los 3 activos en cada ciclo de sondeo (`GET /api/signal?feed=1...`), manteniendo actualizado `mt5_feed.json` con una frescura de 1 segundo.
+4. **Fallback Seguro de Respaldo:** Si la terminal de MetaTrader 5 se cierra o el feed supera los 35 segundos de inactividad (`STALE`), el motor conmuta automáticamente a Yahoo Direct sin interrumpir la operación.
