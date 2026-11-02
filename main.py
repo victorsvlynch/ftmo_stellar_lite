@@ -1041,6 +1041,7 @@ def parse_args() -> argparse.Namespace:
             "reset-all",
             "sync-mt5",
             "history",
+            "sandbox",
         ],
         help="Comando a ejecutar: 'status', 'live', 'winner' (solo estrategia ganadora NY_OPEN), 'winner-live', 'multi', 'multi-detail', 'multi-status', 'multi-detail-status', 'reset-all', 'sync-mt5', 'history', 'run', 'interactive', 'simulate', 'reset'.",
     )
@@ -1247,6 +1248,37 @@ def main() -> None:
         for a in archived:
             print(f"    - [ARCHIVADO] {a['trading_date']} {a['symbol']} {a['side']} {a['lots']} lotes | PnL: ${a['pnl']:+,.2f} | Fase: {a['phase']}")
         print("=" * 78)
+    elif args.command == "sandbox":
+        dbs = [
+            ("ORO TEST [SANDBOX]", "trading_test_oro.db"),
+            ("EURUSD TEST [SANDBOX]", "trading_test_eurusd.db"),
+            ("SP500 TEST [SANDBOX]", "trading_test_sp500.db"),
+        ]
+        print("=" * 85)
+        print("  REPORTE COMPLETO DE OPERACIONES - LABORATORIO SANDBOX (TEST SIN MT5)")
+        print("=" * 85)
+        for label, db_file in dbs:
+            db_inst = TradingDatabase(db_path=db_file)
+            state = db_inst.get_account_state()
+            open_t = db_inst.get_open_trades()
+            closed_t = db_inst.get_closed_trades(limit=50)
+            print(f"\n>> {label} ({db_file}) | Balance: ${state.get('balance', 10000.0):,.2f} | Fase: {state.get('phase', 'FASE_1')}")
+            print("-" * 85)
+            if open_t:
+                print(f"  [POSICIONES ABIERTAS: {len(open_t)}]")
+                for o in open_t:
+                    print(f"    - #{o['id']} {o['symbol']} {o['side']} {o['lots']}L | Entrada: {o['entry_price']} | SL: {o['stop_loss']} | TP: {o['take_profit']} | Notas: {o.get('notes', '')[:55]}")
+            else:
+                print("  [POSICIONES ABIERTAS: 0]")
+
+            if closed_t:
+                print(f"  [HISTORIAL CERRADAS: {len(closed_t)}]")
+                for c in closed_t:
+                    pnl_val = float(c.get('pnl', 0.0))
+                    print(f"    - #{c['id']} {c.get('trading_date', '')} {c['symbol']} {c['side']} {c['lots']}L | Entrada: {c['entry_price']} | Salida: {c.get('exit_price', 0)} | PnL: ${pnl_val:+,.2f} | Notas: {c.get('notes', '')[:55]}")
+            else:
+                print("  [HISTORIAL CERRADAS: 0]")
+        print("\n" + "=" * 85)
     elif args.command == "simulate":
         run_simulation_demo(db, rules, risk, engine)
     elif args.command == "interactive":

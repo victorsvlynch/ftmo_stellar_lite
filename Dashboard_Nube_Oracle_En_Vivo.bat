@@ -25,9 +25,9 @@ if not exist "%KEY%" (
 
 echo ==============================================================================
 echo   CONECTANDO CON ORACLE CLOUD VPS (157.137.225.144) -- MODO EN VIVO 24/7
-echo   Estrategia Ganadora: NY_OPEN (Oro GC=F) -- Sincronizacion Directa
+echo   Estrategia Oficial MT5 + Laboratorio Sandbox (Oro, EUR/USD, S&P 500)
 echo ==============================================================================
 echo.
-ssh -tt -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "cd /home/ubuntu/FTMO_Stellar_Lite && python3 -u main.py multi --refresh 1.0"
+ssh -tt -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "cd /home/ubuntu/FTMO_Stellar_Lite && python3 -u main.py multi-detail --refresh 1.5"
 echo.
 pause
