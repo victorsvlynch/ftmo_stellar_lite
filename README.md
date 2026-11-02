@@ -111,7 +111,7 @@ Para visualizar y operar simultáneamente los 3 activos de forma profesional sin
 ```
 
 #### Regla de Oro en MT5:
-* **Un Solo EA Activo en la Cuenta:** El Expert Advisor [`StellarLite_Webhook_Bridge.ex5`](file:///L:/Python/FTMO_Stellar_Lite/StellarLite_Webhook_Bridge.ex5) es un **Bridge Multi-Activo Global**. Desde un único gráfico (recomendado: **`XAUUSD`**), lee la orden de la nube con el símbolo correspondiente (`XAUUSD`, `US500` o `EURUSD`) y la envía al broker de inmediato.
+* **Un Solo EA Activo en la Cuenta:** El Expert Advisor [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) es un **Bridge Multi-Activo Global**. Desde un único gráfico (recomendado: **`XAUUSD`**), lee la orden de la nube con el símbolo correspondiente (`XAUUSD`, `US500` o `EURUSD`) y la envía al broker de inmediato.
 * Además, su motor autónomo de Break-Even (+1R) y Trailing Stop M15 recorre todas las posiciones de la cuenta para proteger los 3 activos.
 * **Organización:** Abre los 3 gráficos, presiona `Alt + R` (Ventana $\rightarrow$ Mosaico) y arrastra el EA **únicamente al gráfico de Oro**. En los gráficos de S&P 500 y EUR/USD manténlos sin el EA para evitar peticiones duplicadas a la cola de señales.
 
@@ -148,7 +148,7 @@ Además de operar Oro monoproducto, el sistema incorpora arquitectura multi-acti
   - **EUR/USD:** Apertura de Londres (**03:00 a 06:00 EST**) o Apertura de Nueva York (**08:30 a 11:30 EST**).
   - **S&P 500:** Apertura oficial al contado de Wall Street (**09:30 a 11:30 EST**), operando rupturas de la vela de las 09:30 EST.
 - **Dimensionamiento Automático de Lote:** Calcula el lotaje institucional con riesgo fijo del 0.50% ($50 USD sobre cuenta de $10,000) adaptado al tamaño de contrato del broker (100,000 unidades en EUR/USD y 10 o 1 contratos en S&P 500).
-- **Lanzador Directo en 1-Clic:** Haz doble clic en [`Monitor_Portfolio_SP500_EURUSD.bat`](file:///L:/Python/FTMO_Stellar_Lite/Monitor_Portfolio_SP500_EURUSD.bat) para abrir el monitor en tiempo real del portafolio.
+- **Lanzador Directo en 1-Clic:** Haz doble clic en [`Monitor_Portfolio_SP500_EURUSD.bat`](Monitor_Portfolio_SP500_EURUSD.bat) para abrir el monitor en tiempo real del portafolio.
 
 ---
 
@@ -165,7 +165,7 @@ El sistema implementa una gestión de riesgo de grado bancario dividida en tres 
                          Max Risk 3% ($300)        Target F1/F2 ($800/$400)
 ```
 
-1. **Calculadora Dinámica de Riesgo ([`RiskManager`](file:///L:/Python/FTMO_Stellar_Lite/risk_manager.py)):**
+1. **Calculadora Dinámica de Riesgo ([`RiskManager`](risk_manager.py)):**
    - Riesgo fijo por operación: **0.50% estricto** ($50.00 USD sobre $10,000 de balance).
    - Cálculo del tamaño de lote adaptado a la especificación de contrato (100 oz en Oro):
      $$\text{Lotes} = \frac{\text{Riesgo USD}}{\text{Distancia SL en USD} \times \text{Tamaño Contrato}} = \frac{\$50.00}{\$6.50 \times 100} \approx 0.08\text{ lotes}$$
@@ -179,9 +179,9 @@ El sistema implementa una gestión de riesgo de grado bancario dividida en tres 
 
 ---
 
-## 🔌 Puente Institucional con MetaTrader 5 ([`mt5_bridge.py`](file:///L:/Python/FTMO_Stellar_Lite/mt5_bridge.py))
+## 🔌 Puente Institucional con MetaTrader 5 ([`mt5_bridge.py`](mt5_bridge.py))
 
-El módulo [`mt5_bridge.py`](file:///L:/Python/FTMO_Stellar_Lite/mt5_bridge.py) conecta el motor cuantitativo de Python directamente con la terminal oficial de **MetaTrader 5 (MT5)** mediante IPC nativo de baja latencia.
+El módulo [`mt5_bridge.py`](mt5_bridge.py) conecta el motor cuantitativo de Python directamente con la terminal oficial de **MetaTrader 5 (MT5)** mediante IPC nativo de baja latencia.
 
 ### Capacidades del Puente MT5:
 - **Autodetección de Terminal:** Localiza automáticamente la ruta de instalación de MT5 (`terminal64.exe`) en Windows y sincroniza con el proceso en ejecución.
@@ -209,7 +209,7 @@ Este es el método para comprobar con tus propios ojos cómo Python se conecta a
 
 #### Pasos para Ejecutar la Prueba:
 1. Pon tu ventana de **MetaTrader 5** en un lado de la pantalla (con la pestaña inferior **"Operaciones"** visible).
-2. Haz doble clic en el archivo [**`Ejecutar_Prueba_MT5.bat`**](file:///L:/Python/FTMO_Stellar_Lite/Ejecutar_Prueba_MT5.bat) (o ejecútalo desde PowerShell/CMD):
+2. Haz doble clic en el archivo [**`Ejecutar_Prueba_MT5.bat`**](Ejecutar_Prueba_MT5.bat) (o ejecútalo desde PowerShell/CMD):
    ```cmd
    .\Ejecutar_Prueba_MT5.bat
    ```
@@ -232,15 +232,15 @@ Este es el método para comprobar con tus propios ojos cómo Python se conecta a
 
 #### 🟢 Opción B.2: Puente Webhook Automático (Oracle Cloud 24/7 + EA en MT5)
 - El bot en la nube de Oracle analiza el Oro minuto a minuto y encola las señales.
-- El Expert Advisor [`StellarLite_Webhook_Bridge.ex5`](file:///L:/Python/FTMO_Stellar_Lite/StellarLite_Webhook_Bridge.ex5) en tu MT5 local sondea la nube cada segundo y ejecuta la orden al broker en milisegundos con Stop Loss y Take Profit exactos.
-- Usa [`Conectar_Puente_Webhook_MT5.bat`](file:///L:/Python/FTMO_Stellar_Lite/Conectar_Puente_Webhook_MT5.bat) para activar el túnel seguro en segundo plano.
+- El Expert Advisor [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) en tu MT5 local sondea la nube cada segundo y ejecuta la orden al broker en milisegundos con Stop Loss y Take Profit exactos.
+- Usa [`Conectar_Puente_Webhook_MT5.bat`](Conectar_Puente_Webhook_MT5.bat) para activar el túnel seguro en segundo plano.
 
 #### 🟡 Opción C: Alertas Automáticas a tu Celular vía Telegram (@victorsvlynch)
 - El bot en la nube de Oracle calcula las oportunidades en la sesión de Nueva York y envía la señal instantáneamente a tu Telegram.
 - La alerta llega con el lotaje institucional calculado ($50 USD de riesgo = 0.50% en $10K), Stop Loss y Take Profit exactos.
 - Solo abres tu app de **MetaTrader 5 en tu teléfono móvil** y presionas **Comprar** o **Vender** en 1 clic.
-- **Configuración rápida:** Ejecuta [`Configurar_Telegram.bat`](file:///L:/Python/FTMO_Stellar_Lite/Configurar_Telegram.bat) (o `python configurar_telegram.py`), introduce tu Token de `@BotFather` y presiona Start en tu bot. Se sincroniza de forma inmediata con el VPS en Oracle Cloud.
-- **Prueba de señal en celular:** Ejecuta [`Probar_Alerta_Telegram.bat`](file:///L:/Python/FTMO_Stellar_Lite/Probar_Alerta_Telegram.bat) para recibir una señal simulada en tu móvil.
+- **Configuración rápida:** Ejecuta [`Configurar_Telegram.bat`](Configurar_Telegram.bat) (o `python configurar_telegram.py`), introduce tu Token de `@BotFather` y presiona Start en tu bot. Se sincroniza de forma inmediata con el VPS en Oracle Cloud.
+- **Prueba de señal en celular:** Ejecuta [`Probar_Alerta_Telegram.bat`](Probar_Alerta_Telegram.bat) para recibir una señal simulada en tu móvil.
 
 ---
 
@@ -249,7 +249,7 @@ Este es el método para comprobar con tus propios ojos cómo Python se conecta a
 Para observar el motor cuantitativo operando en vivo, analizando el mercado segundo a segundo:
 
 - **Desde Windows (1-Clic):**
-  Haz doble clic en [**`Monitor_Estrategia_Ganadora.bat`**](file:///L:/Python/FTMO_Stellar_Lite/Monitor_Estrategia_Ganadora.bat).
+  Haz doble clic en [**`Monitor_Estrategia_Ganadora.bat`**](Monitor_Estrategia_Ganadora.bat).
 - **Desde la Línea de Comandos:**
   ```bash
   python main.py live --session NY_OPEN --refresh 1
@@ -263,7 +263,7 @@ Para observar el motor cuantitativo operando en vivo, analizando el mercado segu
 El proyecto incluye una suite integral de 11 pruebas unitarias y de integración que validan matemáticamente todas las reglas del broker, filtros anti-trampas y cálculos de riesgo:
 
 - **Desde Windows:**
-  Haz doble clic en `VPS-Oracle\Ejecutar_Tests_Verificacion.bat` o selecciona la **Opción 12** en [`Control_Total_Bot.bat`](file:///L:/Python/FTMO_Stellar_Lite/Control_Total_Bot.bat).
+  Haz doble clic en `VPS-Oracle\Ejecutar_Tests_Verificacion.bat` o selecciona la **Opción 12** en [`Control_Total_Bot.bat`](Control_Total_Bot.bat).
 - **Desde la Consola:**
   ```bash
   python test_verification.py
@@ -378,19 +378,19 @@ Para una operación centralizada, cómoda y sin necesidad de escribir comandos e
 
 ### Funcionalidad de los Tableros y Lanzadores:
 
-1. **Dashboard NY_OPEN en Vivo ([`Dashboard_Operaciones_En_Vivo.bat`](file:///L:/Python/FTMO_Stellar_Lite/Dashboard_Operaciones_En_Vivo.bat)):**
+1. **Dashboard NY_OPEN en Vivo ([`Dashboard_Operaciones_En_Vivo.bat`](Dashboard_Operaciones_En_Vivo.bat)):**
    - **Reloj de Wall Street (EDT/EST):** Muestra la hora oficial del mercado financiero en Nueva York y el estado actual de la sesión (`SESION_ACTIVA`, `FUERA_DE_SESION` o `FIN_DE_SEMANA`).
    - **Cuenta Regresiva Dinámica:** Informa cuántas horas y minutos exactos faltan para la apertura o cierre de la ventana operativa (08:30 a 11:30 AM NY).
    - **Métricas Institucionales:** Balance actual, equidad flotante, margen libre y distancias exactas en dólares hacia el **Piso Diario del 4% ($9,600.00)** y el **Piso Máximo de Drawdown del 8% ($9,200.00)**.
    - **Monitoreo de Posiciones:** Tabla en vivo con ticket, activo, lotaje, precio de entrada, Stop Loss, Take Profit, PnL flotante e indicador de **🛡️ Break-Even Protegido**.
    - **Historial del Día:** Detalle de las operaciones cerradas en la jornada con comisiones y beneficio neto en dólares.
 
-2. **Gestor del Puente Webhook ([`Conectar_Puente_Webhook_MT5.bat`](file:///L:/Python/FTMO_Stellar_Lite/Conectar_Puente_Webhook_MT5.bat)):**
+2. **Gestor del Puente Webhook ([`Conectar_Puente_Webhook_MT5.bat`](Conectar_Puente_Webhook_MT5.bat)):**
    - Permite iniciar el túnel seguro SSH en **segundo plano (silencioso)** redirigiendo el puerto 8000 (`http://127.0.0.1:8000`).
    - No requiere mantener ventanas de consola abiertas.
    - Permite verificar el estado del túnel (`ACTIVO` o `INACTIVO`) y detenerlo en cualquier momento.
 
-3. **Asistente Telegram ([`Configurar_Telegram.bat`](file:///L:/Python/FTMO_Stellar_Lite/Configurar_Telegram.bat) y [`Probar_Alerta_Telegram.bat`](file:///L:/Python/FTMO_Stellar_Lite/Probar_Alerta_Telegram.bat)):**
+3. **Asistente Telegram ([`Configurar_Telegram.bat`](Configurar_Telegram.bat) y [`Probar_Alerta_Telegram.bat`](Probar_Alerta_Telegram.bat)):**
    - Vinculado al bot oficial **`@victor_stellar_bot`** y tu usuario **`@victorsvlynch`** (`Chat ID: 5633051604`).
    - El botón de prueba envía una simulación con formato enriquecido para validar que tu teléfono móvil recibe las alertas al instante.
 
@@ -405,8 +405,8 @@ El proyecto se encuentra **100% modular, portátil y automatizado para trasladar
 > - **Sin Docker:** Se eliminó la sobrecarga de contenedores, capas de red complejas y cuellos de botella de memoria.
 > - **Rutas 100% Relativas (`%~dp0`):** El repositorio puede residir en cualquier unidad (`C:\`, `D:\`, `L:\`), disco externo o memoria USB; los scripts calculan sus rutas dinámicamente.
 > - **Auto-Instalación de la Clave SSH:** Al ejecutar cualquier script en una nueva PC con Windows, este detecta la clave en `VPS-Oracle\` y la copia automáticamente a `%USERPROFILE%\.ssh\oracle_vps.key` con permisos estrictos de Windows (`icacls`).
-> - **Asesor Experto Precompilado:** El archivo [`StellarLite_Webhook_Bridge.ex5`](file:///L:/Python/FTMO_Stellar_Lite/StellarLite_Webhook_Bridge.ex5) está listo para copiar directamente a MT5 sin necesidad de abrir MetaEditor.
-> - **Credenciales de Telegram Portables:** [`telegram_config.json`](file:///L:/Python/FTMO_Stellar_Lite/telegram_config.json) viaja pre-configurado para recibir alertas instantáneas en tu dispositivo móvil.
+> - **Asesor Experto Precompilado:** El archivo [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) está listo para copiar directamente a MT5 sin necesidad de abrir MetaEditor.
+> - **Credenciales de Telegram Portables:** [`telegram_config.json`](telegram_config.json) viaja pre-configurado para recibir alertas instantáneas en tu dispositivo móvil.
 
 ---
 
@@ -440,7 +440,7 @@ flowchart TD
 ```
 
 #### 📦 Paquete Portable Incluido:
-* **Archivo ZIP directo:** [`PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip`](file:///L:/Python/FTMO_Stellar_Lite/PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip) (1.14 MB con los 142 archivos esenciales del ecosistema).
+* **Archivo ZIP directo:** [`PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip`](PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip) (1.14 MB con los 142 archivos esenciales del ecosistema).
 * **Carpeta del Paquete:** `EXPORT_PACK_PORTABILIDAD/`
 
 #### Contenido del Pack:
@@ -465,8 +465,8 @@ flowchart TD
 
 ##### Paso 1: Generar el Paquete en la PC Origen
 Si realizaste cambios recientes o deseas asegurar que las bases de datos viajen con el último estado:
-1. Haz doble clic en [`exportar_todo.bat`](file:///L:/Python/FTMO_Stellar_Lite/exportar_todo.bat) (o abre [`Control_Total_Bot.bat`](file:///L:/Python/FTMO_Stellar_Lite/Control_Total_Bot.bat) y presiona la **Opción 13**).
-2. El script empaqueta los archivos de MT5, copia las claves SSH, filtra archivos temporales y comprime todo en [`PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip`](file:///L:/Python/FTMO_Stellar_Lite/PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip).
+1. Haz doble clic en [`exportar_todo.bat`](exportar_todo.bat) (o abre [`Control_Total_Bot.bat`](Control_Total_Bot.bat) y presiona la **Opción 13**).
+2. El script empaqueta los archivos de MT5, copia las claves SSH, filtra archivos temporales y comprime todo en [`PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip`](PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip).
 
 ##### Paso 2: Transferir el Archivo a la Nueva PC
 Copia el archivo `PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip` a tu nueva computadora mediante:
@@ -484,30 +484,47 @@ Asegúrate de que la nueva computadora cuente con:
 2. Haz **doble clic en `INSTALAR_EN_NUEVA_PC.bat`**.
 3. El instalador ejecutará automáticamente las siguientes acciones:
    - **Instalación de Llaves SSH:** Crea `%USERPROFILE%\.ssh` y copia las claves privadas aplicando permisos de lectura restrictivos con `icacls` para evitar advertencias de seguridad de OpenSSH.
-   - **Detección e Inyección en MT5:** Busca instalaciones en `Program Files`, `Program Files (x86)` y carpetas de datos itinerantes (`%APPDATA%\MetaQuotes\Terminal\<hash>`). Copia el Asesor Experto [`StellarLite_Webhook_Bridge.ex5`](file:///L:/Python/FTMO_Stellar_Lite/StellarLite_Webhook_Bridge.ex5) directamente a `MQL5\Experts` y pre-configura `Config\common.ini`.
+   - **Detección e Inyección en MT5:** Busca instalaciones en `Program Files`, `Program Files (x86)` y carpetas de datos itinerantes (`%APPDATA%\MetaQuotes\Terminal\<hash>`). Copia el Asesor Experto [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) directamente a `MQL5\Experts` y pre-configura `Config\common.ini`.
    - **Instalación de Dependencias:** Ejecuta `pip install -r requirements.txt` instalando `MetaTrader5`, `yfinance`, `pandas`, `requests`, etc.
    - **Prueba de Enlace Cloud:** Realiza un ping SSH con Oracle Cloud VPS (`157.137.225.144`) confirmando la respuesta del servidor.
 
 ##### Paso 5: Configuración de MetaTrader 5 en la Nueva PC
 1. Abre tu terminal **MetaTrader 5**.
-2. Verifica en **Herramientas > Opciones > Asesores Expertos**:
-   - ☑️ *Permitir trading algorítmico*.
-   - ☑️ *Permitir importación de DLL*.
-   - ☑️ *Permitir WebRequest para las URLs listadas:*
-     - `http://127.0.0.1:8000`
-     - `http://157.137.225.144:8000`
+2. Ve a **Herramientas > Opciones > Asesores Expertos** (o presiona `Ctrl + O`) y establece la configuración institucional exacta:
+   * ☑️ **Permitir trading algorítmico** *(OBLIGATORIO para ejecución de órdenes)*.
+   * ⬜ *Desactivar trading algorítmico al cambiar de cuenta* *(Desmarcado para evitar desconexiones).*
+   * ⬜ *Desactivar trading algorítmico al cambiar de perfil* *(Desmarcado).*
+   * ⬜ *Desactivar trading algorítmico al cambiar de símbolo o período* *(Desmarcado).*
+   * ☑️ **Permitir importación de DLL** *(OBLIGATORIO para llamadas de sistema).*
+   * ☑️ **Permitir WebRequest para las URLs listadas** *(OBLIGATORIO para comunicación HTTP con el bot)*:
+     * Añade: `http://127.0.0.1:8000` *(Túnel seguro local hacia la nube)*
+     * Añade: `http://157.137.225.144:8000` *(IP directa de Oracle Cloud VPS)*
 3. En la barra superior de MT5, asegúrate de que el botón **"Trading Algorítmico" esté en color verde** (`Ctrl + E`).
-4. Abre los gráficos de los 3 activos: **`XAUUSD`** (H1 o M15), **`US500`** (H1) y **`EURUSD`** (H1).
+4. Abre los gráficos de los 3 activos: **`XAUUSD`** (M15), **`US500`** (H1) y **`EURUSD`** (H1).
 5. Presiona `Alt + R` (Ventana $\rightarrow$ Mosaico) para organizarlos cómodamente.
 6. En el panel "Navegador" (`Ctrl + N`), expande **Asesores Expertos** y arrastra **`StellarLite_Webhook_Bridge` ÚNICAMENTE al gráfico de `XAUUSD`** (Master Bridge).
-   > *Verifica que en la esquina superior derecha del gráfico de Oro aparezca el sombrero azul del EA.*
+   * En la ventanita emergente del EA, pestaña **Común**, marca ☑️ *Permitir el trading algorítmico*.
+   * Verifica que en la esquina superior derecha del gráfico de Oro aparezca el **sombrero azul** del EA.
+
+##### 🎨 Carga y Guardado de Perfiles en MetaTrader 5
+Los perfiles de MT5 guardan la disposición exacta de ventanas, símbolos y temporalidades:
+* **Para guardar tu perfil personalizado:** Con los gráficos organizados, ve a **Archivo > Perfiles > Guardar como...** y nómbralo `FundedNext_Stellar`.
+* **Para cargar un perfil existente:**
+  * Método A: Menú **Archivo > Perfiles** y selecciona el nombre.
+  * Método B: Clic izquierdo sobre el nombre del perfil actual en la barra de estado inferior (esquina inferior derecha).
+  * Método C: Atajos de teclado `Shift + F5` (siguiente perfil) o `Ctrl + F5` (perfil anterior).
+* **Ubicación física en Windows:** `%APPDATA%\MetaQuotes\Terminal\<hash>\Profiles\Charts\`.
 
 ##### Paso 6: Puesta en Marcha y Verificación Operativa
-1. Abre la carpeta `03_Codigo_Python_Proyecto\` y ejecuta [`Control_Total_Bot.bat`](file:///L:/Python/FTMO_Stellar_Lite/Control_Total_Bot.bat).
-2. Selecciona la **Opción 4: Gestor de Túnel Webhook** para activar el enlace seguro en el puerto 8000.
+1. Ejecuta [`Control_Total_Bot.bat`](Control_Total_Bot.bat) (desde la raíz o la carpeta del proyecto).
+2. Selecciona la **Opción 4: Gestor de Túnel Webhook** para activar el enlace seguro en el puerto 8000 en segundo plano.
 3. Observa la pantalla del gráfico en MetaTrader 5: el recuadro superior cambiará inmediatamente a:  
    `Estado Conexion: CONECTADO A ORACLE CLOUD (ONLINE)`.
-4. (Opcional) Selecciona la **Opción 6: Simulación Realista con Broker MT5** para verificar en 30 segundos la sincronización de balance ($10,000 USD), cálculo de lote (0.08 lotes en Oro para $50 de riesgo) y envío de órdenes.
+4. *(Opcional)* Selecciona la **Opción 6: Simulación Realista con Broker MT5** para verificar en 30 segundos la sincronización de balance ($10,000 USD), cálculo de lote (0.08 lotes en Oro para $50 de riesgo) y envío de órdenes.
+
+> [!TIP]
+> **¿Por qué aparece `FALLO DE CONEXION` en el gráfico de MT5?**  
+> Si abres MetaTrader 5 antes de iniciar el túnel Webhook, el EA intentará consultar `http://127.0.0.1:8000` pero el puerto estará inactivo en tu PC. Tras 5 reintentos fallidos mostrará `FALLO DE CONEXION`. Basta con abrir [`Control_Total_Bot.bat`](Control_Total_Bot.bat) $\rightarrow$ **Opción 4** para levantar el túnel SSH, y en menos de 1 segundo el EA pasará automáticamente a **ONLINE**.
 
 ---
 
@@ -536,7 +553,7 @@ Si deseas trasladar el bot a otra máquina virtual en la nube (Oracle Cloud Alwa
    ```
    *¿Qué realiza este script en 60 segundos de forma 100% desatendida?*
    - Actualiza repositorios del sistema e instala `python3`, `python3-pip` y `tzdata`.
-   - Instala todas las librerías de Python desde [`requirements.txt`](file:///L:/Python/FTMO_Stellar_Lite/requirements.txt) en el entorno global (sin la sobrecarga de virtualenvs ni contenedores).
+   - Instala todas las librerías de Python desde [`requirements.txt`](requirements.txt) en el entorno global (sin la sobrecarga de virtualenvs ni contenedores).
    - Configura las reglas de firewall (UFW / iptables).
    - Genera y registra los servicios systemd oficiales:
      - `stellar_ny_open.service`: Motor cuantitativo de la Estrategia Ganadora NY_OPEN (Oro).
@@ -560,9 +577,9 @@ Si deseas trasladar el bot a otra máquina virtual en la nube (Oracle Cloud Alwa
 
 4. **Actualizar la IP del Nuevo VPS en los Scripts de Windows:**
    En tu PC local de Windows, abre los siguientes archivos y reemplaza la IP anterior por la nueva IP de tu servidor:
-   - En [`desplegar_a_vps.ps1`](file:///L:/Python/FTMO_Stellar_Lite/desplegar_a_vps.ps1): Cambia `$vpsIp = "IP_NUEVO_VPS"`.
-   - En [`Conectar_Puente_Webhook_MT5.bat`](file:///L:/Python/FTMO_Stellar_Lite/Conectar_Puente_Webhook_MT5.bat): Cambia la variable `REMOTE_HOST=IP_NUEVO_VPS`.
-   - En [`Verificar_Servicio_24_7.bat`](file:///L:/Python/FTMO_Stellar_Lite/Verificar_Servicio_24_7.bat): Cambia la variable `VPS_IP=IP_NUEVO_VPS`.
+   - En [`desplegar_a_vps.ps1`](desplegar_a_vps.ps1): Cambia `$vpsIp = "IP_NUEVO_VPS"`.
+   - En [`Conectar_Puente_Webhook_MT5.bat`](Conectar_Puente_Webhook_MT5.bat): Cambia la variable `REMOTE_HOST=IP_NUEVO_VPS`.
+   - En [`Verificar_Servicio_24_7.bat`](Verificar_Servicio_24_7.bat): Cambia la variable `VPS_IP=IP_NUEVO_VPS`.
    - Si generaste una nueva clave SSH para el nuevo VPS, guarda la clave privada como `VPS-Oracle\oracle_vps.key`.
 
 5. **Verificar Conexión desde Windows:**
@@ -573,7 +590,7 @@ Si deseas trasladar el bot a otra máquina virtual en la nube (Oracle Cloud Alwa
 
 ### 8.3 Documentación Técnica: Trailing Stop por Estructura M15 y Protección de Ganancias
 
-En instrumentos de alta volatilidad como el Oro (`XAUUSD`), los Trailing Stops convencionales de puntos fijos sufren de cierres prematuros por ruido de mercado y mechas de liquidez. Por ello, el Asesor Experto [`StellarLite_Webhook_Bridge.mq5`](file:///L:/Python/FTMO_Stellar_Lite/StellarLite_Webhook_Bridge.mq5) incorpora el algoritmo institucional **`CheckAutonomousStructuralTrailing()`**.
+En instrumentos de alta volatilidad como el Oro (`XAUUSD`), los Trailing Stops convencionales de puntos fijos sufren de cierres prematuros por ruido de mercado y mechas de liquidez. Por ello, el Asesor Experto [`StellarLite_Webhook_Bridge.mq5`](StellarLite_Webhook_Bridge.mq5) incorpora el algoritmo institucional **`CheckAutonomousStructuralTrailing()`**.
 
 ```mermaid
 flowchart TD
@@ -735,14 +752,14 @@ El motor cuenta con un mecanismo de seguridad a nivel de microsegundos para prot
 
 ## 🛠️ Herramientas DevOps, Snapshots, Grabación de Estados y CI/CD
 
-### 1. Auto-Push Inteligente a GitHub ([`auto_push.bat`](file:///L:/Python/FTMO_Stellar_Lite/auto_push.bat))
+### 1. Auto-Push Inteligente a GitHub ([`auto_push.bat`](auto_push.bat))
 Ejecuta:
 ```cmd
 .\auto_push.bat
 ```
 *Analiza las diferencias de código (`git diff`), redacta un mensaje profesional siguiendo el estándar de **Conventional Commits** y realiza el push a GitHub automáticamente.*
 
-### 2. Respaldos, Grabación de Estados y Snapshots ([`archify.bat`](file:///L:/Python/FTMO_Stellar_Lite/archify.bat))
+### 2. Respaldos, Grabación de Estados y Snapshots ([`archify.bat`](archify.bat))
 Genera archivos de respaldo estructurados e inmutables con manifiesto JSON en la carpeta `archives/`:
 ```cmd
 .\archify.bat Databases       # Respalda todas las bases de datos SQLite (*.db)
@@ -757,4 +774,4 @@ Si la empresa de fondeo requiere evidencia o grabación en video de la operativa
 * **Atajo del Panel de Juego:** Presiona `Win + G` para ajustar micrófono, audio del sistema y calidad de captura.
 
 ### 4. Integración Continua (GitHub Actions)
-Configurado en `.github/workflows/release.yml`. Cada `push` a la rama `main` ejecuta la suite completa de pruebas [`test_verification.py`](file:///L:/Python/FTMO_Stellar_Lite/test_verification.py). Si las 11 pruebas son superadas con éxito (100% OK), genera automáticamente un nuevo Release en GitHub.
+Configurado en `.github/workflows/release.yml`. Cada `push` a la rama `main` ejecuta la suite completa de pruebas [`test_verification.py`](test_verification.py). Si las 11 pruebas son superadas con éxito (100% OK), genera automáticamente un nuevo Release en GitHub.
