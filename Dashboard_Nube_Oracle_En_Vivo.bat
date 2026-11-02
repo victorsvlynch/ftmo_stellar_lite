@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 cd /d "%~dp0"
 title Dashboard Remoto en Vivo - Oracle Cloud VPS (NY_OPEN 24/7)
 chcp 65001 >nul
@@ -28,6 +28,6 @@ echo   CONECTANDO CON ORACLE CLOUD VPS (157.137.225.144) -- MODO EN VIVO 24/7
 echo   Estrategia Ganadora: NY_OPEN (Oro GC=F) -- Sincronizacion Directa
 echo ==============================================================================
 echo.
-ssh -tt -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "cd /home/ubuntu/FTMO_Stellar_Lite && python3 -u main.py winner-live --refresh 1.0"
+ssh -tt -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "cd /home/ubuntu/FTMO_Stellar_Lite && python3 -u main.py multi --refresh 1.0"
 echo.
 pause

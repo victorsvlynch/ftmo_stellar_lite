@@ -12,15 +12,21 @@
 set -e
 
 WINNER_SERVICE="stellar_ny_open.service"
-RETIRED_SERVICES=(
-    "stellar_london_open.service"
-    "stellar_crypto_24h.service"
-    "stellar_ny_london.service"
-    "stellar_combo_trio.service"
+TEST_SERVICES=(
+    "stellar_test_oro.service"
+    "stellar_test_eurusd.service"
+    "stellar_test_sp500.service"
+)
+WEBHOOK_SERVICE="stellar_webhook.service"
+ALL_PORTFOLIO_SERVICES=(
+    "$WINNER_SERVICE"
+    "$WEBHOOK_SERVICE"
+    "${TEST_SERVICES[@]}"
 )
 SERVICES=(
     "$WINNER_SERVICE"
-    "${RETIRED_SERVICES[@]}"
+    "$WEBHOOK_SERVICE"
+    "${TEST_SERVICES[@]}"
 )
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -29,16 +35,21 @@ ACTION="${1:-status}"
 case "${ACTION}" in
     winner|solo-ganadora|winner-only)
         echo "=============================================================================="
-        echo " [MODO EXCLUSIVO] Activando unicamente Estrategia Ganadora: NY_OPEN + Webhook"
+        echo " [MODO EXCLUSIVO] Activando Portafolio Oficial MT5 (Oro+EUR/USD+SP500) + Webhook"
         echo "=============================================================================="
-        echo "[1/2] Deteniendo y deshabilitando modalidades secundarias y procesos duplicados..."
-        sudo systemctl stop "${RETIRED_SERVICES[@]}" fundednext_bot.service 2>/dev/null || true
-        sudo systemctl disable "${RETIRED_SERVICES[@]}" fundednext_bot.service 2>/dev/null || true
-        echo "[2/2] Iniciando y habilitando servicio ganador ($WINNER_SERVICE) y webhook..."
-        sudo systemctl enable "$WINNER_SERVICE" stellar_webhook.service 2>/dev/null || true
-        sudo systemctl restart "$WINNER_SERVICE" stellar_webhook.service
-        echo "[OK] Estrategia ganadora NY_OPEN y Webhook activos y en ejecucion."
-        python3 "${APP_DIR}/main.py" winner
+        sudo systemctl enable "$WINNER_SERVICE" "$WEBHOOK_SERVICE" 2>/dev/null || true
+        sudo systemctl restart "$WINNER_SERVICE" "$WEBHOOK_SERVICE"
+        echo "[OK] Portafolio Oficial MT5 y Webhook activos."
+        python3 "${APP_DIR}/main.py" multi-status
+        ;;
+    all|start-all|portfolio-test)
+        echo "=============================================================================="
+        echo " Activando Portafolio Oficial MT5 + 3 Laboratorios de Test Sandbox Internos"
+        echo "=============================================================================="
+        sudo systemctl enable "${ALL_PORTFOLIO_SERVICES[@]}" 2>/dev/null || true
+        sudo systemctl restart "${ALL_PORTFOLIO_SERVICES[@]}"
+        echo "[OK] Todos los servicios activos (MT5 Oficial + 3 Sandbox de Test)."
+        python3 "${APP_DIR}/main.py" multi-status
         ;;
     start-all)
         echo "[*] Iniciando todos los servicios de trading..."

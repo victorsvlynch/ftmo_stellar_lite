@@ -12,7 +12,9 @@ Desarrollado en **Python Puro de Alto Rendimiento (sin interfaces web innecesari
 2. [Estrategia Ganadora Seleccionada y Portafolio Multi-Activo](#-estrategia-ganadora-seleccionada-y-portafolio-multi-activo)
    - [Calendario y Horarios Operativos de los Activos (EST / UTC-5)](#-calendario-y-horarios-operativos-de-los-activos-est--utc-5)
    - [Arquitectura Master Bridge en MetaTrader 5 (3 Gráficos en Mosaico)](#-arquitectura-master-bridge-en-metatrader-5-3-gráficos-en-mosaico)
-   - [Portafolio Descorrelacionado: S&P 500 (`US500`) + EUR/USD (`EURUSD`)](#-portafolio-profesional-multi-activo-sp-500-esf--us500--eurusd-eurusdx--eurusd)
+   - [Portafolio Profesional Multi-Activo Oficial: Oro (XAUUSD) + EUR/USD (EURUSD) + S&P 500 (US500)](#-portafolio-profesional-multi-activo-oficial-oro-xauusd--eurusd-eurusd--sp-500-us500)
+   - [Laboratorio de Pruebas en Paralelo (3 Cuentas Sandbox Individuales de ,000 c/u, SIN MT5)](#-laboratorio-de-pruebas-en-paralelo-3-cuentas-sandbox-individuales-de-10000-cu-sin-metatrader-5)
+   - [Protocolo de Permisos de Trading Algorítmico en MT5 (Solución Error 4752)](#-protocolo-de-permisos-de-trading-algorítmico-en-metatrader-5-solución-error-4752)
 3. [Arquitectura del Motor Cuantitativo y Reglas de Riesgo](#-arquitectura-del-motor-cuantitativo-y-reglas-de-riesgo)
 4. [Puente Institucional con MetaTrader 5 (`mt5_bridge.py`)](#-puente-institucional-con-metatrader-5-mt5_bridgepy)
 5. [Guía de Ejecución Rápida y Modalidades de Trading](#-guía-de-ejecución-rápida-y-modalidades-de-trading)
@@ -140,15 +142,72 @@ Para visualizar y operar simultáneamente los 3 activos de forma profesional sin
    - **Fail-Safe de Auto-Sincronización:** Si el bot en la nube cierra la operación o reporta `open_trades_count == 0`, el EA detecta el estado y liquida la posición local de inmediato mediante ciclos multi-modo (`IOC`, `FOK`, `RETURN`), previniendo posiciones huérfanas o desincronizadas.
 8. **Protección de Fin de Semana:** Todo trade de Oro se liquida forzosamente los viernes a las **15:30 EST** para evitar riesgos de gap al abrir el mercado el domingo.
 
-### 🌐 Portafolio Profesional Multi-Activo: S&P 500 (`ES=F` / `US500`) + EUR/USD (`EURUSD=X` / `EURUSD`)
+### 🌐 Portafolio Profesional Multi-Activo Oficial: Oro (XAUUSD) + EUR/USD (EURUSD) + S&P 500 (US500)
 
-Además de operar Oro monoproducto, el sistema incorpora arquitectura multi-activo profesional **descorrelacionada**:
-- **Descorrelación Renta Variable vs. Forex:** A diferencia de operar NAS100 + S&P 500 (que comparten más del 90% de correlación y duplican el riesgo en bolsa), combinar **S&P 500 con EUR/USD** diversifica el capital entre dos clases de activos independientes.
-- **Horarios Diferenciados por Activo:**
-  - **EUR/USD:** Apertura de Londres (**03:00 a 06:00 EST**) o Apertura de Nueva York (**08:30 a 11:30 EST**).
-  - **S&P 500:** Apertura oficial al contado de Wall Street (**09:30 a 11:30 EST**), operando rupturas de la vela de las 09:30 EST.
-- **Dimensionamiento Automático de Lote:** Calcula el lotaje institucional con riesgo fijo del 0.50% ($50 USD sobre cuenta de $10,000) adaptado al tamaño de contrato del broker (100,000 unidades en EUR/USD y 10 o 1 contratos en S&P 500).
-- **Lanzador Directo en 1-Clic:** Haz doble clic en [`Monitor_Portfolio_SP500_EURUSD.bat`](Monitor_Portfolio_SP500_EURUSD.bat) para abrir el monitor en tiempo real del portafolio.
+El sistema ejecuta una arquitectura institucional **multi-activo descorrelacionada** sobre una única cuenta oficial de **,000 USD** respetando las reglas de **FundedNext Stellar Lite 10K**:
+
+- **Diversificación Real entre Clases de Activo:** Combina materias primas (**Oro Spot / Futuros COMEX**), divisas mayores (**EUR/USD**) e índices bursátiles (**S&P 500**), eliminando el riesgo de sobreexposición a un solo mercado.
+- **Gestión Unificada del Riesgo Institucional:** Todas las operaciones abiertas de los 3 activos comparten la base de datos 	rading_ny_open.db, garantizando que la exposición total jamás exceda el **3.0% ( USD)** de riesgo abierto simultáneo ni el **Freno Diario Personal del 2.0% ( USD)**.
+- **Dimensionamiento Automático de Lote por Instrumento:**
+  - **Oro (XAUUSD / GC=F):** 1 lote = 100 onzas troy. Riesgo: 0.50% ( USD).
+  - **EUR/USD (EURUSD / EURUSD=X):** 1 lote = 100,000 unidades de divisa base (/pip). Riesgo: 0.50% ( USD).
+  - **S&P 500 (US500 / ES=F):** 1 lote = 1 contrato CFD (tick_value = .01 por punto en FundedNext, paso 0.10 lotes). Riesgo: 0.50% ( USD).
+- **Puente Webhook y Ejecución Broker-Agnostic:** Las señales generadas en el VPS de Oracle se despachan a través de stellar_webhook.service (puerto 8000) hacia el Asesor Experto [StellarLite_Webhook_Bridge.ex5](StellarLite_Webhook_Bridge.ex5) en MetaTrader 5, traduciendo automáticamente los símbolos a la nomenclatura nativa del broker (XAUUSD, EURUSD, US500).
+- **Blindaje Anti-Ghost Trades:** Si por alguna razón de mercado o conectividad MT5 rechaza una orden, la base de datos la marca inmediatamente como REJECTED_MT5 evitando posiciones fantasma abiertas en el registro.
+- **Lanzador Directo en 1-Clic:** Haz doble clic en [Monitor_Portfolio_SP500_EURUSD.bat](Monitor_Portfolio_SP500_EURUSD.bat) para abrir el monitor en tiempo real del portafolio.
+
+---
+
+### 🧪 Laboratorio de Pruebas en Paralelo (3 Cuentas Sandbox Individuales de ,000 c/u, SIN MetaTrader 5)
+
+Para probar, auditar y comparar el rendimiento estadístico individual de cada activo de forma aislada, el servidor en Oracle Cloud ejecuta simultáneamente **3 servicios demonio independientes**, cada uno con su propia cuenta virtual de **,000.00 USD** y base de datos SQLite separada:
+
+`
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│             ARQUITECTURA DE EJECUCIÓN PARALELA (ORACLE CLOUD VPS 24/7)                 │
+├─────────────────────────┬──────────────────────────────────────────────────────────────┤
+│ CANAL OFICIAL EN VIVO   │ [1] stellar_ny_open.service (Portafolio MT5: Oro + EUR + SP) │
+│ (Conectado a MT5)       │     --> Base de datos: trading_ny_open.db (,000)          │
+│                         │     --> Webhook: stellar_webhook.service (Puerto 8000)       │
+├─────────────────────────┼──────────────────────────────────────────────────────────────┤
+│ CANAL LABORATORIO TEST  │ [2] stellar_test_oro.service    --> trading_test_oro.db      │
+│ (Interno Sin MT5)       │ [3] stellar_test_eurusd.service --> trading_test_eurusd.db   │
+│                         │ [4] stellar_test_sp500.service  --> trading_test_sp500.db    │
+│                         │     --> Cuentas  independientes, 100% internas en Python │
+└─────────────────────────┴──────────────────────────────────────────────────────────────┘
+`
+
+1. **Oro Individual (stellar_test_oro.service):**
+   - Base de datos: 	rading_test_oro.db (,000 USD).
+   - Horario: **08:30 – 11:30 EST** (Apertura NY).
+   - Evaluación pura de la estrategia ORB 15M en Oro Spot.
+2. **EUR/USD Individual (stellar_test_eurusd.service):**
+   - Base de datos: 	rading_test_eurusd.db (,000 USD).
+   - Horario: **03:00 – 06:00 EST** (Londres) y **08:30 – 11:30 EST** (NY).
+   - Evaluación pura de la estrategia ORB 15M en Forex.
+3. **S&P 500 Individual (stellar_test_sp500.service):**
+   - Base de datos: 	rading_test_sp500.db (,000 USD).
+   - Horario: **09:30 – 11:30 EST** (Wall Street Cash Open).
+   - Evaluación pura de la ruptura de la campana oficial de Wall Street.
+
+> **Cero Interferencia con MT5:** Las 3 bases de datos de laboratorio gestionan el ciclo completo de vida de sus posiciones (quiebre, Stop Loss, Take Profit 1:2, Break-Even a +1R y cierre de fin de semana) internamente en Python. Jamás envían órdenes a MetaTrader 5, manteniendo tu cuenta de fondeo real completamente limpia y protegida.
+
+---
+
+### ⚙️ Protocolo de Permisos de Trading Algorítmico en MetaTrader 5 (Solución Error 4752)
+
+Si al despachar una orden el registro de MT5 muestra:
+> CTrade::OrderSend: market buy ... [auto trading disabled by client] / Fallo: 4752 - AutoTrading disabled
+
+Esto ocurre cuando el Asesor Experto tiene desmarcada la autorización a nivel de gráfico. Se corrige en 10 segundos:
+
+1. En MetaTrader 5, haz clic sobre el gráfico donde está colocado el EA (gráfico **XAUUSD**).
+2. Presiona la tecla **F7** (o clic derecho -> *Lista de Expertos* -> *Propiedades*).
+3. Entra a la pestaña **Común** (*Common*).
+4. Marca la casilla: [x] **'Permitir Trading Algorítmico'** (*Allow Algo Trading*).
+5. Haz clic en **Aceptar**.
+6. Verifica que el botón general **'Algo Trading'** en la barra superior de MT5 esté encendido (en color verde). El icono del sombrero en el gráfico se pondrá de color azul.
+
 
 ---
 

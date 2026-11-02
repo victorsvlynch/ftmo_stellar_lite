@@ -617,64 +617,52 @@ def run_live_dashboard(
 
 MODALITIES_METADATA = [
     {
-        "id": "1_NY_OPEN",
+        "id": "1_PORTFOLIO_MT5",
         "num": "1",
-        "label": "NY_OPEN [GANADORA]",
+        "label": "PORTFOLIO MT5 [EN VIVO]",
         "db": "trading_ny_open.db",
-        "symbol": "GC=F",
+        "symbol": "GC=F,EURUSD=X,ES=F",
         "provider": "yfinance",
-        "session": "NY_OPEN",
-        "hours": "08:30-11:30 EST",
+        "session": "PORTFOLIO_DUAL",
+        "hours": "03:00-11:30 EST",
         "service": "stellar_ny_open.service",
         "active_portfolio": True,
     },
     {
-        "id": "2_LONDON_OPEN",
+        "id": "2_TEST_ORO",
         "num": "2",
-        "label": "LONDON [RETIRADA]",
-        "db": "trading_london_open.db",
+        "label": "ORO TEST [SANDBOX]",
+        "db": "trading_test_oro.db",
         "symbol": "GC=F",
         "provider": "yfinance",
-        "session": "LONDON_OPEN",
-        "hours": "03:00-06:00 EST",
-        "service": "stellar_london_open.service",
-        "active_portfolio": False,
+        "session": "NY_OPEN",
+        "hours": "08:30-11:30 EST",
+        "service": "stellar_test_oro.service",
+        "active_portfolio": True,
     },
     {
-        "id": "3_CRYPTO_24H",
+        "id": "3_TEST_EURUSD",
         "num": "3",
-        "label": "CRYPTO [RETIRADA]",
-        "db": "trading_crypto_24h.db",
-        "symbol": "BTC/USDT",
-        "provider": "ccxt",
-        "session": "ALL",
-        "hours": "24h Continuo",
-        "service": "stellar_crypto_24h.service",
-        "active_portfolio": False,
-    },
-    {
-        "id": "4_NY_LONDON",
-        "num": "4",
-        "label": "DUAL [RETIRADA]",
-        "db": "trading_ny_london.db",
-        "symbol": "GC=F",
+        "label": "EURUSD TEST [SANDBOX]",
+        "db": "trading_test_eurusd.db",
+        "symbol": "EURUSD=X",
         "provider": "yfinance",
-        "session": "COMBO_DUAL",
+        "session": "PORTFOLIO_DUAL",
         "hours": "03-06 & 08:30-11",
-        "service": "stellar_ny_london.service",
-        "active_portfolio": False,
+        "service": "stellar_test_eurusd.service",
+        "active_portfolio": True,
     },
     {
-        "id": "5_COMBO_TRIO",
-        "num": "5",
-        "label": "TRIO [RETIRADA]",
-        "db": "trading_combo_trio.db",
-        "symbol": "GC=F,BTC/USDT",
-        "provider": "multi",
-        "session": "COMBO_TRIO",
-        "hours": "24h (Dual+Crpt)",
-        "service": "stellar_combo_trio.service",
-        "active_portfolio": False,
+        "id": "4_TEST_SP500",
+        "num": "4",
+        "label": "SP500 TEST [SANDBOX]",
+        "db": "trading_test_sp500.db",
+        "symbol": "ES=F",
+        "provider": "yfinance",
+        "session": "PORTFOLIO_DUAL",
+        "hours": "09:30-11:30 EST",
+        "service": "stellar_test_sp500.service",
+        "active_portfolio": True,
     },
 ]
 
@@ -684,7 +672,7 @@ class MultiPriceWorker:
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
-        self.prices: dict = {"GC=F": 0.0, "BTC/USDT": 0.0}
+        self.prices: dict = {"GC=F": 0.0, "EURUSD=X": 0.0, "ES=F": 0.0}
         self.running = True
         self.connector = MarketDataConnector()
         self.thread = threading.Thread(target=self._worker_loop, daemon=True)
@@ -692,9 +680,9 @@ class MultiPriceWorker:
 
     def _worker_loop(self) -> None:
         while self.running:
-            for sym, prov in [("GC=F", "yfinance"), ("BTC/USDT", "ccxt")]:
+            for sym in ["GC=F", "EURUSD=X", "ES=F"]:
                 try:
-                    p = self.connector.get_latest_price(symbol=sym, provider=prov)
+                    p = self.connector.get_latest_price(symbol=sym, provider="yfinance")
                     if p > 0:
                         with self.lock:
                             self.prices[sym] = p

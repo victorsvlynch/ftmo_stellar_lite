@@ -925,9 +925,9 @@ class AutomatedTradingEngine:
         # Determinar lista de símbolos a evaluar
         if "," in self.symbol:
             symbols_to_run = [s.strip() for s in self.symbol.split(",") if s.strip()]
-        elif self.symbol.upper() in ("MULTI", "PORTFOLIO_DUAL", "SP500_EURUSD") or self.risk.session_mode in ("PORTFOLIO_DUAL", "SP500_EURUSD"):
+        elif self.symbol.upper() in ("MULTI", "PORTFOLIO_DUAL", "SP500_EURUSD", "DEFAULT", "ALL") and self.risk.session_mode in ("PORTFOLIO_DUAL", "SP500_EURUSD"):
             symbols_to_run = ["ES=F", "EURUSD=X"]
-        elif self.symbol.upper() == "MULTI" or (self.risk.session_mode == "COMBO_TRIO" and self.symbol == "GC=F"):
+        elif self.symbol.upper() in ("MULTI", "DEFAULT") and self.risk.session_mode == "COMBO_TRIO":
             symbols_to_run = ["GC=F", "BTC/USDT"]
         else:
             symbols_to_run = [self.symbol]
@@ -961,6 +961,9 @@ class AutomatedTradingEngine:
             df_1h = self.connector.fetch_ohlcv_1h(symbol=sym, provider=prov, limit=200, allow_synthetic=False)
 
             if df_15m.empty:
+                if len(symbols_to_run) > 1:
+                    skipped_session_reasons.append(f"{sym}: Feed de mercado en vivo inaccesible ({prov})")
+                    continue
                 return {
                     "timestamp": dt.isoformat(),
                     "action": "DATA_FEED_ERROR",

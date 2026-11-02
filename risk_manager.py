@@ -32,11 +32,11 @@ INSTRUMENT_SPECS: Dict[str, Dict[str, float]] = {
     "EURUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
     "EURUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
     "GBPUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00020},
-    # S&P 500 (Índice USA 500): 1 lote estándar = 10 contratos (estándar prop firm) o 1 contrato, 1 punto = $10 o $1
-    "ES=F": {"contract_size": 10.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 0.40},
-    "US500": {"contract_size": 10.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 0.40},
-    "SPX500": {"contract_size": 10.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 0.40},
-    "SP500": {"contract_size": 10.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 0.40},
+    # S&P 500 (Índice USA 500): 1 lote estándar = 1 contrato en FundedNext (tick_value = $0.01 por punto), min 0.1 lotes
+    "ES=F": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40},
+    "US500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40},
+    "SPX500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40},
+    "SP500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40},
     # Nasdaq 100 (Índice USA Tech 100): 1 lote = 1 contrato, 1 punto = $1.00
     "NQ=F": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5},
     "NAS100": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5},

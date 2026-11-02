@@ -63,10 +63,10 @@ sudo systemctl stop stellar_london_ny.service 2>/dev/null || true
 sudo systemctl disable stellar_london_ny.service 2>/dev/null || true
 sudo rm -f /etc/systemd/system/stellar_london_ny.service 2>/dev/null || true
 
-# Modalidad 1: NY_OPEN (Apertura 08:30-11:30 EST | Oro GC=F | Base de datos trading_ny_open.db)
+# Modalidad 1: Portafolio Multi-Activo (Oro GC=F NY + EUR/USD LDN/NY + S&P 500 Wall Street | Base de datos trading_ny_open.db)
 sudo tee "/etc/systemd/system/stellar_ny_open.service" > /dev/null <<EOF
 [Unit]
-Description=FundedNext Stellar Lite - Modalidad 1: NY_OPEN (Oro GC=F)
+Description=FundedNext Stellar Lite - Portafolio Multi-Activo (Oro, EUR/USD, S&P 500)
 After=network-online.target
 Wants=network-online.target
 
@@ -76,7 +76,7 @@ User=${RUN_USER}
 Group=${RUN_USER}
 WorkingDirectory=${APP_DIR}
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=/usr/bin/python3 ${APP_DIR}/main.py run --symbol GC=F --provider yfinance --risk 0.005 --personal-cap 0.02 --session NY_OPEN --db trading_ny_open.db --interval 60
+ExecStart=/usr/bin/python3 ${APP_DIR}/main.py run --symbol GC=F,EURUSD=X,ES=F --provider yfinance --risk 0.005 --personal-cap 0.02 --session PORTFOLIO_DUAL --db trading_ny_open.db --interval 60
 Restart=always
 RestartSec=10
 StandardOutput=journal

@@ -467,9 +467,17 @@ class TradingDatabase:
                 (phase, trading_date),
             )
 
-            # Encolar para EA Webhook MT5
+            # Encolar para EA Webhook MT5 (mapeo transparente a símbolos del broker MT5)
             action_type = f"OPEN_{side.upper()}"
-            sym_mt5 = "XAUUSD" if "GC" in symbol.upper() else symbol
+            clean_sym = symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
+            if any(k in clean_sym for k in ("GC", "XAU", "GOLD")):
+                sym_mt5 = "XAUUSD"
+            elif any(k in clean_sym for k in ("EURUSD", "EUR")):
+                sym_mt5 = "EURUSD"
+            elif any(k in clean_sym for k in ("ES", "500", "SPX", "US500", "SP500")):
+                sym_mt5 = "US500"
+            else:
+                sym_mt5 = clean_sym
             cursor.execute(
                 """
                 INSERT INTO webhook_actions (
@@ -757,5 +765,15 @@ class TradingDatabase:
                 """,
                 (status, mt5_ticket, executed_price, now_iso, action_id),
             )
+            # Si la orden fue rechazada por MT5 (ticket == 0 o status != CONFIRMED), marcar el trade como REJECTED
+            if status != "CONFIRMED" or mt5_ticket == 0:
+                cursor.execute(
+                    """
+                    UPDATE trades
+                    SET status = 'REJECTED_MT5', notes = notes || ' | RECHAZADA_POR_MT5'
+                    WHERE id = (SELECT trade_id FROM webhook_actions WHERE id = ?) AND status = 'OPEN'
+                    """,
+                    (action_id,),
+                )
             conn.commit()
             return cursor.rowcount > 0
