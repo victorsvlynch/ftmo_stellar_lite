@@ -1,14 +1,17 @@
-# FundedNext Stellar Lite ($10,000) - Automated Trading Engine & MetaTrader 5 Bridge
+# FundedNext Stellar Lite ($10,000) & Stellar 6K Trial - Automated Trading Engine & MetaTrader 5 Bridge
 
-Motor cuantitativo de trading algorítmico, gestor de riesgo institucional y puente oficial con **MetaTrader 5 (MT5)**, diseñado específicamente para superar las fases de evaluación y operar cuentas fondeadas de **FundedNext - Modelo Stellar Lite 2-Step ($10,000 USD)**.
+Motor cuantitativo de trading algorítmico, gestor de riesgo institucional y puente oficial con **MetaTrader 5 (MT5)**, diseñado específicamente para superar las fases de evaluación y operar cuentas de **FundedNext**, compatible de forma simultánea con el **Modelo Stellar Lite 2-Step ($10,000 USD)** y el desafío **Free Trial Challenge ($6,000 USD)**.
 
-Desarrollado en **Python Puro de Alto Rendimiento (sin interfaces web innecesarias, sin Docker y sin dependencias superfluas)**. Operativo tanto en servidores Linux Ubuntu en **Oracle Cloud Infrastructure (OCI)** para ejecución desatendida 24/7, como en estaciones Windows para interacción nativa directa con terminales de escritorio **MetaTrader 5**.
+Desarrollado en **Python Puro de Alto Rendimiento con Arquitectura Multiperfil Aislada (sin interfaces web innecesarias, sin Docker y sin dependencias superfluas)**. Operativo tanto en servidores Linux Ubuntu en **Oracle Cloud Infrastructure (OCI)** para ejecución desatendida 24/7, como en estaciones Windows para interacción nativa directa con terminales de escritorio **MetaTrader 5**.
 
 ---
 
 ## 📋 Tabla de Contenidos
 
-1. [Configuración Oficial Contratada (FundedNext Checkout)](#-configuración-oficial-contratada-fundednext-checkout)
+1. [Arquitectura Multiperfil y Configuración Oficial FundedNext](#-arquitectura-multiperfil-y-configuración-oficial-fundednext)
+   - [Comparativa Técnica de Perfiles Oficiales (10K Demo vs. 6K Trial)](#-comparativa-técnica-de-perfiles-oficiales)
+   - [Aislamiento Total de Datos y Coexistencia](#-aislamiento-total-de-datos-y-coexistencia-de-perfiles)
+   - [Herramientas de Administración de Perfiles](#-herramientas-de-administración-de-perfiles)
 2. [Estrategia Ganadora Seleccionada y Portafolio Multi-Activo](#-estrategia-ganadora-seleccionada-y-portafolio-multi-activo)
    - [Calendario y Horarios Operativos de los Activos (EST / UTC-5)](#-calendario-y-horarios-operativos-de-los-activos-est--utc-5)
    - [Arquitectura Master Bridge en MetaTrader 5 (3 Gráficos en Mosaico)](#-arquitectura-master-bridge-en-metatrader-5-3-gráficos-en-mosaico)
@@ -21,7 +24,7 @@ Desarrollado en **Python Puro de Alto Rendimiento (sin interfaces web innecesari
    - [Prueba Interactiva en Vivo con MetaTrader 5 (`Ejecutar_Prueba_MT5.bat`)](#1-prueba-interactiva-en-vivo-con-metatrader-5)
    - [Modalidades de Operación: Opción B.2 (MT5 Automático) y Opción C (Telegram Celular)](#2-modalidades-de-ejecución-disponibles)
    - [Monitoreo en Tiempo Real de la Estrategia Ganadora (`Dashboard_Operaciones_En_Vivo.bat`)](#3-monitoreo-en-tiempo-real-de-la-estrategia-ganadora)
-   - [Suite de Pruebas Automatizadas 100% OK (`test_verification.py` - 11/11)](#4-suite-de-pruebas-automatizadas-100-ok---1111)
+   - [Suite de Pruebas Automatizadas 100% OK (`test_verification.py` - 13/13)](#4-suite-de-pruebas-automatizadas-100-ok---1313)
    - [Consola Interactiva Avanzada (`stellar-cli>`)](#5-consola-interactiva-avanzada-stellar-cli)
 6. [Operación y Despliegue 24/7 en Servidor Oracle Cloud (OCI)](#-operación-y-despliegue-247-en-servidor-oracle-cloud-oci)
 7. [Panel de Control Maestro (`Control_Total_Bot.bat`) y Dashboards](#-panel-de-control-maestro-control_total_botbat-y-dashboards)
@@ -34,6 +37,84 @@ Desarrollado en **Python Puro de Alto Rendimiento (sin interfaces web innecesari
 9. [Estructura del Proyecto y Archivos Clave](#-estructura-del-proyecto-y-archivos-clave)
 10. [Protocolo de Contingencia y Hard Breach](#-protocolo-de-contingencia-y-hard-breach)
 11. [Herramientas DevOps, Snapshots, Grabación de Estados y CI/CD](#-herramientas-devops-snapshots-grabación-de-estados-y-cicd)
+
+---
+
+## 🏷️ Arquitectura Multiperfil y Configuración Oficial FundedNext
+
+El motor cuantitativo incorpora un sistema de **Gestión Multiperfil desacoplado** ([`profiles.py`](profiles.py) y [`profiles.json`](profiles.json)), permitiendo la administración simultánea e independiente de distintas cuentas de evaluación y desafíos sin riesgo de mezcla de trades ni sobreescritura de balances:
+
+### 📊 Comparativa Técnica de Perfiles Oficiales
+
+| Parámetro Institucional | Perfil: Stellar 10K Demo (`cloud.png`) | Perfil: Stellar 6K Trial (`1-trial.png` / `2-trial.png`) |
+| :--- | :--- | :--- |
+| **Identificador Interno** | `stellar_10k_demo` | `stellar_6k_trial` |
+| **Modelo de Cuenta** | **Stellar Lite 2-Step (Evaluation)** | **Free Trial Challenge (CFDs)** |
+| **Capital Base** | **$10,000.00 USD** | **$6,000.00 USD** |
+| **Plataforma / Broker** | MetaTrader 5 (MT5 - SWAP) | MetaTrader 5 (MT5 - SWAP) |
+| **Login MT5 Asignado** | *Configurable* | **#35338849** (Detectado en MT5) |
+| **Servidor Broker** | `FundedNext-Demo` | `FundedNext-Server 3` / `FundedNext-Demo` |
+| **Objetivo Fase 1 / Reto** | **+8.0% ($800.00)** $\rightarrow$ Meta: $10,800.00 | **+5.0% ($300.00)** $\rightarrow$ Meta: $6,300.00 |
+| **Objetivo Fase 2** | **+4.0% ($400.00)** $\rightarrow$ Meta: $10,400.00 | *No aplica (1 sola fase de Trial)* |
+| **Días Mínimos Operativos** | **2 Días por Fase** | **3 Días Mínimos** |
+| **Límite Pérdida Diaria** | **-4.0% ($400.00)** (sobre balance inicio día) | **-5.0% ($300.00)** (sobre balance inicio día) |
+| **Límite Drawdown Máximo** | **-8.0% ($800.00)** $\rightarrow$ **Piso Fijo: $9,200.00** | **-10.0% ($600.00)** $\rightarrow$ **Piso Fijo: $5,400.00** |
+| **Regla Max Open Risk 3%** | **3.0% ($300.00 USD)** máx. riesgo simultáneo | **3.0% ($180.00 USD)** máx. riesgo simultáneo |
+| **Riesgo por Trade (0.5%)** | **0.50% ($50.00 USD)** por operación | **0.50% ($30.00 USD)** por operación |
+| **Freno Personal Diario** | **-2.0% ($200.00 USD)** (Margen seg. 100%) | **-2.5% ($150.00 USD)** (Margen seg. 100%) |
+| **Regla Profit Noticias** | Máx. 40% ganancias en eventos NFP/CPI | Máx. 40% ganancias en eventos NFP/CPI |
+| **Base de Datos SQLite** | [`trading_history.db`](trading_history.db) | [`trading_stellar_6k_trial.db`](trading_stellar_6k_trial.db) |
+| **Estado de Cuenta** | `FASE_1` $\rightarrow$ `FASE_2` $\rightarrow$ `FUNDED` | `CHALLENGE` $\rightarrow$ `SUPERADA` |
+
+---
+
+### 🛡️ Aislamiento Total de Datos y Coexistencia de Perfiles
+
+1. **Persistencia Física Aislada:** Cada perfil opera sobre un archivo de base de datos SQLite exclusivo. Las operaciones, métricas de balance, días mínimos y curvas de equidad se registran de forma totalmente independiente.
+2. **Esquema de Migración Automática:** [`database.py`](database.py) garantiza que la estructura de tablas incorpore `profile_id`, `daily_loss_limit_pct`, `profit_target_pct`, `is_trial` y `account_login`.
+3. **Persistencia del Perfil Activo:** [`profiles.json`](profiles.json) conserva la selección activa (`active_profile_id`). Todo script, batch o monitor toma el perfil activo sin requerir reconfiguración manual.
+
+---
+
+### 🎛️ Herramientas de Administración de Perfiles
+
+#### 1. Menú Interactivo Dedicado ([`Administrar_Perfiles.bat`](Administrar_Perfiles.bat)):
+Permite gestionar perfiles en 1 clic desde Windows:
+- **[1] Activar Perfil:** Stellar 10K Demo (Evaluación $10,000 USD).
+- **[2] Activar Perfil:** Stellar 6K Trial (Free Trial Challenge $6,000 USD).
+- **[3] Ver Ficha Técnica:** Resumen financiero completo de reglas y metas del perfil activo.
+- **[4] Configurar Login MT5:** Vincula el número de cuenta de MetaTrader 5 (ej. `#35338849`).
+- **[5] Reiniciar Cuenta (Reset):** Restablece el ciclo conservando históricos archivados.
+- **[6] Salir:** Regresa al panel principal.
+
+#### 2. Acceso desde el Panel Maestro ([`Control_Total_Bot.bat`](Control_Total_Bot.bat)):
+- Presiona la opción **`[P]`** en cualquier momento para conmutar perfiles directamente desde el menú principal. El encabezado del panel muestra en tiempo real el perfil activo y su login MT5.
+
+#### 3. Control por Línea de Comandos (`main.py`):
+```bash
+# Listar todos los perfiles registrados y ver el activo
+python main.py --list-profiles
+
+# Conmutar de inmediato al perfil Stellar 6K Trial
+python main.py --switch-profile stellar_6k_trial
+
+# Conmutar al perfil Stellar 10K Demo
+python main.py --switch-profile stellar_10k_demo
+
+# Consultar ficha técnica completa del perfil activo
+python main.py --show-profile
+
+# Asignar login de MetaTrader 5 al perfil activo
+python main.py --set-login 35338849
+```
+
+#### 4. Control desde la Consola Interactiva (`stellar-cli>`):
+```text
+stellar-cli> profile list
+stellar-cli> profile switch stellar_6k_trial
+stellar-cli> profile show
+stellar-cli> status
+```
 
 ---
 
@@ -333,9 +414,9 @@ Para observar el motor cuantitativo operando en vivo, analizando el mercado segu
 
 ---
 
-### 4. Suite de Pruebas Automatizadas (100% OK - 11/11)
+### 4. Suite de Pruebas Automatizadas (100% OK - 13/13)
 
-El proyecto incluye una suite integral de 11 pruebas unitarias y de integración que validan matemáticamente todas las reglas del broker, filtros anti-trampas y cálculos de riesgo:
+El proyecto incluye una suite integral de 13 pruebas unitarias y de integración que validan matemáticamente todas las reglas del broker, filtros anti-trampas, ambos perfiles y cálculos de riesgo institucional:
 
 - **Desde Windows:**
   Haz doble clic en `VPS-Oracle\Ejecutar_Tests_Verificacion.bat` o selecciona la **Opción 12** en [`Control_Total_Bot.bat`](Control_Total_Bot.bat).
@@ -343,7 +424,7 @@ El proyecto incluye una suite integral de 11 pruebas unitarias y de integración
   ```bash
   python test_verification.py
   ```
-- **Pruebas Validadas (11/11 PASS):**
+- **Pruebas Validadas (13/13 PASS):**
   1. Estrategia ORB: Anti-Fakeout y filtro EMA 200 H1.
   2. Fricción institucional (comisiones + spread dinámico).
   3. Base de datos SQLite y auditoría financiera.
@@ -355,6 +436,8 @@ El proyecto incluye una suite integral de 11 pruebas unitarias y de integración
   9. Reglas y Verificación de Evaluación FundedNext Stellar Lite ($10K USD: 2 Min Days, 8% Max Loss, 4% Daily Loss, 80% Profit Split, $5.00 EA Add-on).
   10. Portafolio Profesional Multi-Activo: S&P 500 (`ES=F` / `US500`) y EUR/USD (`EURUSD=X` / `EURUSD`) con dimensionamiento institucional por contrato y filtros de sesión horaria (Londres vs Wall Street Cash).
   11. Regla FundedNext: Límite de Exposición Máxima del 3% ($300 USD en $10K) y Neutralización de Riesgo por Break-Even (+1R).
+  12. Validación de Perfil y Reglas FundedNext Free Trial 6K Challenge ($6,000 Capital, Meta $300 [+5%], 3 Días Mínimos, Daily Loss $300 [5%], Max Loss $600 [10% -> Piso $5,400], Regla Max Risk 3% [$180] y Promoción a SUPERADA).
+  13. Administración de Perfiles y Coexistencia Sin Conflicto (Conmutación instantánea entre `stellar_10k_demo` y `stellar_6k_trial` con aislamiento estricto de bases de datos).
 
 ---
 
@@ -372,8 +455,11 @@ python main.py interactive
 - `calc <precio_entrada> <stop_loss>` : Calcula el lotaje exacto para el balance actual de $10K (ej. `calc 2650.0 2643.5`).
 - `force_buy` / `force_sell` : Abre una orden de prueba ignorando el filtro horario.
 - `close_all` : Cierra de inmediato todas las posiciones abiertas en la base de datos.
+- `profile list` : Muestra todos los perfiles registrados y resalta el perfil activo.
+- `profile switch <id>` : Conmuta al perfil indicado (`stellar_10k_demo` o `stellar_6k_trial`).
+- `profile show` : Despliega la ficha técnica institucional del perfil activo.
 - `history` : Muestra las últimas operaciones registradas.
-- `reset` : Restablece la cuenta a $10,000.00 en Fase 1.
+- `reset` : Restablece la cuenta del perfil activo a su capital inicial.
 - `exit` : Sale de la consola interactiva.
 
 ---
@@ -849,7 +935,10 @@ Si deseas tener ambas computadoras encendidas al mismo tiempo:
 
 ```text
 FTMO_Stellar_Lite/
-├── Control_Total_Bot.bat            # Menú maestro de control con 14 opciones integradas
+├── Administrar_Perfiles.bat         # Administrador interactivo 1-Clic de perfiles de trading (10K Demo y 6K Trial)
+├── Control_Total_Bot.bat            # Menú maestro de control con 14 opciones integradas y conmutador [P]
+├── profiles.py                      # Gestor central de perfiles institucionales de trading
+├── profiles.json                    # Repositorio JSON de perfiles y selección de perfil activo
 ├── exportar_todo.bat                # Empaquetador portable de 1-Clic para migrar a otra PC
 ├── exportar_todo.ps1                # Motor PowerShell de empaquetado y compresión ZIP
 ├── PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip # Archivo comprimido listo para transferir (1.14 MB)
@@ -885,7 +974,8 @@ FTMO_Stellar_Lite/
 ├── risk_manager.py                  # Sizing institucional (0.5%), freno 2%, anti-tilt y regla 3% max risk
 ├── stellar_rules.py                 # Reglas FundedNext Stellar Lite ($10K) y validación de fases
 ├── database.py                      # Motor SQLite multi-cuenta, eventos y auditoría de balance ($10K)
-├── test_verification.py             # Suite de 11 pruebas de verificación integral (100% OK)
+├── test_verification.py             # Suite de 13 pruebas de verificación integral (100% OK)
+├── trading_stellar_6k_trial.db      # Base de datos SQLite exclusiva del perfil 6K Trial
 ├── setup_oracle.sh                  # Script de aprovisionamiento en Linux Ubuntu ARM64
 ├── manage_services.sh               # Gestor de servicios systemd en la nube
 ├── desplegar_a_vps.bat              # Sincronización automática de código a Oracle Cloud VPS
