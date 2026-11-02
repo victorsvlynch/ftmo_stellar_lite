@@ -50,10 +50,12 @@ class RuleCheckResult:
 
 
 class StellarLiteRulesEngine:
-    """Validador oficial de reglas de fondeo FundedNext - Stellar Lite 2-Step $10K."""
+    """Validador oficial de reglas de fondeo FundedNext - Stellar Lite 2-Step & Free Trial."""
 
     PHASE_1 = "FASE_1"
     PHASE_2 = "FASE_2"
+    CHALLENGE = "CHALLENGE"
+    SUPERADA = "SUPERADA"
     FUNDED = "FONDEADA"
     FAILED = "FALLADA"
 
@@ -78,44 +80,91 @@ class StellarLiteRulesEngine:
         min_trading_days: Optional[int] = None,
         funded_profit_split: Optional[float] = None,
         daily_loss_limit_pct: Optional[float] = None,
+        profit_target_pct: Optional[float] = None,
+        profit_target_phase2_pct: Optional[float] = None,
+        is_trial: Optional[bool] = None,
+        profile: Optional[Any] = None,
         use_cloud_addons: bool = True,
     ) -> None:
         self.db = db
         acc = self.db.get_account_state()
 
-        # Configuración elegida en FundedNext Checkout (cloud.png - Stellar Lite 2-Step-10K USD):
-        # - Account Size: $10,000 USD ($59.99 base)
-        # - EA (+ $5.00) -> SELECCIONADO (Trading algorítmico / Python bot formalmente autorizado)
-        # - Maximum Loss Limit 10% (+25%) -> NO SELECCIONADO (Aplica 8% estándar = $800 pérdida máxima, piso $9,200)
-        # - No Minimum Trading Days (+20%) -> NO SELECCIONADO (Aplica estándar de 2 días mínimos por fase)
-        # - Lifetime Reward 95% (+30%) -> NO SELECCIONADO (Aplica 80% estándar inicial, escalable a 90%)
+        self.profile = profile
+        if self.profile is None and acc.get("profile_id"):
+            try:
+                from profiles import profile_manager
+                self.profile = profile_manager.get_profile(acc["profile_id"])
+            except Exception:
+                self.profile = None
 
+        # Resolver si es cuenta Trial
+        if is_trial is not None:
+            self.is_trial = bool(is_trial)
+        elif self.profile is not None:
+            self.is_trial = bool(self.profile.is_trial)
+        elif acc.get("is_trial") is not None:
+            self.is_trial = bool(acc["is_trial"])
+        else:
+            self.is_trial = False
+
+        # Profit targets
+        if profit_target_pct is not None:
+            self.profit_target_pct = float(profit_target_pct)
+        elif self.profile is not None:
+            self.profit_target_pct = float(self.profile.profit_target_pct)
+        elif acc.get("profit_target_pct") is not None:
+            self.profit_target_pct = float(acc["profit_target_pct"])
+        else:
+            self.profit_target_pct = self.PHASE_1_TARGET_PCT
+
+        if profit_target_phase2_pct is not None:
+            self.profit_target_phase2_pct = float(profit_target_phase2_pct)
+        elif self.profile is not None:
+            self.profit_target_phase2_pct = self.profile.profit_target_phase2_pct
+        elif acc.get("profit_target_phase2_pct") is not None:
+            self.profit_target_phase2_pct = float(acc["profit_target_phase2_pct"])
+        else:
+            self.profit_target_phase2_pct = self.PHASE_2_TARGET_PCT
+
+        # Max drawdown limit
         if max_drawdown_limit_pct is not None:
             self.max_drawdown_limit_pct = float(max_drawdown_limit_pct)
+        elif self.profile is not None:
+            self.max_drawdown_limit_pct = float(self.profile.max_drawdown_limit_pct)
         elif acc.get("max_drawdown_limit_pct") is not None:
             self.max_drawdown_limit_pct = float(acc["max_drawdown_limit_pct"])
         else:
-            self.max_drawdown_limit_pct = self.MAX_DRAWDOWN_LIMIT_PCT  # 0.08
+            self.max_drawdown_limit_pct = self.MAX_DRAWDOWN_LIMIT_PCT
 
+        # Min trading days
         if min_trading_days is not None:
             self.min_trading_days = int(min_trading_days)
+        elif self.profile is not None:
+            self.min_trading_days = int(self.profile.min_trading_days)
         elif acc.get("min_trading_days") is not None:
             self.min_trading_days = int(acc["min_trading_days"])
         else:
-            self.min_trading_days = self.MIN_TRADING_DAYS  # 2 días
+            self.min_trading_days = self.MIN_TRADING_DAYS
 
+        # Funded split
         if funded_profit_split is not None:
             self.funded_profit_split = float(funded_profit_split)
+        elif self.profile is not None:
+            self.funded_profit_split = float(self.profile.funded_profit_split)
         elif acc.get("funded_profit_split") is not None:
             self.funded_profit_split = float(acc["funded_profit_split"])
         else:
-            self.funded_profit_split = self.DEFAULT_FUNDED_SPLIT  # 0.80
+            self.funded_profit_split = self.DEFAULT_FUNDED_SPLIT
 
-        self.daily_loss_limit_pct = (
-            float(daily_loss_limit_pct)
-            if daily_loss_limit_pct is not None
-            else self.DAILY_LOSS_LIMIT_PCT
-        )
+        # Daily loss limit
+        if daily_loss_limit_pct is not None:
+            self.daily_loss_limit_pct = float(daily_loss_limit_pct)
+        elif self.profile is not None:
+            self.daily_loss_limit_pct = float(self.profile.daily_loss_limit_pct)
+        elif acc.get("daily_loss_limit_pct") is not None:
+            self.daily_loss_limit_pct = float(acc["daily_loss_limit_pct"])
+        else:
+            self.daily_loss_limit_pct = self.DAILY_LOSS_LIMIT_PCT
 
     def check_daily_rollover(self, now_server: Optional[datetime] = None) -> Dict[str, Any]:
         """
@@ -271,7 +320,10 @@ class StellarLiteRulesEngine:
 
         # Días operativos completados en la fase actual
         trading_days = self.db.get_active_trading_days_count(phase)
-        min_days_req = self.min_trading_days if phase in (self.PHASE_1, self.PHASE_2) else 0
+        if self.is_trial or phase in (self.CHALLENGE, "TRIAL"):
+            min_days_req = self.min_trading_days
+        else:
+            min_days_req = self.min_trading_days if phase in (self.PHASE_1, self.PHASE_2) else 0
 
         # Targets por Fase y Promoción Automática (solo sobre balance cerrado y sin Hard Breach)
         profit_target_amount: Optional[float] = None
@@ -283,7 +335,41 @@ class StellarLiteRulesEngine:
         real_account_recommendations: List[str] = []
 
         if not hard_breach:
-            if phase == self.PHASE_1:
+            if phase == self.SUPERADA:
+                profit_target_amount = None
+                profit_target_balance = None
+                target_reached = True
+                can_pass_phase = True
+
+            elif self.is_trial or phase in (self.CHALLENGE, "TRIAL"):
+                profit_target_amount = round(initial_balance * self.profit_target_pct, 2)  # $300.00 en $6,000 (+5.0%)
+                profit_target_balance = round(initial_balance + profit_target_amount, 2)    # $6,300.00 en $6,000
+                if balance >= profit_target_balance:
+                    target_reached = True
+                    if trading_days >= self.min_trading_days:
+                        can_pass_phase = True
+                        self._promote_phase(
+                            from_phase=phase,
+                            to_phase=self.SUPERADA,
+                            initial_balance=initial_balance,
+                            new_split=0.0,
+                        )
+                        day_msg = f"{trading_days} días cumplidos"
+                        login_label = f"Login #{acc.get('account_login')}" if acc.get('account_login') else "MT5"
+                        alerts.append(
+                            f"¡CHALLENGE FREE TRIAL SUPERADO! Target +{self.profit_target_pct * 100:.1f}% "
+                            f"(${profit_target_amount:,.2f}) alcanzado ({day_msg}). "
+                            f"Reto completado con éxito ({login_label})."
+                        )
+                        return self.evaluate_account(floating_pnl=0.0, now_server=now_server)
+                    else:
+                        waiting_min_days = True
+                        alerts.append(
+                            f"Target de Free Trial alcanzado (${balance:,.2f}), pero faltan días operativos: "
+                            f"{trading_days}/{self.min_trading_days} días requeridos."
+                        )
+
+            elif phase == self.PHASE_1:
                 profit_target_amount = round(initial_balance * self.PHASE_1_TARGET_PCT, 2)  # $800.00 en $10,000 (+8%)
                 profit_target_balance = round(initial_balance + profit_target_amount, 2)    # $10,800.00 en $10,000
                 if balance >= profit_target_balance:
@@ -351,13 +437,15 @@ class StellarLiteRulesEngine:
 
         # Generar recomendaciones institucionales para cuenta real y prop firm
         if hard_breach:
+            pct_dd = self.max_drawdown_limit_pct * 100
+            pct_dl = self.daily_loss_limit_pct * 100
             real_account_recommendations.append(
-                "🚨 [CUENTA FALLADA]: Se alcanzó el límite estricto de pérdida (Daily Loss 4% o Max DD 8%). "
+                f"🚨 [CUENTA FALLADA]: Se alcanzó el límite estricto de pérdida (Daily Loss {pct_dl:.0f}% o Max DD {pct_dd:.0f}%). "
                 "Detener de inmediato cualquier servicio. En FundedNext, la cuenta queda descalificada; "
                 "se debe solicitar un Reset o adquirir una nueva evaluación."
             )
         elif target_reached and waiting_min_days:
-            next_phase_str = "FASE 2" if phase == self.PHASE_1 else "CUENTA FONDEADA (Split 80%)"
+            next_phase_str = "RETO SUPERADO" if self.is_trial else ("FASE 2" if phase == self.PHASE_1 else "CUENTA FONDEADA (Split 80%)")
             real_account_recommendations.append(
                 f"🎯 [OBJETIVO FINANCIERO ALCANZADO]: Tu balance (${balance:,.2f}) superó la meta exigida "
                 f"para {phase} (${profit_target_balance:,.2f}). Beneficio asegurado: +${current_profit:,.2f}."
@@ -380,13 +468,32 @@ class StellarLiteRulesEngine:
                 "verde y los días operativos coincidan antes de solicitar el pase."
             )
         elif target_reached and can_pass_phase:
+            if self.is_trial or phase == self.SUPERADA:
+                login_id_str = f"Login #{acc.get('account_login')}" if acc.get('account_login') else "MT5"
+                target_val = profit_target_amount if profit_target_amount is not None else round(initial_balance * self.profit_target_pct, 2)
+                real_account_recommendations.append(
+                    f"🏆 [CHALLENGE FREE TRIAL SUPERADO CON ÉXITO]: Has alcanzado la meta de +${target_val:,.2f} "
+                    f"y completado los {min_days_req} días mínimos reglamentarios en tu cuenta de prueba ({login_id_str})."
+                )
+                real_account_recommendations.append(
+                    "🎉 [ESTRATEGIA 100% VALIDADA]: Tu operativa cuantitativa demostró consistencia y control estricto del riesgo. "
+                    "Ya estás preparado para operar la cuenta de evaluación oficial FundedNext de $6K o $10K."
+                )
+            else:
+                target_val = profit_target_amount if profit_target_amount is not None else round(initial_balance * self.PHASE_2_TARGET_PCT, 2)
+                real_account_recommendations.append(
+                    f"🏆 [FASE SUPERADA CON ÉXITO]: Cumpliste tanto el beneficio (${target_val:,.2f}) "
+                    f"como los {min_days_req} días mínimos reglamentarios."
+                )
+                real_account_recommendations.append(
+                    "📋 [PASOS EN EL BROKER]: 1. Cierra cualquier posición restante. 2. No abras ninguna otra orden. "
+                    "3. En el panel de FundedNext solicita la emisión de credenciales de la siguiente fase o Cuenta Fondeada."
+                )
+        elif phase == self.SUPERADA:
+            login_id_str = f"Login #{acc.get('account_login')}" if acc.get('account_login') else "MT5"
             real_account_recommendations.append(
-                f"🏆 [FASE SUPERADA CON ÉXITO]: Cumpliste tanto el beneficio (${profit_target_amount:,.2f}) "
-                f"como los {min_days_req} días mínimos reglamentarios."
-            )
-            real_account_recommendations.append(
-                "📋 [PASOS EN EL BROKER]: 1. Cierra cualquier posición restante. 2. No abras ninguna otra orden. "
-                "3. En el panel de FundedNext solicita la emisión de credenciales de la siguiente fase o Cuenta Fondeada."
+                f"🏆 [RETO FREE TRIAL 6K COMPLETADO]: Estado oficial: SUPERADO ({login_id_str}). "
+                "Todas las reglas fueron respetadas con éxito."
             )
         elif phase == self.FUNDED:
             real_account_recommendations.append(
@@ -399,8 +506,10 @@ class StellarLiteRulesEngine:
             real_account_recommendations.append(
                 "💰 [CALENDARIO DE PAGOS]: Retiros disponibles cada 10 días. Reembolso del 100% de la tarifa pagada ($64.99 USD) al 3er cobro de recompensas."
             )
+            max_risk_amount = round(initial_balance * 0.03, 2)
+            risk_trade_amount = round(initial_balance * 0.005, 2)
             real_account_recommendations.append(
-                "🛡️ [REGLA FUNDEDNEXT MAX RISK 3%]: El riesgo máximo total simultáneo en mercado no puede superar el 3.0% ($300.00 en $10K). Tu bot opera en 0.50% ($50) por trade (factor de seguridad 6x)."
+                f"🛡️ [REGLA FUNDEDNEXT MAX RISK 3%]: El riesgo máximo total simultáneo en mercado no puede superar el 3.0% (${max_risk_amount:,.2f} en ${initial_balance:,.0f}). Tu bot opera en 0.50% (${risk_trade_amount:,.2f}) por trade (factor de seguridad 6x)."
             )
             if profit_split < self.SCALED_FUNDED_SPLIT:
                 needed = round(initial_balance * 0.10 - current_profit, 2)
@@ -410,16 +519,20 @@ class StellarLiteRulesEngine:
                 )
         else:
             pct_needed = round(((profit_target_balance - balance) / initial_balance) * 100, 2) if profit_target_balance else 0.0
+            phase_label = "CHALLENGE TRIAL" if self.is_trial else phase
+            risk_trade_amount = round(initial_balance * 0.005, 2)
+            personal_cap_amount = round(initial_balance * float(acc.get("personal_daily_cap_pct", 0.02)), 2)
+            max_risk_amount = round(initial_balance * 0.03, 2)
             real_account_recommendations.append(
                 f"📊 [PROGRESO DE FASE]: Balance actual: ${balance:,.2f} | Meta: ${profit_target_balance:,.2f} "
                 f"(Falta: ${profit_target_balance - balance:,.2f} / {pct_needed}%)."
             )
             real_account_recommendations.append(
-                f"📅 [DÍAS OPERATIVOS]: {trading_days}/{min_days_req} días completados en {phase}."
+                f"📅 [DÍAS OPERATIVOS]: {trading_days}/{min_days_req} días completados en {phase_label}."
             )
             real_account_recommendations.append(
-                "🛡️ [GESTIÓN DE RIESGO]: Mantener riesgo por trade en 0.50% ($50 USD). Respeta el freno personal "
-                "diario del 2% ($200 USD), la regla anti-racha (máx. 3 pérdidas) y el límite FundedNext de 3% max risk ($300)."
+                f"🛡️ [GESTIÓN DE RIESGO]: Mantener riesgo por trade en 0.50% (${risk_trade_amount:,.2f} USD). Respeta el freno personal "
+                f"diario (${personal_cap_amount:,.2f} USD), la regla anti-racha (máx. 3 pérdidas) y el límite FundedNext de 3% max risk (${max_risk_amount:,.2f} USD)."
             )
             real_account_recommendations.append(
                 "⚠️ [REGLA DE NOTICIAS]: No abras operaciones dentro de los 15 minutos previos o posteriores a NFP, "

@@ -64,6 +64,8 @@ $filesToUpload = @(
     "main.py",
     "mt5_bridge.py",
     "database.py",
+    "profiles.py",
+    "profiles.json",
     "stellar_rules.py",
     "risk_manager.py",
     "trading_engine.py",

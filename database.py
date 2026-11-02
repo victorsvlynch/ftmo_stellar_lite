@@ -19,7 +19,8 @@ DB_DEFAULT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trad
 class TradingDatabase:
     """Gestor de persistencia en SQLite para operaciones y estado de la cuenta."""
 
-    def __init__(self, db_path: str = DB_DEFAULT_PATH) -> None:
+    def __init__(self, db_path: str = DB_DEFAULT_PATH, profile: Optional[Any] = None) -> None:
+        self._profile = profile
         if not os.path.isabs(db_path):
             base_dir = os.path.dirname(os.path.abspath(__file__))
             self.db_path = os.path.join(base_dir, db_path)
@@ -102,6 +103,12 @@ class TradingDatabase:
                 "ALTER TABLE account_state ADD COLUMN min_trading_days INTEGER DEFAULT 2",
                 "ALTER TABLE account_state ADD COLUMN funded_profit_split REAL DEFAULT 0.80",
                 "ALTER TABLE account_state ADD COLUMN ea_enabled INTEGER DEFAULT 1",
+                "ALTER TABLE account_state ADD COLUMN daily_loss_limit_pct REAL DEFAULT 0.04",
+                "ALTER TABLE account_state ADD COLUMN profit_target_pct REAL DEFAULT 0.08",
+                "ALTER TABLE account_state ADD COLUMN profit_target_phase2_pct REAL DEFAULT 0.04",
+                "ALTER TABLE account_state ADD COLUMN profile_id TEXT DEFAULT 'stellar_10k_demo'",
+                "ALTER TABLE account_state ADD COLUMN is_trial INTEGER DEFAULT 0",
+                "ALTER TABLE account_state ADD COLUMN account_login INTEGER DEFAULT 0",
             ):
                 try:
                     cursor.execute(col_sql)
@@ -199,16 +206,54 @@ class TradingDatabase:
             if row["cnt"] == 0:
                 now_utc = datetime.now(timezone.utc)
                 today_str = now_utc.strftime("%Y-%m-%d")
+
+                init_bal = float(self._profile.initial_balance) if self._profile else 10000.0
+                daily_loss_pct = float(self._profile.daily_loss_limit_pct) if self._profile else 0.04
+                max_dd_pct = float(self._profile.max_drawdown_limit_pct) if self._profile else 0.08
+                min_days = int(self._profile.min_trading_days) if self._profile else 2
+                target_pct = float(self._profile.profit_target_pct) if self._profile else 0.08
+                target_p2_pct = (
+                    float(self._profile.profit_target_phase2_pct)
+                    if (self._profile and self._profile.profit_target_phase2_pct is not None)
+                    else 0.04
+                )
+                p_cap = float(self._profile.personal_daily_cap_pct) if self._profile else 0.02
+                p_risk = float(self._profile.default_risk_per_trade_pct) if self._profile else 0.005
+                p_id = str(self._profile.id) if self._profile else "stellar_10k_demo"
+                is_trial_val = 1 if (self._profile and self._profile.is_trial) else 0
+                acc_login = int(self._profile.login_id) if (self._profile and self._profile.login_id) else 0
+                initial_phase = "CHALLENGE" if is_trial_val else "FASE_1"
+
                 cursor.execute(
                     """
                     INSERT INTO account_state (
                         id, initial_balance, balance, equity, day_start_balance,
                         current_trading_day, phase, status, fail_reason, profit_split,
                         personal_daily_cap_pct, risk_per_trade_pct, max_drawdown_limit_pct,
-                        min_trading_days, funded_profit_split, ea_enabled, updated_at
-                    ) VALUES (1, 10000.0, 10000.0, 10000.0, 10000.0, ?, 'FASE_1', 'ACTIVE', '', 0.0, 0.02, 0.005, 0.08, 2, 0.80, 1, ?)
+                        min_trading_days, funded_profit_split, ea_enabled, daily_loss_limit_pct,
+                        profit_target_pct, profit_target_phase2_pct, profile_id, is_trial,
+                        account_login, updated_at
+                    ) VALUES (1, ?, ?, ?, ?, ?, ?, 'ACTIVE', '', 0.0, ?, ?, ?, ?, 0.80, 1, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (today_str, now_utc.isoformat()),
+                    (
+                        init_bal,
+                        init_bal,
+                        init_bal,
+                        init_bal,
+                        today_str,
+                        initial_phase,
+                        p_cap,
+                        p_risk,
+                        max_dd_pct,
+                        min_days,
+                        daily_loss_pct,
+                        target_pct,
+                        target_p2_pct,
+                        p_id,
+                        is_trial_val,
+                        acc_login,
+                        now_utc.isoformat(),
+                    ),
                 )
             conn.commit()
 
@@ -237,20 +282,60 @@ class TradingDatabase:
 
     def reset_account(
         self,
-        initial_balance: float = 10000.0,
-        personal_daily_cap_pct: float = 0.02,
-        risk_per_trade_pct: float = 0.005,
-        max_drawdown_limit_pct: float = 0.08,
-        min_trading_days: int = 2,
-        funded_profit_split: float = 0.80,
+        initial_balance: Optional[float] = None,
+        personal_daily_cap_pct: Optional[float] = None,
+        risk_per_trade_pct: Optional[float] = None,
+        max_drawdown_limit_pct: Optional[float] = None,
+        min_trading_days: Optional[int] = None,
+        funded_profit_split: Optional[float] = None,
         archive_current_trades: bool = True,
         auto_sync_mt5: bool = True,
     ) -> Dict[str, Any]:
         """
-        Reinicia la cuenta a Fase 1 o nuevo ciclo.
+        Reinicia la cuenta a Fase 1 o Challenge respetando el perfil activo.
         1. Preserva el historial completo de operaciones archivándolo en 'archived_trades'.
         2. Si auto_sync_mt5 está activo y MT5 en ejecución, sincroniza initial_balance con el saldo real del broker.
         """
+        curr = self.get_account_state()
+        if initial_balance is None:
+            if self._profile:
+                initial_balance = float(self._profile.initial_balance)
+            else:
+                initial_balance = float(curr.get("initial_balance", 10000.0))
+
+        if personal_daily_cap_pct is None:
+            if self._profile:
+                personal_daily_cap_pct = float(self._profile.personal_daily_cap_pct)
+            else:
+                personal_daily_cap_pct = float(curr.get("personal_daily_cap_pct", 0.02))
+
+        if risk_per_trade_pct is None:
+            if self._profile:
+                risk_per_trade_pct = float(self._profile.default_risk_per_trade_pct)
+            else:
+                risk_per_trade_pct = float(curr.get("risk_per_trade_pct", 0.005))
+
+        if max_drawdown_limit_pct is None:
+            if self._profile:
+                max_drawdown_limit_pct = float(self._profile.max_drawdown_limit_pct)
+            else:
+                max_drawdown_limit_pct = float(curr.get("max_drawdown_limit_pct", 0.08))
+
+        if min_trading_days is None:
+            if self._profile:
+                min_trading_days = int(self._profile.min_trading_days)
+            else:
+                min_trading_days = int(curr.get("min_trading_days", 2))
+
+        if funded_profit_split is None:
+            if self._profile:
+                funded_profit_split = float(self._profile.funded_profit_split)
+            else:
+                funded_profit_split = float(curr.get("funded_profit_split", 0.80))
+
+        is_trial_flag = bool(self._profile.is_trial) if self._profile else bool(curr.get("is_trial", 0))
+        target_phase = "CHALLENGE" if is_trial_flag else "FASE_1"
+
         now_utc = datetime.now(timezone.utc)
         today_str = now_utc.strftime("%Y-%m-%d")
 
@@ -302,14 +387,14 @@ class TradingDatabase:
             cursor.execute("DELETE FROM trading_days")
             cursor.execute("DELETE FROM audit_events")
             cursor.execute(
-                """
+                f"""
                 UPDATE account_state
                 SET initial_balance = ?,
                     balance = ?,
                     equity = ?,
                     day_start_balance = ?,
                     current_trading_day = ?,
-                    phase = 'FASE_1',
+                    phase = ?,
                     status = 'ACTIVE',
                     fail_reason = '',
                     profit_split = 0.0,
@@ -328,6 +413,7 @@ class TradingDatabase:
                     initial_balance,
                     initial_balance,
                     today_str,
+                    target_phase,
                     personal_daily_cap_pct,
                     risk_per_trade_pct,
                     max_drawdown_limit_pct,
@@ -338,12 +424,12 @@ class TradingDatabase:
             )
             conn.commit()
 
-        audit_msg = f"Reinicio de ciclo a ${initial_balance:,.2f}"
+        audit_msg = f"Reinicio de ciclo a ${initial_balance:,.2f} ({target_phase})"
         if synced_mt5_login:
             audit_msg += f" (Sincronizado en vivo con MT5 #{synced_mt5_login})"
         if archived_count > 0:
             audit_msg += f" | {archived_count} operaciones archivadas permanentemente"
-        self.log_event("ACCOUNT_RESET", "FASE_1", audit_msg)
+        self.log_event("ACCOUNT_RESET", target_phase, audit_msg)
 
         state = self.get_account_state()
         state["archived_count"] = archived_count

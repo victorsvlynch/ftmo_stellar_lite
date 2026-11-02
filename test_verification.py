@@ -407,6 +407,128 @@ def run_tests():
     assert check_after_be.allowed is True, f"Expected allowed after BE, got {check_after_be.reason}"
     print("  PASS: Al blindar la orden a Break-Even, el riesgo expuesto se libera ($0.00) y autoriza nuevas operaciones.")
 
+    # -------------------------------------------------------------------------
+    # TEST 12: Validacion de Reglas Oficiales FundedNext Stellar 6K Trial (1-trial.png y 2-trial.png)
+    # -------------------------------------------------------------------------
+    print("\n[TEST 12] Validacion de Perfil y Reglas FundedNext Free Trial 6K Challenge (1-trial.png / 2-trial.png)")
+    from profiles import profile_manager
+    trial_prof = profile_manager.get_profile("stellar_6k_trial")
+    assert trial_prof is not None, "El perfil 'stellar_6k_trial' debe existir"
+    assert trial_prof.initial_balance == 6000.0, f"Expected $6,000 initial balance, got {trial_prof.initial_balance}"
+    assert trial_prof.profit_target_pct == 0.05, f"Expected 5% target, got {trial_prof.profit_target_pct}"
+    assert trial_prof.target_amount_fase1 == 300.0, f"Expected $300 target amount, got {trial_prof.target_amount_fase1}"
+    assert trial_prof.min_trading_days == 3, f"Expected 3 min trading days, got {trial_prof.min_trading_days}"
+    assert trial_prof.daily_loss_limit_pct == 0.05, f"Expected 5% daily loss limit, got {trial_prof.daily_loss_limit_pct}"
+    assert trial_prof.daily_loss_amount == 300.0, f"Expected $300 daily loss amount, got {trial_prof.daily_loss_amount}"
+    assert trial_prof.max_drawdown_limit_pct == 0.10, f"Expected 10% max DD, got {trial_prof.max_drawdown_limit_pct}"
+    assert trial_prof.max_loss_amount == 600.0, f"Expected $600 max loss amount, got {trial_prof.max_loss_amount}"
+    assert trial_prof.max_loss_floor == 5400.0, f"Expected $5,400 floor, got {trial_prof.max_loss_floor}"
+    assert trial_prof.login_id == 35338849, f"Expected login ID 35338849 from 2-trial.png, got {trial_prof.login_id}"
+    print("  PASS: Parametros 6K Trial verificados: $6,000 Capital, Meta $300 (+5%), 3 Dias, Daily Loss $300 (5%), Max Loss $600 (10% -> Piso $5,400).")
+
+    # Prueba con Rules Engine y Risk Manager en 6K
+    test_db_6k_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_qa_6k_trial.db")
+    if os.path.exists(test_db_6k_path):
+        os.remove(test_db_6k_path)
+
+    db_6k = TradingDatabase(test_db_6k_path, profile=trial_prof)
+    rules_6k = StellarLiteRulesEngine(db=db_6k, profile=trial_prof)
+    risk_6k = RiskManager(db=db_6k, profile=trial_prof)
+
+    # 1. Validar evaluacion inicial
+    eval_6k_init = rules_6k.evaluate_account()
+    assert eval_6k_init.daily_loss_floor == 5700.0, f"Expected daily floor $5,700, got {eval_6k_init.daily_loss_floor}"
+    assert eval_6k_init.max_loss_floor == 5400.0, f"Expected max DD floor $5,400, got {eval_6k_init.max_loss_floor}"
+    assert eval_6k_init.profit_target_amount == 300.0, f"Expected target amount $300, got {eval_6k_init.profit_target_amount}"
+    assert eval_6k_init.profit_target_balance == 6300.0, f"Expected target balance $6,300, got {eval_6k_init.profit_target_balance}"
+    print("  PASS: Calculos de pisos y metas iniciales en SQLite certificados para 6K Trial.")
+
+    # 2. Validar regla de Max Open Risk 3% en 6K: Limite es $180 USD (3% de $6,000)
+    check_risk_6k_allowed = risk_6k.validate_pre_trade(estimated_new_trade_risk=150.0, ignore_session_filter=True)
+    assert check_risk_6k_allowed.allowed is True, "Trade con $150 de riesgo debe ser permitido en 6K (< $180)"
+    check_risk_6k_blocked = risk_6k.validate_pre_trade(estimated_new_trade_risk=200.0, ignore_session_filter=True)
+    assert check_risk_6k_blocked.allowed is False, "Trade con $200 de riesgo debe ser bloqueado en 6K (> $180 limite 3%)"
+    print("  PASS: Regla FundedNext Max Risk 3% en 6K ($180 USD) validada con exito.")
+
+    # 3. Validar dimensionamiento de lote para 6K (0.5% = $30 USD de riesgo)
+    pos_6k_gold = risk_6k.calculate_position_size(
+        balance=6000.0,
+        symbol="GC=F",
+        side="BUY",
+        entry_price=2700.0,
+        stop_loss=2690.0, # $10 de SL
+    )
+    assert abs(pos_6k_gold.risk_amount_usd - 30.0) < 1.0, f"Expected ~$30.00 risk, got {pos_6k_gold.risk_amount_usd}"
+    print(f"  PASS: Dimensionamiento Oro en 6K -> Lotaje: {pos_6k_gold.lots} lotes | Riesgo: ${pos_6k_gold.risk_amount_usd:.2f} USD (0.50% de $6K).")
+
+    # 4. Validar cumplimiento de Target y 3 dias minimos para pasar el Free Trial Challenge
+    with db_6k._get_connection() as conn:
+        conn.execute(
+            "INSERT INTO trades (symbol, provider, side, lots, units, entry_price, stop_loss, take_profit, phase, status, opened_at, trading_date) VALUES ('GC=F', 'yfinance', 'BUY', 0.01, 1.0, 2700, 2690, 2720, 'CHALLENGE', 'CLOSED', '2026-10-28', '2026-10-28')"
+        )
+        conn.execute(
+            "INSERT INTO trades (symbol, provider, side, lots, units, entry_price, stop_loss, take_profit, phase, status, opened_at, trading_date) VALUES ('GC=F', 'yfinance', 'BUY', 0.01, 1.0, 2700, 2690, 2720, 'CHALLENGE', 'CLOSED', '2026-10-29', '2026-10-29')"
+        )
+        conn.commit()
+
+    # Balance llega a $6,320 (supera $6,300), pero solo lleva 2 dias
+    db_6k.update_account_state(balance=6320.0, equity=6320.0)
+    eval_waiting_day3 = rules_6k.evaluate_account()
+    assert eval_waiting_day3.target_reached is True, "Target debe marcarse como alcanzado"
+    assert eval_waiting_day3.waiting_min_days is True, "Debe esperar el 3er dia minimo requerido"
+    assert eval_waiting_day3.can_pass_phase is False, "No debe pasar con solo 2 dias"
+    print("  PASS: Bloqueo seguro: Target $300 alcanzado pero retenido hasta completar los 3 dias minimos.")
+
+    # Registrar el 3er dia operativo
+    with db_6k._get_connection() as conn:
+        conn.execute(
+            "INSERT INTO trades (symbol, provider, side, lots, units, entry_price, stop_loss, take_profit, phase, status, opened_at, trading_date) VALUES ('GC=F', 'yfinance', 'BUY', 0.01, 1.0, 2700, 2690, 2720, 'CHALLENGE', 'CLOSED', '2026-10-30', '2026-10-30')"
+        )
+        conn.commit()
+
+    eval_trial_passed = rules_6k.evaluate_account()
+    assert eval_trial_passed.can_pass_phase is True, "Debe superar el challenge con 3 dias y target alcanzado"
+    assert eval_trial_passed.phase == "SUPERADA", f"Expected phase SUPERADA, got {eval_trial_passed.phase}"
+    print("  PASS: Promocion oficial a SUPERADA certificada tras cumplir Target ($300) y 3 dias minimos reglamentarios.")
+
+    del rules_6k
+    del risk_6k
+    del db_6k
+    try:
+        if os.path.exists(test_db_6k_path):
+            os.remove(test_db_6k_path)
+    except Exception:
+        pass
+
+    # -------------------------------------------------------------------------
+    # TEST 13: Administracion y Coexistencia de Perfiles (Stellar 10K Demo y Stellar 6K Trial)
+    # -------------------------------------------------------------------------
+    print("\n[TEST 13] Administracion de Perfiles y Coexistencia Sin Conflicto")
+    all_profs = profile_manager.list_profiles()
+    prof_ids = [p.id for p in all_profs]
+    assert "stellar_10k_demo" in prof_ids, "Debe existir 'stellar_10k_demo'"
+    assert "stellar_6k_trial" in prof_ids, "Debe existir 'stellar_6k_trial'"
+
+    # Guardar perfil activo previo
+    prev_active = profile_manager.get_active_profile_id()
+
+    # Conmutar a 10K y verificar
+    p10k = profile_manager.set_active_profile("stellar_10k_demo")
+    assert profile_manager.get_active_profile_id() == "stellar_10k_demo"
+    assert p10k.initial_balance == 10000.0
+    print("  PASS: Conmutacion a 'stellar_10k_demo' verificada correctamente.")
+
+    # Conmutar a 6K y verificar
+    p6k = profile_manager.set_active_profile("stellar_6k_trial")
+    assert profile_manager.get_active_profile_id() == "stellar_6k_trial"
+    assert p6k.initial_balance == 6000.0
+    assert p6k.login_id == 35338849
+    print("  PASS: Conmutacion a 'stellar_6k_trial' verificada correctamente.")
+
+    # Restaurar perfil original
+    profile_manager.set_active_profile(prev_active)
+    print(f"  PASS: Perfil original restaurado ({prev_active}). Coexistencia 100% garantizada.")
+
     del engine
     del rules_engine
     del rm_portfolio

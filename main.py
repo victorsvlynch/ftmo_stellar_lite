@@ -90,6 +90,7 @@ from database import TradingDatabase, DB_DEFAULT_PATH  # noqa: E402
 from stellar_rules import StellarLiteRulesEngine  # noqa: E402
 from risk_manager import RiskManager  # noqa: E402
 from trading_engine import AutomatedTradingEngine, MarketDataConnector  # noqa: E402
+from profiles import profile_manager, TradingProfile, print_profiles_table, print_profile_card  # noqa: E402
 
 
 def print_console_report(
@@ -141,7 +142,11 @@ def print_console_report(
         strat_label = "CRIPTO ORB 15m (24/7 Continuo)"
 
     print(f"\n{sep}")
-    print("   FUNDEDNEXT STELLAR LITE ($10K) - MOTOR CUANTITATIVO & GESTOR DE RIESGO")
+    prof = getattr(rules, "profile", None)
+    prof_title = prof.name if prof else ("Stellar 6K Trial" if getattr(rules, "is_trial", False) else "Stellar 10K Demo")
+    prof_balance = float(acc.get("initial_balance", 10000.0))
+    login_str = f" | Login #{acc.get('account_login')}" if acc.get("account_login") else ""
+    print(f"   FUNDEDNEXT {prof_title.upper()} (${prof_balance:,.0f} USD){login_str} - MOTOR CUANTITATIVO")
     print(f"{sep}")
     print(f" Fecha/Hora Servidor : {now_str} | Jornada: {trading_date}")
     print(f" Fase de Cuenta      : {state.phase:<12} | Estado : {state.status}")
@@ -156,7 +161,7 @@ def print_console_report(
     print(subsep)
     print(" [REGLAS OFICIALES FUNDEDNEXT & GESTIÓN DE RIESGO]")
     print(
-        f"  Piso Pérdida Diaria (4% Estático) : ${state.daily_loss_floor:>8,.2f} "
+        f"  Piso Pérdida Diaria ({rules.daily_loss_limit_pct * 100:.0f}% Estático) : ${state.daily_loss_floor:>8,.2f} "
         f"(Margen restante: ${state.daily_loss_remaining:>7,.2f})"
     )
     print(
@@ -291,7 +296,10 @@ def run_interactive_cli(
         "  calc <entry> <sl>       - Calcula el lotaje exacto para el activo actual según riesgo configurado\n"
         "  history                 - Muestra las últimas 15 operaciones en SQLite\n"
         "  events                  - Muestra el registro de auditoría de reglas\n"
-        "  reset                   - Reinicia la cuenta a $10,000.00 en FASE_1\n"
+        "  profile                 - Administrador de perfiles (ver lista de cuentas y estado activo)\n"
+        "  profile switch <id>     - Cambia de perfil (ej. 'profile switch stellar_6k_trial')\n"
+        "  profile show            - Muestra la ficha técnica detallada del perfil activo\n"
+        "  reset                   - Reinicia la cuenta y ciclo activo preservando el historial\n"
         "  exit / quit             - Sale del programa"
     )
     print(help_text)
@@ -379,9 +387,55 @@ def run_interactive_cli(
             events = db.get_recent_events(limit=15)
             for ev in events:
                 print(f" [{ev['timestamp']}] ({ev['phase']}) {ev['event_type']}: {ev['message']}")
+        elif cmd == "profile":
+            if len(parts) == 1:
+                cur_id = rules.profile.id if getattr(rules, "profile", None) else profile_manager.get_active_profile_id()
+                print_profiles_table(cur_id)
+            elif len(parts) >= 2 and parts[1].lower() == "show":
+                curr_prof = getattr(rules, "profile", None) or profile_manager.get_active_profile()
+                print_profile_card(curr_prof)
+            elif len(parts) >= 2 and parts[1].lower() in ("switch", "use", "set", "select"):
+                target_pid = parts[2].lower() if len(parts) >= 3 else ""
+                if not target_pid:
+                    print("Uso: profile switch <id> (ej. 'profile switch stellar_6k_trial')")
+                else:
+                    try:
+                        new_prof = profile_manager.set_active_profile(target_pid)
+                        db = TradingDatabase(new_prof.db_file, profile=new_prof)
+                        rules = StellarLiteRulesEngine(db=db, profile=new_prof)
+                        risk = RiskManager(db=db, profile=new_prof, session_mode=risk.session_mode)
+                        engine = AutomatedTradingEngine(db=db, rules_engine=rules, risk_manager=risk, symbol=engine.symbol, provider=engine.provider)
+                        print(f"[*] Perfil activo cambiado con éxito a: {new_prof.name} ({new_prof.id})")
+                        print_console_report(db, rules, risk, engine)
+                    except Exception as ex:
+                        print(f"[!] Error al cambiar de perfil: {ex}")
+            elif len(parts) == 2 and parts[1].lower() in ("1", "stellar_10k_demo", "10k"):
+                try:
+                    new_prof = profile_manager.set_active_profile("stellar_10k_demo")
+                    db = TradingDatabase(new_prof.db_file, profile=new_prof)
+                    rules = StellarLiteRulesEngine(db=db, profile=new_prof)
+                    risk = RiskManager(db=db, profile=new_prof, session_mode=risk.session_mode)
+                    engine = AutomatedTradingEngine(db=db, rules_engine=rules, risk_manager=risk, symbol=engine.symbol, provider=engine.provider)
+                    print(f"[*] Perfil activo cambiado a: {new_prof.name}")
+                    print_console_report(db, rules, risk, engine)
+                except Exception as ex:
+                    print(f"[!] Error: {ex}")
+            elif len(parts) == 2 and parts[1].lower() in ("2", "stellar_6k_trial", "6k"):
+                try:
+                    new_prof = profile_manager.set_active_profile("stellar_6k_trial")
+                    db = TradingDatabase(new_prof.db_file, profile=new_prof)
+                    rules = StellarLiteRulesEngine(db=db, profile=new_prof)
+                    risk = RiskManager(db=db, profile=new_prof, session_mode=risk.session_mode)
+                    engine = AutomatedTradingEngine(db=db, rules_engine=rules, risk_manager=risk, symbol=engine.symbol, provider=engine.provider)
+                    print(f"[*] Perfil activo cambiado a: {new_prof.name}")
+                    print_console_report(db, rules, risk, engine)
+                except Exception as ex:
+                    print(f"[!] Error: {ex}")
         elif cmd == "reset":
-            db.reset_account(initial_balance=10000.0)
-            print("Cuenta reiniciada a $10,000.00 (FASE_1).")
+            acc_now = db.get_account_state()
+            init_b = float(acc_now.get("initial_balance", 10000.0))
+            db.reset_account(initial_balance=init_b)
+            print(f"Cuenta reiniciada a ${init_b:,.2f} ({acc_now.get('phase', 'FASE_1')}).")
             print_console_report(db, rules, risk, engine)
         else:
             print("Comando no reconocido. Escriba 'help' para ver la lista de comandos.")
@@ -545,9 +599,13 @@ def run_live_dashboard(
             elif risk.session_mode in ("ALL", "CRYPTO_24H"):
                 strat_label = "CRIPTO 15m"
 
+            prof = getattr(rules, "profile", None)
+            prof_title = prof.name if prof else ("Stellar 6K Trial" if getattr(rules, "is_trial", False) else "Stellar 10K Demo")
+            login_str = f" #{acc.get('account_login')}" if acc.get("account_login") else ""
+
             lines = [
                 "\033[H\033[J" + sep,
-                f" FUNDEDNEXT STELLAR LITE ($10K) | UTC: {now_str[:19]} | WALL STREET: {now_ny_str}",
+                f" FUNDEDNEXT {prof_title.upper()} (${float(acc['initial_balance']):,.0f}{login_str}) | UTC: {now_str[:19]} | NY: {now_ny_str}",
                 sep,
                 f" Cuenta   : {state.phase:<9} Estado: {state.status:<7} | Activo: {engine.symbol} ({price_tag})",
                 f" Estrategia: {strat_label} (R:R 1:{risk.rr_ratio:.0f}) | Sesion: {pre_trade.active_session} {session_status}",
@@ -557,7 +615,7 @@ def run_live_dashboard(
                 f" Equidad Act  : ${state.equity:>9,.2f}  | Profit Total: ${state.current_profit:>+9,.2f}",
                 f" Objetivo     : {target_str}",
                 subsep,
-                f" Piso Diario (4%): ${state.daily_loss_floor:>8,.2f} (Margen: ${state.daily_loss_remaining:>7,.2f}) | Freno Pers (-2%): ${personal_floor:>8,.2f}",
+                f" Piso Diario ({rules.daily_loss_limit_pct * 100:.0f}%): ${state.daily_loss_floor:>8,.2f} (Margen: ${state.daily_loss_remaining:>7,.2f}) | Freno Pers (-{personal_cap_pct * 100:.1f}%): ${personal_floor:>8,.2f}",
                 f" Piso Max DD({max_dd_label}): ${state.max_loss_floor:>8,.2f} (Margen: ${state.max_loss_remaining:>7,.2f}) | Riesgo/Trade    : {float(acc.get('risk_per_trade_pct', risk.default_risk_pct)) * 100:.2f}%",
                 f" Dias Minimos    : {min_days_label:<18} | Racha Perdidas  : {pre_trade.consecutive_losses_today}/3 {'[TILT]' if pre_trade.tilt_locked else '[OK]'}",
                 subsep,
@@ -1042,8 +1100,9 @@ def parse_args() -> argparse.Namespace:
             "sync-mt5",
             "history",
             "sandbox",
+            "profile",
         ],
-        help="Comando a ejecutar: 'status', 'live', 'winner' (solo estrategia ganadora NY_OPEN), 'winner-live', 'multi', 'multi-detail', 'multi-status', 'multi-detail-status', 'reset-all', 'sync-mt5', 'history', 'run', 'interactive', 'simulate', 'reset'.",
+        help="Comando a ejecutar: 'status', 'live', 'winner' (solo estrategia ganadora NY_OPEN), 'winner-live', 'multi', 'multi-detail', 'multi-status', 'multi-detail-status', 'reset-all', 'sync-mt5', 'history', 'run', 'interactive', 'simulate', 'reset', 'profile'.",
     )
     parser.add_argument(
         "--detailed",
@@ -1133,6 +1192,36 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Chat ID de Telegram para recibir alertas en el móvil.",
     )
+    parser.add_argument(
+        "--profile",
+        type=str,
+        default=None,
+        help="Perfil de cuenta a utilizar (ej. 'stellar_10k_demo', 'stellar_6k_trial'). Por defecto usa el perfil activo en profiles.json.",
+    )
+    parser.add_argument(
+        "--switch-profile",
+        type=str,
+        default=None,
+        help="Cambia el perfil activo globalmente a la clave indicada (ej. 'stellar_6k_trial').",
+    )
+    parser.add_argument(
+        "--list-profiles",
+        action="store_true",
+        default=False,
+        help="Lista todos los perfiles de cuenta configurados en profiles.json.",
+    )
+    parser.add_argument(
+        "--show-profile",
+        action="store_true",
+        default=False,
+        help="Muestra la ficha técnica detallada del perfil activo.",
+    )
+    parser.add_argument(
+        "--set-login",
+        type=int,
+        default=None,
+        help="Asigna el login de MT5 para el perfil activo o especificado (ej. --set-login 35338849).",
+    )
     return parser.parse_args()
 
 
@@ -1146,22 +1235,83 @@ def main() -> None:
         os.environ["TELEGRAM_CHAT_ID"] = args.telegram_chat
 
     db_target = "trading_ny_open.db" if args.command in ("winner", "winner-live") else args.db
-    db = TradingDatabase(db_path=db_target)
 
-    # Sincronizar parámetros de riesgo y Add-ons (cloud.png) con la base de datos
+    # 1. Conmutar perfil si se solicitó con --switch-profile
+    if args.switch_profile:
+        try:
+            new_active = profile_manager.set_active_profile(args.switch_profile)
+            profile_manager.sync_profile_db(new_active)
+            print("=" * 80)
+            print(f"  PERFIL ACTIVO CONMUTADO CON ÉXITO: {new_active.name} ({new_active.id})")
+            print("=" * 80)
+            print_profile_card(new_active)
+        except Exception as e:
+            print(f"[!] Error al conmutar perfil: {e}")
+        return
+
+    # 2. Determinar perfil objetivo (específico por --profile o el activo global)
+    if args.profile:
+        active_profile = profile_manager.get_profile(args.profile)
+        if not active_profile:
+            print(f"[!] Perfil '{args.profile}' no existe. Perfiles: {[p.id for p in profile_manager.list_profiles()]}")
+            active_profile = profile_manager.get_active_profile()
+    else:
+        active_profile = profile_manager.get_active_profile()
+
+    # 3. Asignar Login MT5 si se especificó
+    if args.set_login is not None:
+        active_profile.login_id = args.set_login
+        profile_manager.save_profile(active_profile)
+        print(f"[*] Login MT5 #{args.set_login} guardado para el perfil '{active_profile.name}'.")
+
+    # 4. Comandos de solo consulta o gestión de perfiles
+    if args.list_profiles:
+        print_profiles_table(active_profile.id)
+        return
+
+    if args.show_profile:
+        print_profile_card(active_profile)
+        return
+
+    if args.command == "profile":
+        print_profiles_table(active_profile.id)
+        print_profile_card(active_profile)
+        return
+
+    # 5. Resolver base de datos según perfil o argumento explícito
+    if args.db != DB_DEFAULT_PATH:
+        db_target = args.db
+    elif args.command in ("winner", "winner-live") and active_profile.id == "stellar_10k_demo":
+        db_target = "trading_ny_open.db"
+    else:
+        db_target = active_profile.db_file
+
+    db = TradingDatabase(db_path=db_target, profile=active_profile)
+
+    # Sincronizar parámetros de riesgo y Add-ons con la base de datos
     db.update_account_state(
-        personal_daily_cap_pct=args.personal_cap,
-        risk_per_trade_pct=args.risk,
-        max_drawdown_limit_pct=args.max_loss_pct,
-        min_trading_days=args.min_trading_days,
-        funded_profit_split=args.profit_split,
+        personal_daily_cap_pct=args.personal_cap if args.personal_cap != 0.02 else active_profile.personal_daily_cap_pct,
+        risk_per_trade_pct=args.risk if args.risk != 0.005 else active_profile.default_risk_per_trade_pct,
+        max_drawdown_limit_pct=args.max_loss_pct if args.max_loss_pct != 0.08 else active_profile.max_drawdown_limit_pct,
+        min_trading_days=args.min_trading_days if args.min_trading_days != 2 else active_profile.min_trading_days,
+        funded_profit_split=args.profit_split if args.profit_split != 0.80 else active_profile.funded_profit_split,
+        daily_loss_limit_pct=active_profile.daily_loss_limit_pct,
+        profit_target_pct=active_profile.profit_target_pct,
+        profile_id=active_profile.id,
+        is_trial=1 if active_profile.is_trial else 0,
+        account_login=active_profile.login_id or 0,
     )
 
     rules = StellarLiteRulesEngine(
         db=db,
-        max_drawdown_limit_pct=args.max_loss_pct,
-        min_trading_days=args.min_trading_days,
-        funded_profit_split=args.profit_split,
+        max_drawdown_limit_pct=args.max_loss_pct if args.max_loss_pct != 0.08 else active_profile.max_drawdown_limit_pct,
+        min_trading_days=args.min_trading_days if args.min_trading_days != 2 else active_profile.min_trading_days,
+        funded_profit_split=args.profit_split if args.profit_split != 0.80 else active_profile.funded_profit_split,
+        daily_loss_limit_pct=active_profile.daily_loss_limit_pct,
+        profit_target_pct=active_profile.profit_target_pct,
+        profit_target_phase2_pct=active_profile.profit_target_phase2_pct,
+        is_trial=active_profile.is_trial,
+        profile=active_profile,
     )
     session_target = "NY_OPEN" if args.command in ("winner", "winner-live") else args.session
     symbol_target = "GC=F" if args.command in ("winner", "winner-live") else args.symbol
@@ -1169,10 +1319,11 @@ def main() -> None:
 
     risk = RiskManager(
         db=db,
-        default_risk_pct=args.risk,
-        personal_daily_cap_pct=args.personal_cap,
+        default_risk_pct=args.risk if args.risk != 0.005 else active_profile.default_risk_per_trade_pct,
+        personal_daily_cap_pct=args.personal_cap if args.personal_cap != 0.02 else active_profile.personal_daily_cap_pct,
         rr_ratio=2.0,
         session_mode=session_target,
+        profile=active_profile,
     )
     engine = AutomatedTradingEngine(
         db=db,
@@ -1196,12 +1347,12 @@ def main() -> None:
         reset_all_modalities(personal_cap_pct=args.personal_cap, risk_pct=args.risk)
     elif args.command == "reset":
         state = db.reset_account(
-            initial_balance=10000.0,
-            personal_daily_cap_pct=args.personal_cap,
-            risk_per_trade_pct=args.risk,
-            max_drawdown_limit_pct=args.max_loss_pct,
-            min_trading_days=args.min_trading_days,
-            funded_profit_split=args.profit_split,
+            initial_balance=active_profile.initial_balance,
+            personal_daily_cap_pct=active_profile.personal_daily_cap_pct,
+            risk_per_trade_pct=active_profile.default_risk_per_trade_pct,
+            max_drawdown_limit_pct=active_profile.max_drawdown_limit_pct,
+            min_trading_days=active_profile.min_trading_days,
+            funded_profit_split=active_profile.funded_profit_split,
             archive_current_trades=True,
             auto_sync_mt5=True,
         )

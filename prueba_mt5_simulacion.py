@@ -21,12 +21,15 @@ from stellar_rules import StellarLiteRulesEngine
 from risk_manager import RiskManager
 from trading_engine import OpeningRangeBreakoutStrategy, MarketDataConnector
 from mt5_bridge import MT5Bridge
+from profiles import profile_manager
 
 
 def run_realistic_simulation():
+    prof = profile_manager.get_active_profile()
+    login_disp = f" - Login #{prof.login_id}" if prof.login_id else ""
     print("=" * 85)
     print("  SIMULACIÓN REALISTA Y PROTOCOLO DE CONEXIÓN CON METATRADER 5 (MT5)")
-    print("  Modelo: FundedNext Stellar Lite ($10,000) | Estrategia Ganadora: NY_OPEN (Oro)")
+    print(f"  Perfil: {prof.name} (${prof.initial_balance:,.0f} USD){login_disp} | Estrategia Ganadora: NY_OPEN (Oro)")
     print("=" * 85)
 
     # 1. Verificar si el paquete oficial MetaTrader5 está instalado
@@ -86,18 +89,23 @@ def run_realistic_simulation():
         gold_sym = "XAUUSD"
 
     # 3. Inicializar Motor Cuantitativo y Reglas FundedNext
-    db = TradingDatabase("trading_ny_open.db")
+    db = TradingDatabase(prof.db_file, profile=prof)
     rules = StellarLiteRulesEngine(
         db=db,
-        max_drawdown_limit_pct=0.08,  # 8% Estándar ($800 máx loss -> piso $9,200)
-        min_trading_days=2,           # 2 días mínimos por fase
-        funded_profit_split=0.80,     # 80% Profit Split estándar
+        max_drawdown_limit_pct=prof.max_drawdown_limit_pct,
+        min_trading_days=prof.min_trading_days,
+        funded_profit_split=prof.funded_profit_split,
+        daily_loss_limit_pct=prof.daily_loss_limit_pct,
+        profit_target_pct=prof.profit_target_pct,
+        is_trial=prof.is_trial,
+        profile=prof,
     )
     risk = RiskManager(
         db=db,
-        default_risk_pct=0.005,       # 0.5% por operación = $50.00 en $10,000
-        personal_daily_cap_pct=0.02,  # 2.0% freno diario ($200)
+        default_risk_pct=prof.default_risk_per_trade_pct,
+        personal_daily_cap_pct=prof.personal_daily_cap_pct,
         session_mode="NY_OPEN",
+        profile=prof,
     )
     connector = MarketDataConnector()
 
@@ -115,8 +123,8 @@ def run_realistic_simulation():
         print(f"\n[PASO 3] Cotización de Referencia Oro Spot (XAU/USD): ${latest_price:,.2f}")
 
     # 5. Cálculo de Dimensionamiento de Posición Institucional (Risk Management)
-    account_balance = 10000.0
-    risk_pct = 0.005  # 0.5% de riesgo exacto ($50.00)
+    account_balance = float(prof.initial_balance)
+    risk_pct = float(prof.default_risk_per_trade_pct)  # 0.5% de riesgo exacto
     sl_distance_usd = 6.50  # Distancia de Stop Loss en precio ($6.50 por onza)
     entry_sim = round(latest_price, 2)
     sl_sim = round(entry_sim - sl_distance_usd, 2)
@@ -246,11 +254,11 @@ def run_realistic_simulation():
     print(f"         -> Riesgo de la posición queda reducido a: $0.00 (Trade Gratuito).")
 
     # 7. Verificación de Reglas FundedNext
-    print("\n[PASO 8] Validación de Reglas FundedNext Stellar Lite ($10K):")
+    print(f"\n[PASO 8] Validación de Reglas FundedNext {prof.name}:")
     eval_rules = rules.evaluate_account()
     print(f"         Fase de Cuenta   : {eval_rules.phase} | Estado: {eval_rules.status}")
-    print(f"         Piso Diario (4%) : ${eval_rules.daily_loss_floor:,.2f} (Margen: ${eval_rules.daily_loss_remaining:,.2f})")
-    print(f"         Piso Max DD (8%) : ${eval_rules.max_loss_floor:,.2f} (Margen: ${eval_rules.max_loss_remaining:,.2f})")
+    print(f"         Piso Diario ({rules.daily_loss_limit_pct * 100:.0f}%) : ${eval_rules.daily_loss_floor:,.2f} (Margen: ${eval_rules.daily_loss_remaining:,.2f})")
+    print(f"         Piso Max DD ({rules.max_drawdown_limit_pct * 100:.0f}%) : ${eval_rules.max_loss_floor:,.2f} (Margen: ${eval_rules.max_loss_remaining:,.2f})")
     print(f"         Profit Split     : {eval_rules.profit_split * 100:.0f}%")
 
     print("\n" + "=" * 85)

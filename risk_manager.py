@@ -78,22 +78,48 @@ class PreTradeRiskCheck:
 
 
 class RiskManager:
-    """Gestor de Riesgo Institucional para cuentas FundedNext Stellar Lite."""
+    """Gestor de Riesgo Institucional para cuentas FundedNext Stellar Lite y Free Trial."""
 
     MAX_CONSECUTIVE_LOSSES_TILT = 3
-    MAX_OPEN_RISK_EXPOSURE_PCT = 0.03  # Regla Oficial FundedNext (1.png): Max Risk 3% At Any Time ($300 en $10K)
+    MAX_OPEN_RISK_EXPOSURE_PCT = 0.03  # Regla Oficial FundedNext (1.png): Max Risk 3% At Any Time (3% capital)
 
     def __init__(
         self,
         db: TradingDatabase,
-        default_risk_pct: float = 0.005,       # 0.5% por operación por defecto ($50 en $10,000)
-        personal_daily_cap_pct: float = 0.02,  # 2.0% freno de mano personal ($200 en $10,000)
+        default_risk_pct: Optional[float] = None,
+        personal_daily_cap_pct: Optional[float] = None,
         rr_ratio: float = 2.0,                 # Ratio Riesgo:Beneficio 1:2 estricto
         session_mode: str = "NY_OPEN",         # "NY_OPEN", "LONDON_OPEN", "COMBO_DUAL", "COMBO_TRIO", "ALL"
+        profile: Optional[Any] = None,
     ) -> None:
         self.db = db
-        self.default_risk_pct = default_risk_pct
-        self.personal_daily_cap_pct = personal_daily_cap_pct
+        acc = self.db.get_account_state()
+        self.profile = profile
+        if self.profile is None and acc.get("profile_id"):
+            try:
+                from profiles import profile_manager
+                self.profile = profile_manager.get_profile(acc["profile_id"])
+            except Exception:
+                self.profile = None
+
+        if default_risk_pct is not None:
+            self.default_risk_pct = float(default_risk_pct)
+        elif self.profile is not None:
+            self.default_risk_pct = float(self.profile.default_risk_per_trade_pct)
+        elif acc.get("risk_per_trade_pct") is not None:
+            self.default_risk_pct = float(acc["risk_per_trade_pct"])
+        else:
+            self.default_risk_pct = 0.005
+
+        if personal_daily_cap_pct is not None:
+            self.personal_daily_cap_pct = float(personal_daily_cap_pct)
+        elif self.profile is not None:
+            self.personal_daily_cap_pct = float(self.profile.personal_daily_cap_pct)
+        elif acc.get("personal_daily_cap_pct") is not None:
+            self.personal_daily_cap_pct = float(acc["personal_daily_cap_pct"])
+        else:
+            self.personal_daily_cap_pct = 0.02
+
         self.rr_ratio = rr_ratio
         self.session_mode = session_mode.upper()
 

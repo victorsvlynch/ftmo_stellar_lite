@@ -23,9 +23,23 @@ class TelegramNotifier:
         self,
         bot_token: Optional[str] = None,
         chat_id: Optional[str] = None,
+        account_name: Optional[str] = None,
+        account_balance: Optional[float] = None,
     ) -> None:
         self.bot_token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
         self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID", "").strip()
+        self.account_name = account_name
+        self.account_balance = account_balance
+
+        if not self.account_name or not self.account_balance:
+            try:
+                from profiles import profile_manager
+                active_p = profile_manager.get_active_profile()
+                self.account_name = self.account_name or active_p.name
+                self.account_balance = self.account_balance or active_p.initial_balance
+            except Exception:
+                self.account_name = self.account_name or "FundedNext Stellar"
+                self.account_balance = self.account_balance or 10000.0
 
         # Si no están en env vars, intentar leer de telegram_config.json en múltiples rutas
         if not self.bot_token or not self.chat_id:
@@ -98,7 +112,7 @@ class TelegramNotifier:
         msg = (
             f"<b>🚀 ORDEN INSTITUCIONAL #{trade_id} ABIERTA</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"<b>Cuenta:</b> FundedNext Stellar Lite ($10,000)\n"
+            f"<b>Cuenta:</b> {self.account_name} (${self.account_balance:,.0f})\n"
             f"<b>Estrategia:</b> <code>{strategy}</code>\n"
             f"<b>Activo:</b> <b>{sym_clean}</b>\n"
             f"<b>Acción:</b> <b>{emoji}</b>\n"
@@ -147,7 +161,7 @@ class TelegramNotifier:
             f"<b>Precio Referencia:</b> ${price:,.2f}\n"
             f"<b>Stop Loss (SL):</b> <code>{sl:.2f}</code>\n"
             f"<b>Take Profit (TP):</b> <code>{tp:.2f}</code> (R:R 1:2)\n"
-            f"<b>Riesgo Máximo:</b> ${risk_usd:,.2f} ({risk_pct * 100:.2f}% de $10,000)\n"
+            f"<b>Riesgo Máximo:</b> ${risk_usd:,.2f} ({risk_pct * 100:.2f}% de ${self.account_balance:,.0f})\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📲 <b>PASOS PARA EJECUTAR EN TU CELULAR:</b>\n"
             f"1. Abre <b>MetaTrader 5</b> en tu móvil.\n"
