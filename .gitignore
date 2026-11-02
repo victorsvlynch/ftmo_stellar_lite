@@ -66,6 +66,7 @@ archives/
 */archives/
 backups/
 EXPORT_PACK_PORTABILIDAD/
+PACK_PORTABILIDAD_FTMO_STELLAR_LITE/
 snapshot-manifest*.json
 manifest*.json
 *.zip

@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 > nul
 setlocal EnableDelayedExpansion
+cd /d "%~dp0"
 
 title FUNDEDNEXT STELLAR LITE ($10,000) - INSTALADOR EN NUEVA PC
 
@@ -21,4 +22,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Restaurar_Sistema_Nuev
 echo.
 echo Presione cualquier tecla para abrir el Centro de Control del Bot...
 pause > nul
-start "" "%~dp003_Codigo_Python_Proyecto\Control_Total_Bot.bat"
+
+if exist "%~dp0Control_Total_Bot.bat" (
+    start "" "%~dp0Control_Total_Bot.bat"
+) else if exist "%~dp003_Codigo_Python_Proyecto\Control_Total_Bot.bat" (
+    start "" "%~dp003_Codigo_Python_Proyecto\Control_Total_Bot.bat"
+)

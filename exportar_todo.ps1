@@ -13,7 +13,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$baseDir = "L:\Python\FTMO_Stellar_Lite"
+$baseDir = $PSScriptRoot
 $exportDir = Join-Path $baseDir "EXPORT_PACK_PORTABILIDAD"
 $zipOutput = Join-Path $baseDir "PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip"
 
