@@ -100,6 +100,21 @@ def confirm_action(
         (status, mt5_ticket, executed_price, now_str, action_id),
     )
     affected = cur.rowcount
+
+    # Si la orden era de apertura y MT5 no abrio ticket (rechazada u omitida por posicion previa)
+    if mt5_ticket == 0:
+        cur.execute("SELECT action, trade_id FROM webhook_actions WHERE id = ?", (action_id,))
+        row = cur.fetchone()
+        if row and row[0] in ("OPEN_BUY", "OPEN_SELL") and row[1]:
+            cur.execute(
+                """
+                UPDATE trades
+                SET status = 'REJECTED_MT5', pnl = 0.0, notes = notes || ' | RECHAZADA_O_OMITIDA_POR_MT5'
+                WHERE id = ? AND status = 'OPEN'
+                """,
+                (row[1],),
+            )
+
     conn.commit()
     conn.close()
     return affected > 0
