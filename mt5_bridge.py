@@ -12,10 +12,13 @@ Funcionalidades:
 
 import os
 import sys
+import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Tuple, Any
 import pandas as pd
 import numpy as np
+
+logger = logging.getLogger("MT5Bridge")
 
 try:
     from zoneinfo import ZoneInfo
@@ -219,6 +222,11 @@ class MT5Bridge:
         mt5 = self._ensure_mt5_module()
         clean = requested_symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
 
+        # Bloqueo explícito de Nasdaq 100 (Inactivo por política de riesgo institucional)
+        if any(k in clean for k in ("100", "NQ", "NAS", "USTEC")):
+            logger.warning(f"Símbolo {requested_symbol} (Nasdaq 100) está INACTIVO por política de riesgo.")
+            return None
+
         # 1. Definir lista de candidatos prioritarios según activo
         if any(k in clean for k in ("500", "ES", "SPX")):
             candidates = ["US500", "US500.cash", "SPX500", "USA500", "US500m", "US500.raw", "US500.pro", "SP500", "ES"]
@@ -228,10 +236,6 @@ class MT5Bridge:
             candidates = ["EURUSD", "EURUSDm", "EURUSD.raw", "EURUSD.pro", "EURUSDb", "EURUSD.cash", "EURUSD+"]
             match_keywords = ["EUR", "USD"]
             fallback = "EURUSD"
-        elif any(k in clean for k in ("100", "NQ", "NAS", "USTEC")):
-            candidates = ["US100", "US100.cash", "NAS100", "USTEC", "US100m", "US100.raw", "NAS100.raw", "NQ"]
-            match_keywords = ["100", "NAS", "USTEC"]
-            fallback = "US100"
         else:
             candidates = ["XAUUSD", "GOLD", "XAUUSD.m", "XAUUSDm", "XAUUSD.raw", "XAUUSD.pro", "GC=F"]
             match_keywords = ["XAU", "GOLD"]

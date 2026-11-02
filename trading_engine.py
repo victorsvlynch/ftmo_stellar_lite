@@ -346,6 +346,23 @@ class OpeningRangeBreakoutStrategy:
         session_mode: str = "NY_OPEN",
         df_1h: Optional[pd.DataFrame] = None,
     ) -> ORBSignal:
+        # Bloqueo explícito de Nasdaq 100 (Inactivo por política de riesgo institucional)
+        clean_upper = symbol.upper().replace("=X", "").replace("=F", "")
+        if any(k in clean_upper for k in ("US100", "NAS100", "USTEC", "NQ")):
+            return ORBSignal(
+                symbol=symbol,
+                provider=provider,
+                side="NONE",
+                current_price=0.0,
+                orb_high=0.0,
+                orb_low=0.0,
+                stop_loss=0.0,
+                take_profit=0.0,
+                rr_ratio=self.rr_ratio,
+                candle_timestamp="",
+                reason="Nasdaq 100 (NQ/US100/USTEC) se encuentra INACTIVO por configuración institucional.",
+            )
+
         if df_15m is None or df_15m.empty:
             return ORBSignal(
                 symbol=symbol,

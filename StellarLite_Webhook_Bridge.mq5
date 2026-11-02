@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "FundedNext Stellar Lite Quantitative Engine"
 #property link        "https://github.com/victorsvlynch/ftmo_stellar_lite"
-#property version     "2.10"
+#property version     "2.11"
 #property description "Expert Advisor de Enlace Webhook con el Bot de Python en Oracle Cloud VPS (157.137.225.144:8000)."
 #property description "Recibe senales institucionales de NY_OPEN (Oro / XAUUSD) y ejecuta ordenes con SL, TP y Break-Even."
 
@@ -73,14 +73,21 @@ bool JsonExtractBool(const string json, const string key)
 //+------------------------------------------------------------------+
 string ResolveBrokerSymbol(const string requestedSymbol)
 {
-   if(SymbolInfoDouble(requestedSymbol, SYMBOL_BID) > 0)
-      return requestedSymbol;
-      
    string clean = requestedSymbol;
    StringToUpper(clean);
    StringReplace(clean, "=X", "");
    StringReplace(clean, "=F", "");
    StringReplace(clean, "/", "");
+
+   // Bloqueo explícito de Nasdaq 100 (Inactivo por política de riesgo institucional)
+   if(StringFind(clean, "100") >= 0 || StringFind(clean, "NAS") >= 0 || StringFind(clean, "USTEC") >= 0 || StringFind(clean, "NQ") >= 0)
+   {
+      PrintFormat("[EA MT5] [INACTIVO] El activo Nasdaq 100 (%s) esta desactivado por configuracion institucional.", requestedSymbol);
+      return "INACTIVE";
+   }
+
+   if(SymbolInfoDouble(requestedSymbol, SYMBOL_BID) > 0)
+      return requestedSymbol;
 
    // A. S&P 500
    if(StringFind(clean, "500") >= 0 || StringFind(clean, "SPX") >= 0 || StringFind(clean, "ES") >= 0)
@@ -96,14 +103,7 @@ string ResolveBrokerSymbol(const string requestedSymbol)
       for(int i = 0; i < ArraySize(candidates); i++)
          if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
    }
-   // C. Nasdaq 100
-   else if(StringFind(clean, "100") >= 0 || StringFind(clean, "NAS") >= 0 || StringFind(clean, "USTEC") >= 0 || StringFind(clean, "NQ") >= 0)
-   {
-      string candidates[] = {"US100", "US100.cash", "NAS100", "USTEC", "US100m", "US100.raw", "NAS100.raw", "NQ"};
-      for(int i = 0; i < ArraySize(candidates); i++)
-         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
-   }
-   // D. Oro / XAUUSD
+   // C. Oro / XAUUSD
    else
    {
       string candidates[] = {"XAUUSD", "GOLD", "XAUUSDm", "XAUUSD.raw", "XAUUSD.pro", "XAUUSDb"};
@@ -121,8 +121,6 @@ string ResolveBrokerSymbol(const string requestedSymbol)
       if(StringFind(clean, "500") >= 0 && (StringFind(sUpper, "500") >= 0 || StringFind(sUpper, "SPX") >= 0))
          return sName;
       if(StringFind(clean, "EUR") >= 0 && StringFind(sUpper, "EUR") >= 0 && StringFind(sUpper, "USD") >= 0)
-         return sName;
-      if(StringFind(clean, "100") >= 0 && (StringFind(sUpper, "100") >= 0 || StringFind(sUpper, "NAS") >= 0))
          return sName;
       if((StringFind(clean, "XAU") >= 0 || StringFind(clean, "GC") >= 0) && (StringFind(sUpper, "XAU") >= 0 || StringFind(sUpper, "GOLD") >= 0))
          return sName;
@@ -232,6 +230,13 @@ void ProcessCloudAction(const string json)
    if(StringLen(comment) == 0) comment = "FundedNext NY_ORB";
    
    string realSymbol = ResolveBrokerSymbol(symReq);
+   if(realSymbol == "INACTIVE" || realSymbol == "")
+   {
+      PrintFormat("[EA MT5] [INACTIVO] Accion #%d descartada: El activo '%s' esta desactivado por politica institucional.", actionId, symReq);
+      ExtLastActionMsg = StringFormat("Activo %s desactivado institucionalmente.", symReq);
+      ConfirmActionToCloud(actionId, 0, 0.0, true);
+      return;
+   }
    
    // A. APERTURA DE COMPRA (BUY)
    if(action == "OPEN_BUY")

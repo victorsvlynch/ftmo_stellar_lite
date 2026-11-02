@@ -37,10 +37,10 @@ INSTRUMENT_SPECS: Dict[str, Dict[str, float]] = {
     "US500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40},
     "SPX500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40},
     "SP500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40},
-    # Nasdaq 100 (Índice USA Tech 100): 1 lote = 1 contrato, 1 punto = $1.00
-    "NQ=F": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5},
-    "NAS100": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5},
-    "US100": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5},
+    # Nasdaq 100 (Índice USA Tech 100): INACTIVO POR POLÍTICA INSTITUCIONAL
+    "NQ=F": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5, "active": False},
+    "NAS100": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5, "active": False},
+    "US100": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5, "active": False},
     # Cripto (1 lote = 1 unidad subyacente en CFD/Spot)
     "BTC/USDT": {"contract_size": 1.0, "pip_size": 1.0, "min_lot": 0.001, "max_lot": 20.0, "lot_step": 0.001, "commission_per_lot": 2.0, "typical_spread": 2.0},
     "ETH/USDT": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 0.5, "typical_spread": 0.3},
@@ -107,6 +107,9 @@ class RiskManager:
     def get_instrument_spec(symbol: str) -> Dict[str, float]:
         """Obtiene la especificación del contrato o retorna un estándar seguro."""
         clean_sym = symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
+        # Bloqueo explícito de Nasdaq 100 (Inactivo por política de riesgo institucional)
+        if any(k in clean_sym for k in ("100", "NQ", "NAS", "USTEC")):
+            raise ValueError(f"El activo {symbol} (Nasdaq 100) se encuentra INACTIVO por política de riesgo institucional.")
         if symbol.upper() in INSTRUMENT_SPECS:
             return INSTRUMENT_SPECS[symbol.upper()]
         if clean_sym in INSTRUMENT_SPECS:
@@ -114,9 +117,6 @@ class RiskManager:
         # Índices S&P 500
         if any(k in clean_sym for k in ("500", "SPX", "ES")):
             return INSTRUMENT_SPECS["US500"]
-        # Índices Nasdaq 100
-        if any(k in clean_sym for k in ("100", "NQ", "NAS", "USTEC")):
-            return INSTRUMENT_SPECS["US100"]
         # Forex Pares
         if "EUR" in clean_sym:
             return INSTRUMENT_SPECS["EURUSD=X"]
