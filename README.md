@@ -27,7 +27,7 @@ Desarrollado en **Python Puro de Alto Rendimiento (sin interfaces web innecesari
 7. [Panel de Control Maestro (`Control_Total_Bot.bat`) y Dashboards](#-panel-de-control-maestro-control_total_botbat-y-dashboards)
 8. [Guía de Migración y Portabilidad Total (PC Windows y Servidores Cloud/VPS)](#-guía-de-migración-y-portabilidad-total-pc-windows-y-servidores-cloudvps)
    - [8.1 Escenario A: Mover a Otra PC en 1 Clic (Workflow Completo de Migración)](#81-escenario-a-mover-a-otra-pc-windows-1011-con-metatrader-5-en-1-clic)
-   - [8.2 Escenario B: Mover o Replicar en un Nuevo Servidor Cloud / VPS Linux](#82-escenario-b-mover-o-replicar-en-un-nuevo-servidor-cloud--vps-linux-ubuntu--debian)
+   - [8.2 Protocolo de Restablecimiento Total y Contingencia (Disaster Recovery: ¿Qué hacer si el VPS deja de funcionar?)](#82-protocolo-de-restablecimiento-total-y-contingencia-disaster-recovery-qué-hacer-si-el-vps-deja-de-funcionar)
    - [8.3 Documentación Técnica: Trailing Stop por Estructura M15 y Protección de Ganancias](#83-documentación-técnica-trailing-stop-por-estructura-m15-y-protección-de-ganancias)
    - [8.4 Protocolo Operativo en 2 PCs (Trabajo y Hogar) y Reglas Prop Firm](#84-protocolo-operativo-en-2-pcs-trabajo-y-hogar-y-reglas-prop-firm)
 9. [Estructura del Proyecto y Archivos Clave](#-estructura-del-proyecto-y-archivos-clave)
@@ -587,38 +587,83 @@ Los perfiles de MT5 guardan la disposición exacta de ventanas, símbolos y temp
 
 ---
 
-### 8.2 Escenario B: Mover o Replicar en un Nuevo Servidor Cloud / VPS Linux (Ubuntu / Debian)
+### 8.2 Protocolo de Restablecimiento Total y Contingencia (Disaster Recovery: ¿Qué hacer si el VPS deja de funcionar?)
 
-Si deseas trasladar el bot a otra máquina virtual en la nube (Oracle Cloud Always Free, AWS EC2, Hetzner Cloud, DigitalOcean, Google Cloud Compute, etc.):
+> [!IMPORTANT]
+> **Garantía de Continuidad y Respaldo Permanente en GitHub:**  
+> **Sí, todo el sistema está 100% respaldado y versionado en GitHub (`https://github.com/victorsvlynch/ftmo_stellar_lite.git`).**  
+> Si tu servidor VPS de Oracle Cloud (o cualquier otro proveedor) deja de responder, es destruido o queda inaccesible por fallas del datacenter, **no pierdes nada**. Todo el código fuente, la lógica institucional, las reglas de riesgo, el Asesor Experto MQL5 compilado y el script de aprovisionamiento desatendido en 1 clic (`setup_oracle.sh`) se recuperan en menos de 2 minutos.
 
-#### Requisitos de la Máquina Virtual Linux:
+A continuación se detallan las 3 vías de restablecimiento según la situación operativa:
+
+```mermaid
+flowchart TD
+    Incident["⚠️ VPS Fuera de Servicio / Inaccesible"] --> Q{"¿En qué momento ocurre?"}
+    
+    Q -->|Durante sesión de Trading / Urgente| Local["⚡ Opción 1: Contingencia Inmediata Local (Windows)<br/>Ejecutar motor y webhook en la PC local en 10 seg<br/>MT5 conecta directamente a 127.0.0.1:8000"]
+    Q -->|Con tiempo para desplegar infraestructura| NewVPS["☁️ Opción 2: Re-aprovisionar Nuevo VPS desde GitHub<br/>Crear VM en cualquier nube y clonar repo<br/>sudo bash setup_oracle.sh (60 segs)"]
+    Q -->|Sin conexión a Internet o backup físico| Pack["📦 Opción 3: Restauración con Pack Offline<br/>Descomprimir PACK_PORTABILIDAD...zip<br/>Ejecutar INSTALAR_EN_NUEVA_PC.bat"]
+    
+    Local --> Online["✅ Operación Restablecida 100%"]
+    NewVPS --> Online
+    Pack --> Online
+```
+
+---
+
+#### 🚀 VÍA 1: Contingencia Inmediata 100% Local en Windows (Sin Servidor VPS - En 10 Segundos)
+
+Si el VPS se interrumpe **durante la sesión operativa de Nueva York** y necesitas que el bot continúe monitoreando y protegiendo tus órdenes abiertas de inmediato:
+
+1. **Abrir una consola de PowerShell / CMD en Windows:**
+   ```powershell
+   cd L:\Python\FTMO_Stellar_Lite
+   python webhook_server.py
+   ```
+   *(Esto levantará el servidor HTTP local de señales en el puerto `8000`).*
+
+2. **Abrir una segunda consola de PowerShell / CMD:**
+   ```powershell
+   cd L:\Python\FTMO_Stellar_Lite
+   python main.py run
+   ```
+   *(Esto inicia el motor cuantitativo localmente, evaluando estrategias, cálculo de riesgo y enviando señales).*
+
+3. **Verificación en MetaTrader 5:**
+   - Como el Asesor Experto [`StellarLite_Webhook_Bridge.mq5`](StellarLite_Webhook_Bridge.mq5) consulta por defecto a `http://127.0.0.1:8000`, detectará el servidor local automáticamente.
+   - El indicador en el gráfico de MT5 cambiará de inmediato a `Estado Conexion: CONECTADO A LOCAL (ONLINE)` sin requerir túnel SSH.
+
+---
+
+#### ☁️ VÍA 2: Re-aprovisionamiento de un Nuevo Servidor Cloud / VPS Linux (Ubuntu / Debian) desde GitHub
+
+Si deseas crear una nueva máquina virtual en la nube (Oracle Cloud Always Free, AWS EC2, Hetzner, DigitalOcean, Google Cloud, Linode, etc.):
+
+##### Requisitos de la Máquina Virtual Linux:
 - **Distribución:** Ubuntu 22.04 LTS / 24.04 LTS (o Debian 12).
 - **Arquitectura:** Compatible con ARM64 (ej. Oracle Ampere A1 Always Free) y x86_64 (Intel / AMD).
 - **Recursos Mínimos:** 1 vCPU, 1 GB RAM, 10 GB de disco SSD.
 - **Red:** Puerto TCP `22` (SSH) abierto en la Security List / Firewall del proveedor de nube. *(No es necesario exponer públicamente el puerto 8000 si utilizas el túnel SSH cifrado de Windows, lo que garantiza máxima seguridad).*
 
-#### Paso a Paso para Despliegue Automatizado en el Nuevo VPS:
+##### Paso a Paso Automatizado en el Nuevo VPS (60 Segundos):
 
-1. **Conectarse vía SSH a la Nueva Instancia y Clonar el Repositorio:**
+1. **Conectarse vía SSH a la Nueva Instancia y Clonar el Repositorio desde GitHub:**
    ```bash
    ssh usuario@IP_NUEVO_VPS
    git clone https://github.com/victorsvlynch/ftmo_stellar_lite.git
    cd ftmo_stellar_lite
    ```
 
-2. **Ejecutar el Aprovisionamiento Automatizado:**
+2. **Ejecutar el Aprovisionamiento Automatizado en 1 Clic:**
    ```bash
    sudo bash setup_oracle.sh
    ```
-   *¿Qué realiza este script en 60 segundos de forma 100% desatendida?*
+   *¿Qué realiza este script de forma 100% desatendida?*
    - Actualiza repositorios del sistema e instala `python3`, `python3-pip` y `tzdata`.
-   - Instala todas las librerías de Python desde [`requirements.txt`](requirements.txt) en el entorno global (sin la sobrecarga de virtualenvs ni contenedores).
-   - Configura las reglas de firewall (UFW / iptables).
-   - Genera y registra los servicios systemd oficiales:
-     - `stellar_ny_open.service`: Motor cuantitativo de la Estrategia Ganadora NY_OPEN (Oro).
-     - `stellar_webhook.service`: Servidor HTTP de señales Webhook para MT5 en el puerto 8000.
-   - Remueve cualquier servicio obsoleto o duplicado para evitar conflictos.
-   - Habilita el arranque automático con el sistema (`systemctl enable`) e inicia ambos servicios.
+   - Instala todas las librerías cuantitativas desde [`requirements.txt`](requirements.txt).
+   - Configura las reglas de firewall seguras (UFW / iptables).
+   - Registra los servicios systemd oficiales (`stellar_ny_open.service` y `stellar_webhook.service`).
+   - Habilita el arranque automático en reinicios (`systemctl enable`) e inicia ambos servicios 24/7.
 
 3. **Verificar el Estado de los Servicios en la Nube:**
    ```bash
@@ -634,16 +679,37 @@ Si deseas trasladar el bot a otra máquina virtual en la nube (Oracle Cloud Alwa
    sudo journalctl -u stellar_webhook -f
    ```
 
-4. **Actualizar la IP del Nuevo VPS en los Scripts de Windows:**
-   En tu PC local de Windows, abre los siguientes archivos y reemplaza la IP anterior por la nueva IP de tu servidor:
+4. **Actualizar la IP del Nuevo VPS en tu PC Windows:**
+   En tu PC local de Windows, abre los siguientes archivos y reemplaza la IP anterior por la nueva IP pública de tu servidor:
    - En [`desplegar_a_vps.ps1`](desplegar_a_vps.ps1): Cambia `$vpsIp = "IP_NUEVO_VPS"`.
-   - En [`Conectar_Puente_Webhook_MT5.bat`](Conectar_Puente_Webhook_MT5.bat): Cambia la variable `REMOTE_HOST=IP_NUEVO_VPS`.
-   - En [`Verificar_Servicio_24_7.bat`](Verificar_Servicio_24_7.bat): Cambia la variable `VPS_IP=IP_NUEVO_VPS`.
-   - Si generaste una nueva clave SSH para el nuevo VPS, guarda la clave privada como `VPS-Oracle\oracle_vps.key`.
+   - En [`Conectar_Puente_Webhook_MT5.bat`](Conectar_Puente_Webhook_MT5.bat): Cambia `REMOTE_HOST=IP_NUEVO_VPS`.
+   - En [`Verificar_Servicio_24_7.bat`](Verificar_Servicio_24_7.bat): Cambia `VPS_IP=IP_NUEVO_VPS`.
+   - Si creaste un nuevo par de claves SSH para el nuevo servidor, guarda la clave privada en tu PC como `C:\Users\mantenimiento\.ssh\oracle_vps.key` (o `VPS-Oracle\oracle_vps.key`).
 
 5. **Verificar Conexión desde Windows:**
-   - Ejecuta `.\desplegar_a_vps.bat` para confirmar la sincronización remota por SSH.
-   - Ejecuta `Conectar_Puente_Webhook_MT5.bat` para validar que el túnel SSH hacia el nuevo servidor levanta de inmediato en el puerto 8000.
+   - Ejecuta `Conectar_Puente_Webhook_MT5.bat` (u Opción 4 de `Control_Total_Bot.bat`). El túnel SSH cifrado hacia el nuevo VPS quedará activo y MT5 se conectará al instante.
+
+---
+
+#### 📦 VÍA 3: Restauración Offline en Cualquier PC con el Pack de Portabilidad Autónoma
+
+Si necesitas restaurar todo el entorno en una nueva laptop o PC de respaldo sin necesidad de configurar Git ni Python manualmente:
+
+1. Copia el archivo empaquetado **`PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip`** (generado automáticamente por `exportar_todo.ps1`) a una memoria USB, Google Drive o carpeta compartida.
+2. Descomprímelo en la nueva PC (ruta recomendada: `C:\FTMO_Stellar_Lite` o `D:\FTMO_Stellar_Lite`).
+3. Haz clic derecho sobre **`INSTALAR_EN_NUEVA_PC.bat`** y selecciona **"Ejecutar como Administrador"**.
+   - El instalador detectará Python, instalará las dependencias necesarias, compilará el EA para MetaTrader 5 y dejará los accesos directos listos.
+4. Ejecuta **`Control_Total_Bot.bat`** para comenzar la operativa.
+
+---
+
+#### 📊 Matriz Comparativa de Recuperación ante Desastres (Disaster Recovery)
+
+| Escenario de Contingencia | Tiempo de Recuperación (RTO) | Dependencia Externa | ¿Requiere Git/GitHub? | ¿Requiere VPS Activo? |
+| :--- | :---: | :---: | :---: | :---: |
+| **Vía 1: Local Windows Inmediata** | **< 10 segundos** | Ninguna (Autónomo) | No (Archivos locales) | No |
+| **Vía 2: Nuevo VPS Cloud** | **< 2 minutos** | Proveedor Cloud + Internet | **Sí** (`git clone`) | Sí (Nuevo VPS) |
+| **Vía 3: Pack ZIP Portable** | **< 1 minuto** | Ninguna (Offline) | No (Incluido en ZIP) | No |
 
 ---
 
