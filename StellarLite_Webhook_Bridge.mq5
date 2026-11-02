@@ -461,7 +461,7 @@ void ProcessCloudAction(const string json)
       for(int i = PositionsTotal() - 1; i >= 0; i--)
       {
          ulong ticket = PositionGetTicket(i);
-         if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
+         if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber && PositionGetString(POSITION_SYMBOL) == realSymbol)
          {
             found = true;
             string posSym = PositionGetString(POSITION_SYMBOL);
@@ -531,6 +531,10 @@ void ProcessCloudAction(const string json)
          ulong ticket = PositionGetTicket(i);
          if(ticket > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
          {
+            if(action == "CLOSE_POSITION" && PositionGetString(POSITION_SYMBOL) != realSymbol)
+            {
+               continue; // Omitir posicion de otro activo diferente al solicitado
+            }
             found = true;
             PrintFormat("[EA MT5] Cerrando posicion #%I64u a precio de mercado...", ticket);
             bool closedSuccess = false;
