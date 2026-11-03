@@ -74,6 +74,8 @@ class MarketDataConnector:
             return "GC=F"
         if clean_upper in ("EURUSD", "EUR/USD"):
             return "EURUSD=X"
+        if clean_upper in ("AUDUSD", "AUD/USD"):
+            return "AUDUSD=X"
         if clean_upper in ("GBPUSD", "GBP/USD"):
             return "GBPUSD=X"
         if any(k in clean_upper for k in ("US500", "SPX500", "SP500", "USA500")) and "NQ" not in clean_upper:
@@ -90,6 +92,8 @@ class MarketDataConnector:
             return "XAUUSD"
         if "EUR" in clean:
             return "EURUSD"
+        if "AUD" in clean:
+            return "AUDUSD"
         if any(k in clean for k in ("ES", "500", "SPX")):
             return "US500"
         return clean
@@ -939,7 +943,7 @@ class AutomatedTradingEngine:
             if initial_risk_dist > 1e-8:
                 sym_upper = str(tr["symbol"]).upper()
                 is_gold = ("GC" in sym_upper or "XAU" in sym_upper or "GOLD" in sym_upper)
-                is_forex = (not is_gold and ("EUR" in sym_upper or "=X" in sym_upper or entry < 10.0))
+                is_forex = (not is_gold and (any(k in sym_upper for k in ("EUR", "AUD", "GBP", "=X")) or entry < 10.0))
 
                 if is_gold:
                     # XAUUSD (Oro): BE+ ($0.80) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R
@@ -949,7 +953,7 @@ class AutomatedTradingEngine:
                     lock2_trigger_r, lock2_gain_r = 1.75, 1.10
                     decimals = 4
                 elif is_forex:
-                    # EURUSD (Forex): BE+ (1.5 pips) a +0.95R | Candado 1 (+0.50R) a +1.35R | Candado 2 (+1.10R) a +1.70R
+                    # EURUSD / AUDUSD (Forex): BE+ (1.5 pips) a +0.95R | Candado 1 (+0.50R) a +1.35R | Candado 2 (+1.10R) a +1.70R
                     be_trigger_r = 0.95
                     be_offset = min(0.00015, initial_risk_dist * 0.15)
                     lock1_trigger_r, lock1_gain_r = 1.35, 0.50
@@ -1305,6 +1309,8 @@ class AutomatedTradingEngine:
                     strat_tag = "SP500_ORB_15M"
                 elif any(k in sym_up for k in ("EUR", "EURUSD")):
                     strat_tag = "EURUSD_ORB_15M"
+                elif any(k in sym_up for k in ("AUD", "AUDUSD")):
+                    strat_tag = "AUDUSD_ORB_15M"
                 elif any(k in sym_up for k in ("NQ", "100", "NAS")):
                     strat_tag = "NAS100_ORB_15M"
                 elif sym in ("GC=F", "XAUUSD", "GOLD") or self.risk.session_mode == "NY_OPEN":

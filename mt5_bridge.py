@@ -150,7 +150,7 @@ class MT5Bridge:
         """
         from risk_manager import RiskManager
         synced = {}
-        for generic in ("XAUUSD", "US500", "EURUSD"):
+        for generic in ("XAUUSD", "EURUSD", "AUDUSD", "US500"):
             real_sym = self.detect_broker_symbol(generic)
             spec = self.get_symbol_specification(real_sym)
             if spec:
@@ -170,6 +170,8 @@ class MT5Bridge:
                     RiskManager.set_custom_instrument_spec("ES=F", spec_dict)
                 elif generic == "EURUSD":
                     RiskManager.set_custom_instrument_spec("EURUSD=X", spec_dict)
+                elif generic == "AUDUSD":
+                    RiskManager.set_custom_instrument_spec("AUDUSD=X", spec_dict)
                 elif generic == "XAUUSD":
                     RiskManager.set_custom_instrument_spec("GC=F", spec_dict)
                 synced[real_sym] = spec_dict
@@ -236,6 +238,10 @@ class MT5Bridge:
             candidates = ["EURUSD", "EURUSDm", "EURUSD.raw", "EURUSD.pro", "EURUSDb", "EURUSD.cash", "EURUSD+"]
             match_keywords = ["EUR", "USD"]
             fallback = "EURUSD"
+        elif "AUD" in clean:
+            candidates = ["AUDUSD", "AUDUSDm", "AUDUSD.raw", "AUDUSD.pro", "AUDUSDb", "AUDUSD.cash", "AUDUSD+"]
+            match_keywords = ["AUD", "USD"]
+            fallback = "AUDUSD"
         else:
             candidates = ["XAUUSD", "GOLD", "XAUUSD.m", "XAUUSDm", "XAUUSD.raw", "XAUUSD.pro", "GC=F"]
             match_keywords = ["XAU", "GOLD"]

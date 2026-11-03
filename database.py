@@ -560,6 +560,8 @@ class TradingDatabase:
                 sym_mt5 = "XAUUSD"
             elif any(k in clean_sym for k in ("EURUSD", "EUR")):
                 sym_mt5 = "EURUSD"
+            elif any(k in clean_sym for k in ("AUDUSD", "AUD")):
+                sym_mt5 = "AUDUSD"
             elif any(k in clean_sym for k in ("ES", "500", "SPX", "US500", "SP500")):
                 sym_mt5 = "US500"
             else:
@@ -708,6 +710,8 @@ class TradingDatabase:
                     sym_mt5 = "XAUUSD"
                 elif "EUR" in raw_sym:
                     sym_mt5 = "EURUSD"
+                elif "AUD" in raw_sym:
+                    sym_mt5 = "AUDUSD"
                 elif "ES" in raw_sym or "500" in raw_sym:
                     sym_mt5 = "US500"
                 else:

@@ -329,7 +329,20 @@ def run_tests():
     assert abs(pos_eur.risk_amount_usd - 50.0) < 0.50, f"Expected ~$50.00 risk, got {pos_eur.risk_amount_usd}"
     print(f"  PASS: EUR/USD -> Lotaje: {pos_eur.lots} lotes | Riesgo: ${pos_eur.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_eur.take_profit}")
 
-    # 2. Dimensionamiento de Posición S&P 500 (15 puntos de SL -> $50 USD de riesgo = 0.5% en $10K)
+    # 1B. Dimensionamiento de Posición AUD/USD (20 pips de SL -> $50 USD de riesgo = 0.5% en $10K)
+    pos_aud = rm_portfolio.calculate_position_size(
+        balance=10000.0,
+        symbol="AUDUSD=X",
+        side="BUY",
+        entry_price=0.69700,
+        stop_loss=0.69500, # 20 pips
+        risk_pct=0.005,
+    )
+    assert pos_aud.lots == 0.25, f"Expected 0.25 lots for AUD/USD with 20 pips SL on 10K, got {pos_aud.lots}"
+    assert abs(pos_aud.risk_amount_usd - 50.0) < 0.50, f"Expected ~$50.00 risk, got {pos_aud.risk_amount_usd}"
+    print(f"  PASS: AUD/USD -> Lotaje: {pos_aud.lots} lotes | Riesgo: ${pos_aud.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_aud.take_profit}")
+
+    # 2. Dimensionamiento de Posición S&P 500 (Guardado en Standby: 15 puntos de SL -> $50 USD de riesgo = 0.5% en $10K)
     pos_sp = rm_portfolio.calculate_position_size(
         balance=10000.0,
         symbol="ES=F",

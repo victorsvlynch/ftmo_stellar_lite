@@ -31,12 +31,14 @@ INSTRUMENT_SPECS: Dict[str, Dict[str, float]] = {
     # Forex Pares Mayores: 1 lote estándar = 100,000 unidades, 1 pip = 0.0001, Comisión $5/lote round-turn, spread típico 0.2 pips
     "EURUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
     "EURUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
+    "AUDUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
+    "AUDUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
     "GBPUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00020},
-    # S&P 500 (Índice USA 500): 1 lote estándar = 1 contrato en FundedNext (tick_value = $0.01 por punto), min 0.1 lotes
-    "ES=F": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40},
-    "US500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40},
-    "SPX500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40},
-    "SP500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40},
+    # S&P 500 (Índice USA 500): GUARDADO EN STANDBY (Inactivo en portafolio actual, preservado íntegro para reactivación futura)
+    "ES=F": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40, "standby": True},
+    "US500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40, "standby": True},
+    "SPX500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40, "standby": True},
+    "SP500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40, "standby": True},
     # Nasdaq 100 (Índice USA Tech 100): INACTIVO POR POLÍTICA INSTITUCIONAL
     "NQ=F": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5, "active": False},
     "NAS100": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5, "active": False},
@@ -146,6 +148,8 @@ class RiskManager:
         # Forex Pares
         if "EUR" in clean_sym:
             return INSTRUMENT_SPECS["EURUSD=X"]
+        if "AUD" in clean_sym:
+            return INSTRUMENT_SPECS["AUDUSD=X"]
         if "GBP" in clean_sym:
             return INSTRUMENT_SPECS["GBPUSD=X"]
         # Materias Primas / Oro

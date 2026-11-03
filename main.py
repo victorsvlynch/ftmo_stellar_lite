@@ -679,7 +679,8 @@ MODALITIES_METADATA = [
         "num": "1",
         "label": "PORTFOLIO MT5 [EN VIVO]",
         "db": "trading_ny_open.db",
-        "symbol": "GC=F,EURUSD=X,ES=F",
+        "symbol": "GC=F,EURUSD=X,AUDUSD=X",
+        "symbol_standby": "ES=F",  # S&P 500 guardado en Standby para reactivación futura
         "provider": "mt5",
         "session": "PORTFOLIO_DUAL",
         "hours": "03:00-11:30 EST",
@@ -713,14 +714,14 @@ MODALITIES_METADATA = [
     {
         "id": "4_TEST_SP500",
         "num": "4",
-        "label": "SP500 TEST [SANDBOX]",
+        "label": "SP500 TEST [STANDBY]",
         "db": "trading_test_sp500.db",
         "symbol": "ES=F",
         "provider": "mt5",
         "session": "PORTFOLIO_DUAL",
         "hours": "09:30-11:30 EST",
         "service": "stellar_test_sp500.service",
-        "active_portfolio": True,
+        "active_portfolio": False,  # Inactivado temporalmente (guardado sin borrar)
     },
 ]
 
@@ -730,7 +731,7 @@ class MultiPriceWorker:
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
-        self.prices: dict = {"GC=F": 0.0, "EURUSD=X": 0.0, "ES=F": 0.0}
+        self.prices: dict = {"GC=F": 0.0, "EURUSD=X": 0.0, "AUDUSD=X": 0.0, "ES=F": 0.0}
         self.running = True
         self.connector = MarketDataConnector()
         self.thread = threading.Thread(target=self._worker_loop, daemon=True)
@@ -738,7 +739,7 @@ class MultiPriceWorker:
 
     def _worker_loop(self) -> None:
         while self.running:
-            for sym in ["GC=F", "EURUSD=X", "ES=F"]:
+            for sym in ["GC=F", "EURUSD=X", "AUDUSD=X", "ES=F"]:
                 try:
                     p = self.connector.get_latest_price(symbol=sym, provider="mt5")
                     if p > 0:

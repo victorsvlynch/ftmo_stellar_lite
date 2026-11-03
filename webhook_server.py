@@ -212,7 +212,17 @@ def update_live_ticks_from_query(qs: Dict[str, Any], now_utc: Optional[datetime]
         symbols_data["EURUSD"] = eur_item
         symbols_data["EURUSD=X"] = eur_item
 
-    # S&P 500
+    # AUD/USD
+    aud_bid = _parse_val("aud_bid")
+    aud_ask = _parse_val("aud_ask")
+    if aud_bid > 0 and aud_ask > 0:
+        sp = round(aud_ask - aud_bid, 5)
+        mid = round((aud_bid + aud_ask) / 2.0, 5)
+        aud_item = {"symbol": "AUDUSD", "bid": aud_bid, "ask": aud_ask, "mid": mid, "spread": sp, "updated_at": now_iso}
+        symbols_data["AUDUSD"] = aud_item
+        symbols_data["AUDUSD=X"] = aud_item
+
+    # S&P 500 (Guardado en Standby para futura reactivación)
     sp_bid = _parse_val("sp_bid")
     sp_ask = _parse_val("sp_ask")
     if sp_bid > 0 and sp_ask > 0:
