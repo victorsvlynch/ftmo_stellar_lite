@@ -868,21 +868,19 @@ flowchart TD
 
 #### Características Clave del Algoritmo:
 
-1. **Blindaje Nivel 1: Break-Even a +1R (+6.50 pts / +65 pips):**
-   - En cuanto la operación alcanza una distancia de beneficio de +$6.50 sobre el precio de llenado, el EA envía una orden `TRADE_ACTION_SLTP` colocando el `Stop Loss = Open Price`.
-   - La posición queda matemáticamente libre de riesgo monetario ($0.00 de exposición).
-   - Esto libera automáticamente margen bajo la regla del **3% de Exposición Máxima** de FundedNext, permitiendo nuevas entradas sin violar los límites de la cuenta.
+1. **Escalera Institucional Personalizada de Break-Even+ y Candados por Activo (GetAssetTrailingProfile):**
+   - Cada activo cuenta con su propia calibración según su microestructura y volatilidad intradía, evaluada tanto en el motor Python (	rading_engine.py) como en cada tick dentro de MetaTrader 5 (StellarLite_Webhook_Bridge.mq5) bajo regla monotónica (*ratchet*):
 
-2. **Blindaje Nivel 2: Trailing Stop Estructural a +2R (+13.00 pts / +130 pips):**
-   - Al superar el objetivo de 2R, el EA no utiliza distancias arbitrarias, sino la acción del precio en velas cerradas de 15 minutos (`rates[1]` a `rates[4]`):
-     - **Para Posiciones Vendedoras (SELL):**
-       $$\text{Swing High} = \max(\text{High}_1, \text{High}_2, \text{High}_3, \text{High}_4)$$
-       $$\text{Nuevo SL} = \text{Swing High} + 1.50\text{ (Buffer de Volatilidad)}$$
-       *Si $\text{Nuevo SL} < \text{SL Actual}$, el Stop Loss desciende, bloqueando el 80%+ de la ganancia estructuralmente.*
-     - **Para Posiciones Compradoras (BUY):**
-       $$\text{Swing Low} = \min(\text{Low}_1, \text{Low}_2, \text{Low}_3, \text{Low}_4)$$
-       $$\text{Nuevo SL} = \text{Swing Low} - 1.50\text{ (Buffer de Volatilidad)}$$
-       *Si $\text{Nuevo SL} > \text{SL Actual}$, el Stop Loss asciende protegiendo la subida.*
+   | Activo | Nivel 1: BE+ (Cubre Costes) | Nivel 2: Candado 1 | Nivel 3: Candado 2 | Nivel 4: Trailing Estructural M15 |
+   | :--- | :---: | :---: | :---: | :---: |
+   | **XAUUSD (Oro)** | A **+1.00R** -> SL a Entrada +- .80 | A **+1.40R** -> Asegura **+0.60R** | A **+1.75R** -> Asegura **+1.10R** | Desde **+1.75R** *(3 velas M15 + buffer)* |
+   | **EURUSD (Forex)** | A **+0.95R** -> SL a Entrada +- 1.5 pips | A **+1.35R** -> Asegura **+0.50R** | A **+1.70R** -> Asegura **+1.10R** | Desde **+1.70R** *(3 velas M15 + buffer)* |
+   | **S&P 500 (US500)** | A **+1.00R** -> SL a Entrada +- 1.0 pt | A **+1.35R** -> Asegura **+0.60R** | A **+1.70R** -> Asegura **+1.15R** | Desde **+1.70R** *(2 velas M15 + buffer)* |
+
+   - Al activarse el Nivel 1 (BE+), el riesgo monetario de la posición pasa a **.00**, liberando automáticamente capacidad bajo la regla del **3% de Exposición Máxima** de FundedNext (Max Risk 3% At Any Time).
+
+2. **Blindaje Nivel 4: Trailing Stop Estructural M15 en Recta Final (>= +1.70R / +1.75R):**
+   - En el tramo final hacia el Take Profit (+2.00R), el EA inspecciona las últimas velas cerradas de 15 minutos (PERIOD_M15) y ajusta el Stop Loss detrás del último Swing High (en ventas) o Swing Low (en compras) más un buffer de volatilidad del 10% de 1R siempre que mejore el candado vigente.
 
 3. **Cálculo de Distancias Relativas Broker-Agnostic:**
    - El bot en la nube analiza cotizaciones globales (Yahoo Finance `GC=F`) mientras que MetaTrader 5 ejecuta contra el servidor del broker (`XAUUSD`). Debido a diferencias de spreads y proveedores, las cotizaciones absolutas pueden variar en decenas o cientos de puntos.
