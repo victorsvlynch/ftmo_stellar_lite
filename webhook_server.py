@@ -305,7 +305,7 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
         now_str = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
 
         # Ingestar feed de ticks en tiempo real desde el EA de MT5
-        if "feed" in qs or "xau_bid" in qs or "eur_bid" in qs or "sp_bid" in qs:
+        if "feed" in qs or "xau_bid" in qs or "eur_bid" in qs or "aud_bid" in qs or "sp_bid" in qs:
             update_live_ticks_from_query(qs, now_utc)
 
         # 0. Feed de Mercado en Tiempo Real para Sandbox y Motores de Trading

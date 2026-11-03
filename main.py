@@ -712,8 +712,20 @@ MODALITIES_METADATA = [
         "active_portfolio": True,
     },
     {
-        "id": "4_TEST_SP500",
+        "id": "4_TEST_AUDUSD",
         "num": "4",
+        "label": "AUDUSD TEST [SANDBOX]",
+        "db": "trading_test_audusd.db",
+        "symbol": "AUDUSD=X",
+        "provider": "mt5",
+        "session": "PORTFOLIO_DUAL",
+        "hours": "03-06 & 08:30-11",
+        "service": "stellar_test_audusd.service",
+        "active_portfolio": True,
+    },
+    {
+        "id": "5_TEST_SP500",
+        "num": "5",
         "label": "SP500 TEST [STANDBY]",
         "db": "trading_test_sp500.db",
         "symbol": "ES=F",
@@ -1005,6 +1017,10 @@ def print_multi_status(detailed: bool = False) -> None:
 def reset_all_modalities(personal_cap_pct: float = 0.02, risk_pct: float = 0.005) -> None:
     db_list = [
         "trading_ny_open.db",
+        "trading_test_oro.db",
+        "trading_test_eurusd.db",
+        "trading_test_audusd.db",
+        "trading_test_sp500.db",
         "trading_portfolio_sp_eu.db",
         "trading_london_open.db",
         "trading_crypto_24h.db",
@@ -1404,7 +1420,8 @@ def main() -> None:
         dbs = [
             ("ORO TEST [SANDBOX]", "trading_test_oro.db"),
             ("EURUSD TEST [SANDBOX]", "trading_test_eurusd.db"),
-            ("SP500 TEST [SANDBOX]", "trading_test_sp500.db"),
+            ("AUDUSD TEST [SANDBOX]", "trading_test_audusd.db"),
+            ("SP500 TEST [STANDBY]", "trading_test_sp500.db"),
         ]
         print("=" * 85)
         print("  REPORTE COMPLETO DE OPERACIONES - LABORATORIO SANDBOX (TEST SIN MT5)")
