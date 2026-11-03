@@ -241,40 +241,40 @@ void GetAssetTrailingProfile(
 
    if(isGold)
    {
-      // XAUUSD (Oro): BE+ ($0.80) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R | Trailing M15 (2 velas) desde +1.30R
+      // XAUUSD (Oro): BE+ ($0.80) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R | Trailing M15 (3 velas) desde +1.75R
       beTriggerR    = 1.00;
       beOffset      = MathMin(0.80, initialRiskDist * 0.15);
       lock1TriggerR = 1.40;
       lock1GainR    = 0.60;
       lock2TriggerR = 1.75;
       lock2GainR    = 1.10;
-      trailTriggerR = 1.30;
-      trailBarsM15  = 2;
+      trailTriggerR = 1.75;
+      trailBarsM15  = 3;
    }
    else if(isForex)
    {
-      // EURUSD (Forex): BE+ (1.5 pips) a +0.75R | Candado 1 (+0.50R) a +1.20R | Candado 2 (+1.00R) a +1.60R | Trailing M15 (2 velas) desde +1.00R
+      // EURUSD (Forex): BE+ (1.5 pips) a +0.95R | Candado 1 (+0.50R) a +1.35R | Candado 2 (+1.10R) a +1.70R | Trailing M15 (3 velas) desde +1.70R
       double pip    = (digits == 5 || digits == 3) ? (10.0 * pt) : pt;
-      beTriggerR    = 0.75;
+      beTriggerR    = 0.95;
       beOffset      = MathMin(1.5 * pip, initialRiskDist * 0.15);
-      lock1TriggerR = 1.20;
+      lock1TriggerR = 1.35;
       lock1GainR    = 0.50;
-      lock2TriggerR = 1.60;
-      lock2GainR    = 1.00;
-      trailTriggerR = 1.00;
-      trailBarsM15  = 2;
+      lock2TriggerR = 1.70;
+      lock2GainR    = 1.10;
+      trailTriggerR = 1.70;
+      trailBarsM15  = 3;
    }
    else
    {
-      // S&P 500 (US500 / ES): BE+ (1.0 pt) a +1.00R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R | Trailing M15 (1 vela previa) desde +1.30R
+      // S&P 500 (US500 / ES): BE+ (1.0 pt) a +1.00R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R | Trailing M15 (2 velas) desde +1.70R
       beTriggerR    = 1.00;
       beOffset      = MathMin(1.00, initialRiskDist * 0.15);
       lock1TriggerR = 1.35;
       lock1GainR    = 0.60;
       lock2TriggerR = 1.70;
       lock2GainR    = 1.15;
-      trailTriggerR = 1.30;
-      trailBarsM15  = 1;
+      trailTriggerR = 1.70;
+      trailBarsM15  = 2;
    }
 }
 

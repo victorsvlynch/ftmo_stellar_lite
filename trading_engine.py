@@ -949,11 +949,11 @@ class AutomatedTradingEngine:
                     lock2_trigger_r, lock2_gain_r = 1.75, 1.10
                     decimals = 4
                 elif is_forex:
-                    # EURUSD (Forex): BE+ (1.5 pips) a +0.75R | Candado 1 (+0.50R) a +1.20R | Candado 2 (+1.00R) a +1.60R
-                    be_trigger_r = 0.75
+                    # EURUSD (Forex): BE+ (1.5 pips) a +0.95R | Candado 1 (+0.50R) a +1.35R | Candado 2 (+1.10R) a +1.70R
+                    be_trigger_r = 0.95
                     be_offset = min(0.00015, initial_risk_dist * 0.15)
-                    lock1_trigger_r, lock1_gain_r = 1.20, 0.50
-                    lock2_trigger_r, lock2_gain_r = 1.60, 1.00
+                    lock1_trigger_r, lock1_gain_r = 1.35, 0.50
+                    lock2_trigger_r, lock2_gain_r = 1.70, 1.10
                     decimals = 5
                 else:
                     # S&P 500 (ES=F / US500): BE+ (1.0 pt) a +1.00R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R
