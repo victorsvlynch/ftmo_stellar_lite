@@ -10,6 +10,12 @@ import os
 import subprocess
 from datetime import datetime, timedelta, timezone
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 def inspect_mt5():
     print("=" * 85)
     print("  1. REGISTRO OFICIAL EN METATRADER 5 (TERMINAL BROKER FUNDEDNEXT)")
@@ -76,14 +82,31 @@ def inspect_vps():
 import sqlite3
 conn = sqlite3.connect('/home/ubuntu/FTMO_Stellar_Lite/trading_ny_open.db')
 cur = conn.cursor()
+
+# 1. Posiciones Abiertas en la Nube
+cur.execute("SELECT id, symbol, side, lots, entry_price, stop_loss, take_profit, opened_at, notes FROM trades WHERE status='OPEN' ORDER BY id DESC")
+open_rows = cur.fetchall()
+print(f"  [POSICIONES ABIERTAS EN LA BD NUBE: {len(open_rows)}]")
+if open_rows:
+    for r in open_rows:
+        tid, sym, side, lots, entry, sl, tp, op, notes = r
+        op_h = str(op)[11:19] if op else '-'
+        print(f"    - #{tid:<2} | {sym:<8} {side:<4} {lots:.2f}L | Entrada: {entry:<8.4f} | SL: {sl:<8.4f} | TP: {tp:<8.4f} | {op_h} UTC")
+else:
+    print("    >> Sin posiciones abiertas activas en la BD <<")
+
+print("-" * 85)
+# 2. Historial de Operaciones Cerradas en la Nube
 cur.execute("SELECT id, symbol, side, lots, entry_price, exit_price, pnl, status, opened_at, closed_at, notes FROM trades WHERE status='CLOSED' ORDER BY id DESC LIMIT 10")
 rows = cur.fetchall()
+print("  [HISTORIAL DE OPERACIONES CERRADAS EN LA BD NUBE]")
 if rows:
     for r in rows:
         tid, sym, side, lots, entry, exit_p, pnl, status, op, cl, notes = r
         op_h = str(op)[11:19] if op else '-'
         cl_h = str(cl)[11:19] if cl else '-'
-        print(f"    - #{tid:<2} | {sym:<8} {side:<4} {lots:.2f}L | Entrada: {entry:<8.4f} | Salida: {exit_p:<8.4f} | PnL: ${pnl:>+7.2f} | {cl_h} UTC | {notes[:40]}")
+        mt5_tag = "MT5 REAL" if ("Ticket #" in notes or "AJUSTADO" in notes or "CERRADO_EN_MT5" in notes) else "SIMULADA/PAPER (Sin ejecucion MT5)"
+        print(f"    - #{tid:<2} | {sym:<8} {side:<4} {lots:.2f}L | Entrada: {entry:<8.4f} | Salida: {exit_p:<8.4f} | PnL: ${pnl:>+7.2f} | {cl_h} UTC | [{mt5_tag}]")
 else:
     print("    >> Sin trades registrados <<")
 conn.close()

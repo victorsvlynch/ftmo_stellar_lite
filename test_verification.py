@@ -160,7 +160,7 @@ def run_tests():
     engine.manage_open_positions(simulated_prices)
 
     t_after_be = db.get_open_trades()[0]
-    assert t_after_be["stop_loss"] == 2000.0, f"Expected SL 2000.0, got {t_after_be['stop_loss']}"
+    assert t_after_be["stop_loss"] == 2000.8, f"Expected SL 2000.8 (BE+), got {t_after_be['stop_loss']}"
     assert t_after_be["is_break_even"] == 1, f"Expected is_break_even=1, got {t_after_be['is_break_even']}"
     print(f"  PASS: Break-Even activado. Nuevo SL: ${t_after_be['stop_loss']}, is_break_even: {t_after_be['is_break_even']}")
 

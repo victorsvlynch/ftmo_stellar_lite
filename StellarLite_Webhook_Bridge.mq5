@@ -216,6 +216,68 @@ void UpdateChartDashboard()
 //+------------------------------------------------------------------+
 //| Procesar accion recibida desde Oracle Cloud                      |
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| Perfil de Escalera Break-Even+ y Trailing por Clase de Activo    |
+//+------------------------------------------------------------------+
+void GetAssetTrailingProfile(
+   string sym,
+   int digits,
+   double pt,
+   double initialRiskDist,
+   double &beTriggerR,
+   double &beOffset,
+   double &lock1TriggerR,
+   double &lock1GainR,
+   double &lock2TriggerR,
+   double &lock2GainR,
+   double &trailTriggerR,
+   int &trailBarsM15
+)
+{
+   string s = sym;
+   StringToUpper(s);
+   bool isGold = (StringFind(s, "XAU") >= 0 || StringFind(s, "GOLD") >= 0 || StringFind(s, "GC") >= 0);
+   bool isForex = (!isGold && digits >= 4);
+
+   if(isGold)
+   {
+      // XAUUSD (Oro): BE+ ($0.80) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R | Trailing M15 (2 velas) desde +1.30R
+      beTriggerR    = 1.00;
+      beOffset      = MathMin(0.80, initialRiskDist * 0.15);
+      lock1TriggerR = 1.40;
+      lock1GainR    = 0.60;
+      lock2TriggerR = 1.75;
+      lock2GainR    = 1.10;
+      trailTriggerR = 1.30;
+      trailBarsM15  = 2;
+   }
+   else if(isForex)
+   {
+      // EURUSD (Forex): BE+ (1.5 pips) a +0.75R | Candado 1 (+0.50R) a +1.20R | Candado 2 (+1.00R) a +1.60R | Trailing M15 (2 velas) desde +1.00R
+      double pip    = (digits == 5 || digits == 3) ? (10.0 * pt) : pt;
+      beTriggerR    = 0.75;
+      beOffset      = MathMin(1.5 * pip, initialRiskDist * 0.15);
+      lock1TriggerR = 1.20;
+      lock1GainR    = 0.50;
+      lock2TriggerR = 1.60;
+      lock2GainR    = 1.00;
+      trailTriggerR = 1.00;
+      trailBarsM15  = 2;
+   }
+   else
+   {
+      // S&P 500 (US500 / ES): BE+ (1.0 pt) a +1.00R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R | Trailing M15 (1 vela previa) desde +1.30R
+      beTriggerR    = 1.00;
+      beOffset      = MathMin(1.00, initialRiskDist * 0.15);
+      lock1TriggerR = 1.35;
+      lock1GainR    = 0.60;
+      lock2TriggerR = 1.70;
+      lock2GainR    = 1.15;
+      trailTriggerR = 1.30;
+      trailBarsM15  = 1;
+   }
+}
+
 void ProcessCloudAction(const string json)
 {
    int actionId = (int)JsonExtractDouble(json, "action_id");
@@ -454,7 +516,7 @@ void ProcessCloudAction(const string json)
       }
    }
    
-   // C. MODIFICACION DE STOP LOSS A BREAK-EVEN
+   // C. MODIFICACION DE STOP LOSS A BREAK-EVEN / ESCALERA DE CANDADOS
    else if(action == "MODIFY_SL")
    {
       bool found = false;
@@ -465,50 +527,74 @@ void ProcessCloudAction(const string json)
          {
             found = true;
             string posSym = PositionGetString(POSITION_SYMBOL);
+            ENUM_POSITION_TYPE pType = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
             double curTp = PositionGetDouble(POSITION_TP);
             double curSl = PositionGetDouble(POSITION_SL);
             double entryPrice = PositionGetDouble(POSITION_PRICE_OPEN);
             int digits = (int)SymbolInfoInteger(posSym, SYMBOL_DIGITS);
             double pt = SymbolInfoDouble(posSym, SYMBOL_POINT);
-            
-            // Si es Break-Even o el precio de SL enviado difiere de la escala del broker,
-            // fijar el SL exactamente al precio de apertura de la posición en MT5 (Riesgo = $0.00)
-            bool isBe = (StringFind(comment, "Break-Even") >= 0 || StringFind(comment, "BREAK_EVEN") >= 0);
-            double newSl = (isBe || (sl > 0 && MathAbs(entryPrice - sl) > 20.0)) ? NormalizeDouble(entryPrice, digits) : NormalizeDouble(sl, digits);
 
-            // A. Si el Stop Loss ya esta exactamente en el nivel deseado (o diferencia menor a medio punto)
-            if(MathAbs(curSl - newSl) < (pt * 0.5))
+            double initialRiskDist = (curTp > 0.0 && MathAbs(curTp - entryPrice) > (10 * pt))
+                                     ? (MathAbs(curTp - entryPrice) / 2.0)
+                                     : MathAbs(entryPrice - curSl);
+            double beTriggerR, beOffset, lock1TriggerR, lock1GainR, lock2TriggerR, lock2GainR, trailTriggerR;
+            int trailBarsM15;
+            GetAssetTrailingProfile(posSym, digits, pt, initialRiskDist, beTriggerR, beOffset, lock1TriggerR, lock1GainR, lock2TriggerR, lock2GainR, trailTriggerR, trailBarsM15);
+
+            double newSl = NormalizeDouble(sl, digits);
+            if(StringFind(comment, "CANDADO_NIVEL_3") >= 0)
+            {
+               double off = initialRiskDist * lock2GainR;
+               newSl = NormalizeDouble((pType == POSITION_TYPE_BUY) ? (entryPrice + off) : (entryPrice - off), digits);
+            }
+            else if(StringFind(comment, "CANDADO_NIVEL_2") >= 0)
+            {
+               double off = initialRiskDist * lock1GainR;
+               newSl = NormalizeDouble((pType == POSITION_TYPE_BUY) ? (entryPrice + off) : (entryPrice - off), digits);
+            }
+            else if(StringFind(comment, "Break-Even") >= 0 || StringFind(comment, "BREAK_EVEN") >= 0 || (sl > 0 && MathAbs(entryPrice - sl) > 20.0))
+            {
+               newSl = NormalizeDouble((pType == POSITION_TYPE_BUY) ? (entryPrice + beOffset) : (entryPrice - beOffset), digits);
+            }
+
+            // A. Regla Monotonica (Ratchet): nunca retroceder un SL que ya este igual o mejor posicionado
+            bool alreadyBetterOrEqual = false;
+            if(pType == POSITION_TYPE_BUY && curSl > 0.0 && curSl >= (newSl - (pt * 0.5)))
+               alreadyBetterOrEqual = true;
+            if(pType == POSITION_TYPE_SELL && curSl > 0.0 && curSl <= (newSl + (pt * 0.5)))
+               alreadyBetterOrEqual = true;
+
+            if(alreadyBetterOrEqual || MathAbs(curSl - newSl) < (pt * 0.5))
             {
                ExtLastActionMsg = StringFormat("Posicion #%I64u ya blindada (SL: %.*f)", ticket, digits, curSl);
-               PrintFormat("[EA MT5] [AL DIA] Posicion #%I64u ya tiene SL configurado a %.*f. Confirmando accion #%d a la nube.", 
-                           ticket, digits, curSl, actionId);
+               PrintFormat("[EA MT5] [AL DIA] Posicion #%I64u ya tiene SL igual o mejor (%.*f vs %.*f). Confirmando accion #%d a la nube.", 
+                           ticket, digits, curSl, digits, newSl, actionId);
                ConfirmActionToCloud(actionId, ticket, curSl, true);
                break;
             }
 
-            PrintFormat("[EA MT5] Blindando posicion #%I64u con Break-Even: Nuevo SL: %.*f (Precio Entrada: %.*f)", 
-                        ticket, digits, newSl, digits, entryPrice);
+            PrintFormat("[EA MT5] Blindando posicion #%I64u (%s): Nuevo SL: %.*f (Precio Entrada: %.*f)", 
+                        ticket, comment, digits, newSl, digits, entryPrice);
             if(ExtTrade.PositionModify(ticket, newSl, curTp))
             {
-               ExtLastActionMsg = StringFormat("Posicion #%I64u blindada a Break-Even (SL: %.*f)", ticket, digits, newSl);
-               PrintFormat("[EA MT5] [EXITO] Posicion #%I64u modificada a Break-Even.", ticket);
+               ExtLastActionMsg = StringFormat("Posicion #%I64u blindada (%s -> SL: %.*f)", ticket, comment, digits, newSl);
+               PrintFormat("[EA MT5] [EXITO] Posicion #%I64u modificada a SL %.*f.", ticket, digits, newSl);
                ConfirmActionToCloud(actionId, ticket, newSl, true);
             }
             else
             {
                uint retCode = ExtTrade.ResultRetcode();
                string retMsg = ExtTrade.ResultComment();
-               // B. Si MT5 reporta que no hay cambios (TRADE_RETCODE_NO_CHANGES = 10025 o 'No changes')
                if(retCode == 10025 || StringFind(retMsg, "No changes") >= 0 || StringFind(retMsg, "no changes") >= 0)
                {
-                  ExtLastActionMsg = StringFormat("Posicion #%I64u ya blindada a Break-Even (SL: %.*f)", ticket, digits, newSl);
+                  ExtLastActionMsg = StringFormat("Posicion #%I64u ya blindada (SL: %.*f)", ticket, digits, newSl);
                   PrintFormat("[EA MT5] [AL DIA] Posicion #%I64u sin cambios requeridos (SL ya en %.*f). Confirmando a la nube.", 
                               ticket, digits, newSl);
                   ConfirmActionToCloud(actionId, ticket, newSl, true);
                }
                else
                {
-                  PrintFormat("[EA MT5] [AVISO] Fallo al modificar SL a Break-Even: %s (Codigo: %u)", retMsg, retCode);
+                  PrintFormat("[EA MT5] [AVISO] Fallo al modificar SL: %s (Codigo: %u)", retMsg, retCode);
                }
             }
             break;
@@ -634,99 +720,149 @@ void CheckAutonomousStructuralTrailing()
          MqlTick tick;
          if(!SymbolInfoTick(sym, tick)) continue;
 
-         // Obtener distancia inicial 1R de riesgo
+         // Obtener distancia invariante de 1R desde el Take Profit (R:R 1:2.0) o desde el SL inicial
          double initialRiskDist = 0.0;
-         if(curSl > 0.0)
-            initialRiskDist = MathAbs(openPrice - curSl);
-         if(initialRiskDist <= (5 * pt))
+         if(curTp > 0.0 && MathAbs(curTp - openPrice) > (10 * pt))
          {
-            // Si ya esta en Break-Even pero tiene Take Profit definido (R:R 1:2.0),
-            // deducir 1R directamente del Take Profit: 1R = |curTp - openPrice| / 2.0
-            if(curTp > 0.0 && MathAbs(curTp - openPrice) > (10 * pt))
-               initialRiskDist = MathAbs(curTp - openPrice) / 2.0;
-            else if(digits >= 4) initialRiskDist = 250 * pt;
-            else if(openPrice > 1000) initialRiskDist = (StringFind(sym, "XAU") >= 0 || StringFind(sym, "GOLD") >= 0) ? 6.50 : 15.0;
+            initialRiskDist = MathAbs(curTp - openPrice) / 2.0;
+         }
+         else if(curSl > 0.0 && ((pType == POSITION_TYPE_BUY && curSl < openPrice) || (pType == POSITION_TYPE_SELL && curSl > openPrice)))
+         {
+            initialRiskDist = MathAbs(openPrice - curSl);
+         }
+         else
+         {
+            if(digits >= 4) initialRiskDist = 200 * pt;
+            else if(openPrice > 1000) initialRiskDist = (StringFind(sym, "XAU") >= 0 || StringFind(sym, "GOLD") >= 0) ? 15.0 : 25.0;
             else initialRiskDist = 50 * pt;
          }
 
-         // 1. Blindaje Break-Even a +1R (+1R de ganancia flotante alcanzado)
+         if(initialRiskDist <= (5 * pt)) continue;
+
+         double beTriggerR, beOffset, lock1TriggerR, lock1GainR, lock2TriggerR, lock2GainR, trailTriggerR;
+         int trailBarsM15;
+         GetAssetTrailingProfile(sym, digits, pt, initialRiskDist, beTriggerR, beOffset, lock1TriggerR, lock1GainR, lock2TriggerR, lock2GainR, trailTriggerR, trailBarsM15);
+
+         double gainDist = (pType == POSITION_TYPE_BUY) ? (tick.bid - openPrice) : (openPrice - tick.ask);
+         double currentR = gainDist / initialRiskDist;
+         if(currentR < beTriggerR) continue;
+
+         long stopLvlPts = SymbolInfoInteger(sym, SYMBOL_TRADE_STOPS_LEVEL);
+         double minSafeDist = MathMax((double)stopLvlPts * pt, 10.0 * pt);
+
          if(pType == POSITION_TYPE_BUY)
          {
-            if(tick.bid >= (openPrice + initialRiskDist) && (curSl < openPrice || curSl == 0.0))
+            double targetSl = 0.0;
+            string stepTag = "";
+
+            // Nivel 1: Break-Even+ (Cobertura de Comision/Spread)
+            if(currentR >= beTriggerR)
             {
-               double newSl = NormalizeDouble(openPrice, digits);
-               PrintFormat("[EA MT5] [BREAK-EVEN AUTONOMO] Posicion BUY #%I64u alcanzo +1R (Dist: %.5f). Blindando SL a %.5f (Riesgo: $0.00)", 
-                           ticket, initialRiskDist, newSl);
-               if(ExtTrade.PositionModify(ticket, newSl, curTp))
+               targetSl = openPrice + beOffset;
+               stepTag = StringFormat("Nivel 1 BE+ (+%.2fR alcanzado)", beTriggerR);
+            }
+            // Nivel 2: Primer Candado de Ganancia
+            if(currentR >= lock1TriggerR)
+            {
+               targetSl = openPrice + (initialRiskDist * lock1GainR);
+               stepTag = StringFormat("Nivel 2 Candado +%.2fR (+%.2fR alcanzado)", lock1GainR, lock1TriggerR);
+            }
+            // Nivel 3: Segundo Candado cercano a TP
+            if(currentR >= lock2TriggerR)
+            {
+               targetSl = openPrice + (initialRiskDist * lock2GainR);
+               stepTag = StringFormat("Nivel 3 Candado +%.2fR (+%.2fR alcanzado)", lock2GainR, lock2TriggerR);
+            }
+
+            // Nivel 4: Trailing Estructural M15 especifico del activo
+            if(currentR >= trailTriggerR)
+            {
+               MqlRates ratesM15[];
+               ArraySetAsSeries(ratesM15, true);
+               int copied = CopyRates(sym, PERIOD_M15, 1, trailBarsM15, ratesM15);
+               if(copied >= trailBarsM15)
                {
-                  ExtLastActionMsg = StringFormat("BUY #%I64u blindada a Break-Even ($0.00 riesgo)", ticket);
-                  curSl = newSl;
+                  double minLow = ratesM15[0].low;
+                  for(int k = 1; k < copied; k++)
+                  {
+                     if(ratesM15[k].low < minLow) minLow = ratesM15[k].low;
+                  }
+                  double buffer = MathMax(5.0 * pt, initialRiskDist * 0.10);
+                  double structSl = minLow - buffer;
+                  if(structSl > (openPrice + beOffset) && structSl > targetSl && structSl <= (tick.bid - minSafeDist))
+                  {
+                     targetSl = structSl;
+                     stepTag = StringFormat("Trailing Estructural M15 (%d velas)", trailBarsM15);
+                  }
+               }
+            }
+
+            targetSl = NormalizeDouble(targetSl, digits);
+            if(targetSl > 0.0 && (curSl == 0.0 || targetSl > (curSl + (2.0 * pt))) && targetSl <= (tick.bid - minSafeDist))
+            {
+               PrintFormat("[EA MT5] [ESCALERA SL] BUY #%I64u (%s) -> %s | Nuevo SL: %.*f (Anterior: %.*f)",
+                           ticket, sym, stepTag, digits, targetSl, digits, curSl);
+               if(ExtTrade.PositionModify(ticket, targetSl, curTp))
+               {
+                  ExtLastActionMsg = StringFormat("BUY #%I64u %s @ %.*f", ticket, stepTag, digits, targetSl);
                }
             }
          }
          else if(pType == POSITION_TYPE_SELL)
          {
-            if(tick.ask <= (openPrice - initialRiskDist) && (curSl > openPrice || curSl == 0.0))
+            double targetSl = 0.0;
+            string stepTag = "";
+
+            // Nivel 1: Break-Even+ (Cobertura de Comision/Spread)
+            if(currentR >= beTriggerR)
             {
-               double newSl = NormalizeDouble(openPrice, digits);
-               PrintFormat("[EA MT5] [BREAK-EVEN AUTONOMO] Posicion SELL #%I64u alcanzo +1R (Dist: %.5f). Blindando SL a %.5f (Riesgo: $0.00)", 
-                           ticket, initialRiskDist, newSl);
-               if(ExtTrade.PositionModify(ticket, newSl, curTp))
-               {
-                  ExtLastActionMsg = StringFormat("SELL #%I64u blindada a Break-Even ($0.00 riesgo)", ticket);
-                  curSl = newSl;
-               }
+               targetSl = openPrice - beOffset;
+               stepTag = StringFormat("Nivel 1 BE+ (+%.2fR alcanzado)", beTriggerR);
             }
-         }
-
-         // 2. Trailing Stop por Estructura Tecnica M15
-         // Se activa cuando la posicion avanza al menos +2R a favor
-         double doubleRDist = initialRiskDist * 2.0;
-         double buffer = MathMax(10.0 * pt, initialRiskDist * 0.15);
-         double minSecuredGain = initialRiskDist * 0.50;
-
-         MqlRates ratesM15[];
-         ArraySetAsSeries(ratesM15, true);
-         int copied = CopyRates(sym, PERIOD_M15, 1, 4, ratesM15);
-         if(copied >= 4)
-         {
-            if(pType == POSITION_TYPE_SELL && (openPrice - tick.ask) >= doubleRDist)
+            // Nivel 2: Primer Candado de Ganancia
+            if(currentR >= lock1TriggerR)
             {
-               // Buscar el maximo de las ultimas 4 velas M15 cerradas (resistencia)
-               double maxHigh = ratesM15[0].high;
-               for(int k = 1; k < copied; k++)
+               targetSl = openPrice - (initialRiskDist * lock1GainR);
+               stepTag = StringFormat("Nivel 2 Candado +%.2fR (+%.2fR alcanzado)", lock1GainR, lock1TriggerR);
+            }
+            // Nivel 3: Segundo Candado cercano a TP
+            if(currentR >= lock2TriggerR)
+            {
+               targetSl = openPrice - (initialRiskDist * lock2GainR);
+               stepTag = StringFormat("Nivel 3 Candado +%.2fR (+%.2fR alcanzado)", lock2GainR, lock2TriggerR);
+            }
+
+            // Nivel 4: Trailing Estructural M15 especifico del activo
+            if(currentR >= trailTriggerR)
+            {
+               MqlRates ratesM15[];
+               ArraySetAsSeries(ratesM15, true);
+               int copied = CopyRates(sym, PERIOD_M15, 1, trailBarsM15, ratesM15);
+               if(copied >= trailBarsM15)
                {
-                  if(ratesM15[k].high > maxHigh) maxHigh = ratesM15[k].high;
-               }
-               double structSl = NormalizeDouble(maxHigh + buffer, digits);
-               // Si la estructura permite asegurar beneficio y es mas favorable que el SL actual
-               if(structSl < openPrice && (curSl == 0.0 || structSl < curSl) && (openPrice - structSl) >= minSecuredGain)
-               {
-                  PrintFormat("[EA MT5] [TRAILING M15] SELL #%I64u: Nuevo SL Estructural @ %.5f (Max M15: %.5f + Buffer: %.5f). Ganancia bloqueada: +%.5f", 
-                              ticket, structSl, maxHigh, buffer, (openPrice - structSl));
-                  if(ExtTrade.PositionModify(ticket, structSl, curTp))
+                  double maxHigh = ratesM15[0].high;
+                  for(int k = 1; k < copied; k++)
                   {
-                     ExtLastActionMsg = StringFormat("SELL #%I64u Trailing M15 activo @ %.5f (+%.5f garantizados)", ticket, structSl, (openPrice - structSl));
+                     if(ratesM15[k].high > maxHigh) maxHigh = ratesM15[k].high;
+                  }
+                  double buffer = MathMax(5.0 * pt, initialRiskDist * 0.10);
+                  double structSl = maxHigh + buffer;
+                  if(structSl < (openPrice - beOffset) && (targetSl == 0.0 || structSl < targetSl) && structSl >= (tick.ask + minSafeDist))
+                  {
+                     targetSl = structSl;
+                     stepTag = StringFormat("Trailing Estructural M15 (%d velas)", trailBarsM15);
                   }
                }
             }
-            else if(pType == POSITION_TYPE_BUY && (tick.bid - openPrice) >= doubleRDist)
+
+            targetSl = NormalizeDouble(targetSl, digits);
+            if(targetSl > 0.0 && (curSl == 0.0 || targetSl < (curSl - (2.0 * pt))) && targetSl >= (tick.ask + minSafeDist))
             {
-               // Buscar el minimo de las ultimas 4 velas M15 cerradas (soporte)
-               double minLow = ratesM15[0].low;
-               for(int k = 1; k < copied; k++)
+               PrintFormat("[EA MT5] [ESCALERA SL] SELL #%I64u (%s) -> %s | Nuevo SL: %.*f (Anterior: %.*f)",
+                           ticket, sym, stepTag, digits, targetSl, digits, curSl);
+               if(ExtTrade.PositionModify(ticket, targetSl, curTp))
                {
-                  if(ratesM15[k].low < minLow) minLow = ratesM15[k].low;
-               }
-               double structSl = NormalizeDouble(minLow - buffer, digits);
-               if(structSl > openPrice && (curSl == 0.0 || structSl > curSl) && (structSl - openPrice) >= minSecuredGain)
-               {
-                  PrintFormat("[EA MT5] [TRAILING M15] BUY #%I64u: Nuevo SL Estructural @ %.5f (Min M15: %.5f - Buffer: %.5f). Ganancia bloqueada: +%.5f", 
-                              ticket, structSl, minLow, buffer, (structSl - openPrice));
-                  if(ExtTrade.PositionModify(ticket, structSl, curTp))
-                  {
-                     ExtLastActionMsg = StringFormat("BUY #%I64u Trailing M15 activo @ %.5f (+%.5f garantizados)", ticket, structSl, (structSl - openPrice));
-                  }
+                  ExtLastActionMsg = StringFormat("SELL #%I64u %s @ %.*f", ticket, stepTag, digits, targetSl);
                }
             }
          }
@@ -836,6 +972,7 @@ void OnTimer()
 //+------------------------------------------------------------------+
 void OnTick()
 {
-   // El sondeo principal se ejecuta en OnTimer para no sobrecargar el servidor
+   // Evaluar en cada tick la escalera de Break-Even+ y Candados de Ganancia
+   CheckAutonomousStructuralTrailing();
 }
 //+------------------------------------------------------------------+

@@ -701,16 +701,25 @@ class TradingDatabase:
                 (round(new_sl, 5), is_break_even, merged_notes, trade_id),
             )
 
-            # Encolar modificación de Stop Loss (Break-Even) para EA Webhook MT5
+            # Encolar modificación de Stop Loss (Break-Even / Escalera de Candados) para EA Webhook MT5
             if is_break_even:
-                sym_mt5 = "XAUUSD" if "GC" in trade["symbol"].upper() else trade["symbol"]
+                raw_sym = trade["symbol"].upper()
+                if "GC" in raw_sym or "XAU" in raw_sym:
+                    sym_mt5 = "XAUUSD"
+                elif "EUR" in raw_sym:
+                    sym_mt5 = "EURUSD"
+                elif "ES" in raw_sym or "500" in raw_sym:
+                    sym_mt5 = "US500"
+                else:
+                    sym_mt5 = trade["symbol"]
+                action_comment = (notes[:60] if notes else "Break-Even 1R")
                 cursor.execute(
                     """
                     INSERT INTO webhook_actions (
                         action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
-                    ) VALUES ('MODIFY_SL', ?, ?, 0.0, 0.0, ?, 0.0, 505001, 'Break-Even 1R', 'PENDING', ?)
+                    ) VALUES ('MODIFY_SL', ?, ?, 0.0, 0.0, ?, 0.0, 505001, ?, 'PENDING', ?)
                     """,
-                    (trade_id, sym_mt5, round(new_sl, 5), datetime.now(timezone.utc).isoformat()),
+                    (trade_id, sym_mt5, round(new_sl, 5), action_comment, datetime.now(timezone.utc).isoformat()),
                 )
 
             conn.commit()

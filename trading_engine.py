@@ -929,35 +929,87 @@ class AutomatedTradingEngine:
             lots = float(tr["lots"])
             is_be = int(tr.get("is_break_even", 0))
 
-            # A. Verificación de Break-Even (+1R en beneficio)
-            initial_risk_dist = abs(entry - sl)
-            if initial_risk_dist > 1e-8 and not is_be:
+            # A. Escalera Institucional Personalizada por Activo (Break-Even+ y Candados de Ganancia)
+            rr_target = float(tr.get("rr_ratio", 2.0) or 2.0)
+            if abs(tp - entry) > 1e-8 and rr_target > 0:
+                initial_risk_dist = abs(tp - entry) / rr_target
+            else:
+                initial_risk_dist = abs(entry - sl)
+
+            if initial_risk_dist > 1e-8:
+                sym_upper = str(tr["symbol"]).upper()
+                is_gold = ("GC" in sym_upper or "XAU" in sym_upper or "GOLD" in sym_upper)
+                is_forex = (not is_gold and ("EUR" in sym_upper or "=X" in sym_upper or entry < 10.0))
+
+                if is_gold:
+                    # XAUUSD (Oro): BE+ ($0.80) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R
+                    be_trigger_r = 1.00
+                    be_offset = min(0.80, initial_risk_dist * 0.15)
+                    lock1_trigger_r, lock1_gain_r = 1.40, 0.60
+                    lock2_trigger_r, lock2_gain_r = 1.75, 1.10
+                    decimals = 4
+                elif is_forex:
+                    # EURUSD (Forex): BE+ (1.5 pips) a +0.75R | Candado 1 (+0.50R) a +1.20R | Candado 2 (+1.00R) a +1.60R
+                    be_trigger_r = 0.75
+                    be_offset = min(0.00015, initial_risk_dist * 0.15)
+                    lock1_trigger_r, lock1_gain_r = 1.20, 0.50
+                    lock2_trigger_r, lock2_gain_r = 1.60, 1.00
+                    decimals = 5
+                else:
+                    # S&P 500 (ES=F / US500): BE+ (1.0 pt) a +1.00R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R
+                    be_trigger_r = 1.00
+                    be_offset = min(1.00, initial_risk_dist * 0.15)
+                    lock1_trigger_r, lock1_gain_r = 1.35, 0.60
+                    lock2_trigger_r, lock2_gain_r = 1.70, 1.15
+                    decimals = 2
+
                 gain = (mark - entry) if side == "BUY" else (entry - mark)
-                # Si el precio avanzó al menos 1.0R
-                if gain >= initial_risk_dist:
-                    new_sl = round(entry, 5)
-                    updated = self.db.update_trade_sl(
-                        trade_id=int(tr["id"]),
-                        new_sl=new_sl,
-                        notes="BREAK_EVEN_1R_ACTIVADO",
-                        is_break_even=1,
+                current_r = gain / initial_risk_dist
+
+                target_sl = None
+                step_note = ""
+                if current_r >= lock2_trigger_r:
+                    off = initial_risk_dist * lock2_gain_r
+                    target_sl = round(entry + off if side == "BUY" else entry - off, decimals)
+                    step_note = f"CANDADO_NIVEL_3 (+{lock2_gain_r:.2f}R asegurado)"
+                elif current_r >= lock1_trigger_r:
+                    off = initial_risk_dist * lock1_gain_r
+                    target_sl = round(entry + off if side == "BUY" else entry - off, decimals)
+                    step_note = f"CANDADO_NIVEL_2 (+{lock1_gain_r:.2f}R asegurado)"
+                elif current_r >= be_trigger_r:
+                    target_sl = round(entry + be_offset if side == "BUY" else entry - be_offset, decimals)
+                    step_note = "BREAK_EVEN_1R_ACTIVADO"
+
+                min_step = 1e-5 if decimals == 5 else 0.01
+                if target_sl is not None:
+                    is_better = (
+                        (side == "BUY" and target_sl > (sl + min_step) and target_sl < mark)
+                        or (side == "SELL" and target_sl < (sl - min_step) and target_sl > mark)
                     )
-                    if updated:
-                        tr["stop_loss"] = new_sl
-                        tr["is_break_even"] = 1
-                        sl = new_sl
-                        self.db.log_event(
-                            "BREAK_EVEN_1R",
-                            rule_state.phase,
-                            f"Trade #{tr['id']} ({tr['symbol']} {side}): Blindado con Break-Even @ {new_sl} (+1R alcanzado). Riesgo actual: $0.00",
-                        )
-                        self.notifier.notify_break_even(
+                    if is_better:
+                        updated = self.db.update_trade_sl(
                             trade_id=int(tr["id"]),
-                            symbol=tr["symbol"],
-                            side=side,
-                            entry_price=entry,
-                            new_sl=new_sl,
+                            new_sl=target_sl,
+                            notes=step_note,
+                            is_break_even=1,
                         )
+                        if updated:
+                            tr["stop_loss"] = target_sl
+                            tr["is_break_even"] = 1
+                            sl = target_sl
+                            is_be = 1
+                            self.db.log_event(
+                                "BREAK_EVEN_1R",
+                                rule_state.phase,
+                                f"Trade #{tr['id']} ({tr['symbol']} {side}): Blindado con {step_note} @ {target_sl} (+{current_r:.2f}R alcanzado). Riesgo actual: $0.00",
+                            )
+                            self.notifier.notify_break_even(
+                                trade_id=int(tr["id"]),
+                                symbol=tr["symbol"],
+                                side=side,
+                                entry_price=entry,
+                                new_sl=target_sl,
+                            )
 
             # B. Verificar impacto de Stop Loss o Take Profit
             hit_sl = (side == "BUY" and mark <= sl) or (side == "SELL" and mark >= sl)
