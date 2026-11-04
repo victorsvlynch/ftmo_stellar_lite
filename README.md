@@ -720,13 +720,31 @@ flowchart TD
 
 1. **Capa 1 — Autonomía Interna del EA dentro de MetaTrader 5 (Sin VPS y sin Python):**
    - Si tienes operaciones abiertas en MetaTrader 5 y en ese instante se corta el VPS o el túnel SSH, **tus operaciones NO quedan desprotegidas**.
-   - El archivo compilado [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) ejecuta internamente en cada tick la función `CheckAutonomousStructuralTrailing()`, gestionando de forma 100% autónoma los **Niveles 1 (`BE+`), Nivel 2, Nivel 3, Nivel 4 (`Trailing M15`), el Detector Anti-Estancamiento y el Escudo Pre-Rollover** para `XAUUSD`, `EURUSD` y `AUDUSD`.
+   - El archivo compilado [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) ejecuta internamente en cada tick la función `CheckAutonomousStructuralTrailing()`, gestionando de forma 100% autónoma los **Niveles 1 (`BE+`), Nivel 2, Nivel 3, Nivel 4 (`Trailing M15`), el Detector Anti-Estancamiento y el Escudo Pre-Rollover** para `XAUUSD`, `EURUSD` y `USDJPY` (más `AUDUSD` y `US500` en Standby).
 2. **Capa 2 — Modo Contingencia 100% Local en 1 Clic ([`Ejecutar_Modo_Local_Sin_VPS.bat`](Ejecutar_Modo_Local_Sin_VPS.bat)):**
    - Todo el motor que corre en el VPS está replicado idénticamente en tu carpeta local. Con un doble clic en [`Ejecutar_Modo_Local_Sin_VPS.bat`](Ejecutar_Modo_Local_Sin_VPS.bat), tu propia PC asume el rol del servidor en `127.0.0.1:8000` sin tocar nada en MetaTrader 5.
 3. **Capa 3 — Respaldo Versionado en GitHub (`https://github.com/victorsvlynch/ftmo_stellar_lite.git`):**
    - Todo el código fuente, el EA compilado (`.mq5` y `.ex5`), los perfiles (`profiles.json`) y el aprovisionador `setup_oracle.sh` están respaldados en la nube de GitHub.
 4. **Capa 4 — Paquete Portable Offline Todo-en-Uno ([`PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip`](PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip)):**
    - Incluye el código Python, bases de datos SQLite, configuraciones/plantillas de MT5, llaves SSH y el instalador [`INSTALAR_EN_NUEVA_PC.bat`](INSTALAR_EN_NUEVA_PC.bat).
+
+---
+
+#### 🔒 Blindaje Anti-Desconexión 24/7: Watchdog HTTP Activo (15s), Caducidad TTL (180s) y Regla 1-Disparo ORB
+
+Para blindar la cuenta ante micro-cortes de internet, cambios de IP del router o túneles SSH congelados (*zombies*), el sistema incorpora tres candados automáticos:
+
+1. **Guardián Activo `24/7` del Túnel SSH ([`watchdog_tunel_mt5.ps1`](watchdog_tunel_mt5.ps1) integrado en [`Conectar_Puente_Webhook_MT5.bat`](Conectar_Puente_Webhook_MT5.bat)):**
+   - En lugar de solo verificar si existe el proceso `ssh.exe` en Windows, realiza una **petición HTTP real cada 15 segundos** a `http://127.0.0.1:8000/api/health` esperando `HTTP 200 OK` (`ONLINE`).
+   - **Cobertura contra los 4 tipos de desconexión:**
+     * *Cierre de `ssh.exe`:* Levanta automáticamente un nuevo túnel en segundos.
+     * *Túnel "Zombie" o Congelado (micro-corte de router/Wi-Fi):* Al fallar 2 sondeos seguidos (`30s`), mata forzosamente el `ssh.exe` congelado (`Stop-Process -Force`), libera el puerto `8000` y reconstruye el túnel limpio.
+     * *Caída del receptor en Linux:* Envía `sudo systemctl start stellar_webhook` al VPS antes de reconectar.
+     * *Corte prolongado de Internet:* Reintenta cada 15 segundos indefinidamente hasta que vuelva la red, dejando bitácora en `watchdog_tunel.log`.
+2. **Caducidad Automática Anti-Ráfaga (`ACTION_TTL_SECONDS = 180s` en [`webhook_server.py`](webhook_server.py)):**
+   - Si el túnel o MetaTrader 5 estuvo desconectado más de **3 minutos (180 segundos)**, toda orden acumulada en estado `PENDING` expira automáticamente (`status = 'EXPIRED_STALE'` / `EXPIRED_OFFLINE`). **Jamás se ejecutarán órdenes atrasadas de golpe al reconectar el puente.**
+3. **Regla Institucional Anti-Persecución (`1 Disparo por Vela ORB` en [`trading_engine.py`](trading_engine.py)):**
+   - Una vez que un activo (`XAUUSD`, `EURUSD` o `USDJPY`) ejecuta su operación sobre una vela ORB específica (`03:00 EST` en Londres o `08:30 EST` en Nueva York), el motor bloquea re-entradas repetitivas sobre esa misma vela ORB tras cerrarse.
 
 ---
 
