@@ -162,12 +162,14 @@ Tras auditar y simular múltiples configuraciones bajo fricción institucional r
 
 Todos los activos tradicionales operan de **Lunes a Viernes**. Como la referencia horaria del bot es **Hora de Nueva York (EST)**, los horarios en huso horario **UTC-5** (Colombia, Perú, Ecuador, CDMX) coinciden exactamente con la hora de Wall Street:
 
-| Activo | Días Operativos | Sesión Clave | Vela de Rango (ORB 15m) | Ventana Operativa Activa (Hora Local UTC-5 / EST) | Hora Servidor VPS (UTC) |
-| :--- | :---: | :--- | :---: | :---: | :---: |
-| **Oro** (`XAUUSD` / `GC=F`) | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30** | 13:45 – 16:30 UTC |
-| **S&P 500** (`US500` / `ES=F`) | **Lunes a Viernes** | **Wall Street Cash Open** | 09:30 – 09:45 | **09:45 – 11:30** | 14:45 – 16:30 UTC |
-| **EUR/USD** (`EURUSD`) *(Ventana 1)* | **Lunes a Viernes** | **Apertura Londres** | 03:00 – 03:15 | **03:15 – 06:00** | 08:15 – 11:00 UTC |
-| **EUR/USD** (`EURUSD`) *(Ventana 2)* | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30** | 13:45 – 16:30 UTC |
+| Estado | Activo | Días Operativos | Sesión Clave | Vela de Rango (ORB 15m) | Ventana Operativa Activa (Hora Lima Perú / EST UTC-5) | Hora Servidor VPS (UTC) |
+| :---: | :--- | :---: | :--- | :---: | :---: | :---: |
+| 🟢 **ACTIVO** | **Oro** (`XAUUSD` / `GC=F`) | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
+| 🟢 **ACTIVO** | **EUR/USD** (`EURUSD`) *(Ventana 1)* | **Lunes a Viernes** | **Apertura Londres** | 03:00 – 03:15 | **03:15 – 06:00 a.m.** | 08:15 – 11:00 UTC |
+| 🟢 **ACTIVO** | **EUR/USD** (`EURUSD`) *(Ventana 2)* | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
+| 🟢 **ACTIVO** | **AUD/USD** (`AUDUSD`) *(Ventana 1)* | **Lunes a Viernes** | **Apertura Londres** | 03:00 – 03:15 | **03:15 – 06:00 a.m.** | 08:15 – 11:00 UTC |
+| 🟢 **ACTIVO** | **AUD/USD** (`AUDUSD`) *(Ventana 2)* | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
+| ⏸️ **STANDBY** | **S&P 500** (`US500` / `ES=F`) | *Guardado sin borrar* | **Wall Street Cash Open** | 09:30 – 09:45 | **09:45 – 11:30 a.m.** *(Al reactivar)* | 14:45 – 16:30 UTC |
 
 #### Reglas de Apertura, Cierre y Protección de Fin de Semana:
 1. **Apertura Semanal de Mercados:** Domingo a las 17:00 / 18:00 EST. El bot permanece en espera y **no abre operaciones el domingo** debido al spread ensanchado interbancario; espera a la sesión de Londres del lunes a las 03:00 EST.
@@ -713,27 +715,39 @@ flowchart TD
 
 ---
 
-#### 🚀 VÍA 1: Contingencia Inmediata 100% Local en Windows (Sin Servidor VPS - En 10 Segundos)
+#### 🛡️ Las 4 Capas de Respaldo e Independencia Total (Si el VPS deja de funcionar)
 
-Si el VPS se interrumpe **durante la sesión operativa de Nueva York** y necesitas que el bot continúe monitoreando y protegiendo tus órdenes abiertas de inmediato:
+1. **Capa 1 — Autonomía Interna del EA dentro de MetaTrader 5 (Sin VPS y sin Python):**
+   - Si tienes operaciones abiertas en MetaTrader 5 y en ese instante se corta el VPS o el túnel SSH, **tus operaciones NO quedan desprotegidas**.
+   - El archivo compilado [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) ejecuta internamente en cada tick la función `CheckAutonomousStructuralTrailing()`, gestionando de forma 100% autónoma los **Niveles 1 (`BE+`), Nivel 2, Nivel 3, Nivel 4 (`Trailing M15`), el Detector Anti-Estancamiento y el Escudo Pre-Rollover** para `XAUUSD`, `EURUSD` y `AUDUSD`.
+2. **Capa 2 — Modo Contingencia 100% Local en 1 Clic ([`Ejecutar_Modo_Local_Sin_VPS.bat`](Ejecutar_Modo_Local_Sin_VPS.bat)):**
+   - Todo el motor que corre en el VPS está replicado idénticamente en tu carpeta local. Con un doble clic en [`Ejecutar_Modo_Local_Sin_VPS.bat`](Ejecutar_Modo_Local_Sin_VPS.bat), tu propia PC asume el rol del servidor en `127.0.0.1:8000` sin tocar nada en MetaTrader 5.
+3. **Capa 3 — Respaldo Versionado en GitHub (`https://github.com/victorsvlynch/ftmo_stellar_lite.git`):**
+   - Todo el código fuente, el EA compilado (`.mq5` y `.ex5`), los perfiles (`profiles.json`) y el aprovisionador `setup_oracle.sh` están respaldados en la nube de GitHub.
+4. **Capa 4 — Paquete Portable Offline Todo-en-Uno ([`PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip`](PACK_PORTABILIDAD_FTMO_STELLAR_LITE.zip)):**
+   - Incluye el código Python, bases de datos SQLite, configuraciones/plantillas de MT5, llaves SSH y el instalador [`INSTALAR_EN_NUEVA_PC.bat`](INSTALAR_EN_NUEVA_PC.bat).
 
-1. **Abrir una consola de PowerShell / CMD en Windows:**
-   ```powershell
-   cd L:\Python\FTMO_Stellar_Lite
-   python webhook_server.py
-   ```
-   *(Esto levantará el servidor HTTP local de señales en el puerto `8000`).*
+---
 
-2. **Abrir una segunda consola de PowerShell / CMD:**
-   ```powershell
-   cd L:\Python\FTMO_Stellar_Lite
-   python main.py run
-   ```
-   *(Esto inicia el motor cuantitativo localmente, evaluando estrategias, cálculo de riesgo y enviando señales).*
+#### 🚀 VÍA 1: Contingencia Inmediata 100% Local en 1 Clic (`Ejecutar_Modo_Local_Sin_VPS.bat`)
 
-3. **Verificación en MetaTrader 5:**
-   - Como el Asesor Experto [`StellarLite_Webhook_Bridge.mq5`](StellarLite_Webhook_Bridge.mq5) consulta por defecto a `http://127.0.0.1:8000`, detectará el servidor local automáticamente.
-   - El indicador en el gráfico de MT5 cambiará de inmediato a `Estado Conexion: CONECTADO A LOCAL (ONLINE)` sin requerir túnel SSH.
+Si el VPS se interrumpe **durante la sesión operativa** y deseas que tu PC Windows ejecute todo el sistema de forma autónoma:
+
+1. **Ejecución en 1 Clic (Recomendado):**
+   - Haz doble clic sobre **[`Ejecutar_Modo_Local_Sin_VPS.bat`](Ejecutar_Modo_Local_Sin_VPS.bat)**.
+   - El script realiza automáticamente 3 pasos:
+     1. Cierra cualquier túnel SSH previo colgado en el puerto `8000` (protección anti-duplicidad de órdenes).
+     2. Inicia `webhook_server.py 8000` localmente en `http://127.0.0.1:8000`.
+     3. Inicia el motor del portafolio oficial: `python main.py run --symbol GC=F,EURUSD=X,AUDUSD=X --provider mt5 --risk 0.005 --personal-cap 0.02 --session PORTFOLIO_DUAL --db trading_ny_open.db --interval 60`.
+2. **Verificación en MetaTrader 5:**
+   - Como el EA [`StellarLite_Webhook_Bridge.mq5`](StellarLite_Webhook_Bridge.mq5) apunta a `http://127.0.0.1:8000`, se conecta automáticamente al servidor local sin cambiar un solo parámetro en MT5.
+
+> [!NOTE]
+> **Cumplimiento Normativo 100% con `stellar_10k_demo` (FundedNext Stellar Lite):**  
+> Operar con [`Ejecutar_Modo_Local_Sin_VPS.bat`](Ejecutar_Modo_Local_Sin_VPS.bat) **está 100% permitido y no infringe ninguna regla de FundedNext**:
+> * **Misma IP y mismo ejecutor ante el broker:** Tanto con VPS como en modo local, quien envía las órdenes al servidor de FundedNext es siempre tu terminal MetaTrader 5 en tu PC (con tu propia IP residencial/oficina y `Magic Number 505001`). FundedNext nunca ve al VPS ni a Python.
+> * **Mismos candados institucionales:** Respeta exactamente el riesgo de `0.50% ($50 USD)` por trade, `Max Open Risk 3% ($300 USD)`, Freno Personal Diario (`-2%`), Piso Diario (`-4%`), Max Drawdown Estático (`-8%`), Filtro de Noticias (`Cap 40%`) y Cierre Forzoso de Viernes (`15:30 EST`).
+> * **Lectura nativa de velas MT5:** Al correr en Windows con `--provider mt5`, lee las velas M15 y H1 directamente desde la memoria de MetaTrader 5 con `0 ms` de latencia.
 
 ---
 
@@ -825,10 +839,11 @@ El sistema incorpora tres herramientas directas de auditoría financiera para in
   2. **El registro algorítmico en la nube (`trading_ny_open.db`):** Criterio de entrada ORB, Stop Loss, Take Profit y justificación técnica.
 
 #### 2. Auditoría Sandbox ([`Ver_Detalle_Operaciones_SANDBOX.bat`](Ver_Detalle_Operaciones_SANDBOX.bat)):
-- Haz doble clic en [`Ver_Detalle_Operaciones_SANDBOX.bat`](Ver_Detalle_Operaciones_SANDBOX.bat) para inspeccionar el estado de las 3 cuentas virtuales independientes de $10,000 USD c/u en Oracle Cloud:
-  - **Oro Test (`trading_test_oro.db`):** Balance, equidad y operaciones.
-  - **EUR/USD Test (`trading_test_eurusd.db`):** Balance, equidad y operaciones.
-  - **S&P 500 Test (`trading_test_sp500.db`):** Balance, equidad y operaciones.
+- Haz doble clic en [`Ver_Detalle_Operaciones_SANDBOX.bat`](Ver_Detalle_Operaciones_SANDBOX.bat) para inspeccionar el estado de las cuentas virtuales independientes de $10,000 USD c/u en Oracle Cloud:
+  - **Oro Test (`trading_test_oro.db` / `stellar_test_oro.service`):** Activa 24/7 con feed real de MT5.
+  - **EUR/USD Test (`trading_test_eurusd.db` / `stellar_test_eurusd.service`):** Activa 24/7 con feed real de MT5.
+  - **AUD/USD Test (`trading_test_audusd.db` / `stellar_test_audusd.service`):** Activa 24/7 con feed real de MT5.
+  - **S&P 500 Test (`trading_test_sp500.db` / `stellar_test_sp500.service`):** Conservada en *Standby* (sin borrar historial ni configuración).
 
 #### 3. Panel Interactivo Sandbox ([`Ver_Operaciones_Sandbox.bat`](Ver_Operaciones_Sandbox.bat)):
 - Menú de 7 opciones para ver reportes estáticos, streaming de logs en tiempo real vía `journalctl` o iniciar el tablero detallado en vivo.
@@ -880,8 +895,14 @@ flowchart TD
 
    - Al activarse el Nivel 1 (BE+), el riesgo monetario de la posición pasa a **.00**, liberando automáticamente capacidad bajo la regla del **3% de Exposición Máxima** de FundedNext (Max Risk 3% At Any Time).
 
-2. **Blindaje Nivel 4: Trailing Stop Estructural M15 en Recta Final (>= +1.70R / +1.75R):**
-   - En el tramo final hacia el Take Profit (+2.00R), el EA inspecciona las últimas velas cerradas de 15 minutos (PERIOD_M15) y ajusta el Stop Loss detrás del último Swing High (en ventas) o Swing Low (en compras) más un buffer de volatilidad del 10% de 1R siempre que mejore el candado vigente.
+2. **Blindaje Nivel 4 con Memoria Persistente, Detector Anti-Estancamiento (*Stagnation Squeeze*) y Escudo Pre-Rollover:**
+   - **Memoria Persistente de Nivel 4:** Una vez que la posición alcanza el Nivel 3 (SL asegurando `>= +1.10R`), el Trailing Estructural M15 queda **enganchado permanentemente** en cada cierre de vela M15 aunque el precio retroceda ligeramente a `+1.50R - +1.70R`.
+   - **Detector de Precio Estático (*Stagnation Squeeze* Especializado por Activo):**
+     * **`XAUUSD` (Oro):** En tendencia activa usa **3 velas M15 + buffer `0.10R`**, pero si las últimas 3 velas M15 se comprimen en un rango estrecho **`<= 0.35R`**, comprime automáticamente a **1 sola vela M15 cerrada + `$0.80` de buffer**.
+     * **`EURUSD` (Euro):** En tendencia activa usa **3 velas M15 + buffer `0.10R`**, pero si forma una bandera horizontal **`<= 0.30R`** en 3 velas M15, comprime a **1 sola vela M15 cerrada + `1.2 pips` de buffer**.
+     * **`AUDUSD` (Dólar Australiano):** Por su menor rango diario (*ADR*) y swings más limpios, activa Nivel 2 en `+1.30R` (`+0.55R`), Nivel 3 en `+1.65R` (`+1.10R`), usa **2 velas M15 + buffer `0.08R`** en tendencia normal y comprime a **1 sola vela M15 + `1.2 pips`** si se estanca en **`<= 0.28R`**.
+   - **Escudo Pre-Rollover Bancario (16:30 – 16:59 EST / 03:30 – 03:59 p.m. Hora Perú):**
+     * Diez a treinta minutos antes del cierre diario por Rollover (17:00 EST, donde el Oro se congela 1 hora y los spreads bancarios de Forex se ensanchan), toda posición en Nivel 3 ajusta su candado a **`+1.35R` (`XAUUSD`) / `+1.30R` (`EURUSD` y `AUDUSD`)** y ciñe el Trailing a **1 sola vela M15 cerrada**.
 
 3. **Cálculo de Distancias Relativas Broker-Agnostic:**
    - El bot en la nube analiza cotizaciones globales (Yahoo Finance `GC=F`) mientras que MetaTrader 5 ejecuta contra el servidor del broker (`XAUUSD`). Debido a diferencias de spreads y proveedores, las cotizaciones absolutas pueden variar en decenas o cientos de puntos.
@@ -936,6 +957,7 @@ Si deseas tener ambas computadoras encendidas al mismo tiempo:
 FTMO_Stellar_Lite/
 ├── Administrar_Perfiles.bat         # Administrador interactivo 1-Clic de perfiles de trading (10K Demo y 6K Trial)
 ├── Control_Total_Bot.bat            # Menú maestro de control con 14 opciones integradas y conmutador [P]
+├── Ejecutar_Modo_Local_Sin_VPS.bat  # Contingencia 1-Clic para operar 100% en la PC local sin requerir VPS
 ├── profiles.py                      # Gestor central de perfiles institucionales de trading
 ├── profiles.json                    # Repositorio JSON de perfiles y selección de perfil activo
 ├── exportar_todo.bat                # Empaquetador portable de 1-Clic para migrar a otra PC
