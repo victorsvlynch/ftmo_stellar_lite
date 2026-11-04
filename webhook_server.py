@@ -212,7 +212,17 @@ def update_live_ticks_from_query(qs: Dict[str, Any], now_utc: Optional[datetime]
         symbols_data["EURUSD"] = eur_item
         symbols_data["EURUSD=X"] = eur_item
 
-    # AUD/USD
+    # USD/JPY (Activo oficial #3 del portafolio NY Open)
+    jpy_bid = _parse_val("jpy_bid")
+    jpy_ask = _parse_val("jpy_ask")
+    if jpy_bid > 0 and jpy_ask > 0:
+        sp = round(jpy_ask - jpy_bid, 3)
+        mid = round((jpy_bid + jpy_ask) / 2.0, 3)
+        jpy_item = {"symbol": "USDJPY", "bid": jpy_bid, "ask": jpy_ask, "mid": mid, "spread": sp, "updated_at": now_iso}
+        symbols_data["USDJPY"] = jpy_item
+        symbols_data["USDJPY=X"] = jpy_item
+
+    # AUD/USD (Guardado en Standby)
     aud_bid = _parse_val("aud_bid")
     aud_ask = _parse_val("aud_ask")
     if aud_bid > 0 and aud_ask > 0:
@@ -305,7 +315,7 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
         now_str = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
 
         # Ingestar feed de ticks en tiempo real desde el EA de MT5
-        if "feed" in qs or "xau_bid" in qs or "eur_bid" in qs or "aud_bid" in qs or "sp_bid" in qs:
+        if "feed" in qs or "xau_bid" in qs or "eur_bid" in qs or "jpy_bid" in qs or "aud_bid" in qs or "sp_bid" in qs:
             update_live_ticks_from_query(qs, now_utc)
 
         # 0. Feed de Mercado en Tiempo Real para Sandbox y Motores de Trading

@@ -167,8 +167,9 @@ Todos los activos tradicionales operan de **Lunes a Viernes**. Como la referenci
 | 🟢 **ACTIVO** | **Oro** (`XAUUSD` / `GC=F`) | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
 | 🟢 **ACTIVO** | **EUR/USD** (`EURUSD`) *(Ventana 1)* | **Lunes a Viernes** | **Apertura Londres** | 03:00 – 03:15 | **03:15 – 06:00 a.m.** | 08:15 – 11:00 UTC |
 | 🟢 **ACTIVO** | **EUR/USD** (`EURUSD`) *(Ventana 2)* | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
-| 🟢 **ACTIVO** | **AUD/USD** (`AUDUSD`) *(Ventana 1)* | **Lunes a Viernes** | **Apertura Londres** | 03:00 – 03:15 | **03:15 – 06:00 a.m.** | 08:15 – 11:00 UTC |
-| 🟢 **ACTIVO** | **AUD/USD** (`AUDUSD`) *(Ventana 2)* | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
+| 🟢 **ACTIVO** | **USD/JPY** (`USDJPY`) *(Ventana 1)* | **Lunes a Viernes** | **Apertura Londres** | 03:00 – 03:15 | **03:15 – 06:00 a.m.** | 08:15 – 11:00 UTC |
+| 🟢 **ACTIVO** | **USD/JPY** (`USDJPY`) *(Ventana 2)* | **Lunes a Viernes** | **Apertura NY / Bonos US10Y** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
+| ⏸️ **STANDBY** | **AUD/USD** (`AUDUSD`) | *Guardado sin borrar* | **Londres & Nueva York** | 03:00 / 08:30 | **03:15–06:00 & 08:45–11:30 a.m.** *(Standby)* | 08:15 / 13:45 UTC |
 | ⏸️ **STANDBY** | **S&P 500** (`US500` / `ES=F`) | *Guardado sin borrar* | **Wall Street Cash Open** | 09:30 – 09:45 | **09:45 – 11:30 a.m.** *(Al reactivar)* | 14:45 – 16:30 UTC |
 
 #### Reglas de Apertura, Cierre y Protección de Fin de Semana:
@@ -738,7 +739,7 @@ Si el VPS se interrumpe **durante la sesión operativa** y deseas que tu PC Wind
    - El script realiza automáticamente 3 pasos:
      1. Cierra cualquier túnel SSH previo colgado en el puerto `8000` (protección anti-duplicidad de órdenes).
      2. Inicia `webhook_server.py 8000` localmente en `http://127.0.0.1:8000`.
-     3. Inicia el motor del portafolio oficial: `python main.py run --symbol GC=F,EURUSD=X,AUDUSD=X --provider mt5 --risk 0.005 --personal-cap 0.02 --session PORTFOLIO_DUAL --db trading_ny_open.db --interval 60`.
+     3. Inicia el motor del portafolio oficial: `python main.py run --symbol GC=F,EURUSD=X,USDJPY=X --provider mt5 --risk 0.005 --personal-cap 0.02 --session PORTFOLIO_DUAL --db trading_ny_open.db --interval 60`.
 2. **Verificación en MetaTrader 5:**
    - Como el EA [`StellarLite_Webhook_Bridge.mq5`](StellarLite_Webhook_Bridge.mq5) apunta a `http://127.0.0.1:8000`, se conecta automáticamente al servidor local sin cambiar un solo parámetro en MT5.
 
@@ -842,7 +843,8 @@ El sistema incorpora tres herramientas directas de auditoría financiera para in
 - Haz doble clic en [`Ver_Detalle_Operaciones_SANDBOX.bat`](Ver_Detalle_Operaciones_SANDBOX.bat) para inspeccionar el estado de las cuentas virtuales independientes de $10,000 USD c/u en Oracle Cloud:
   - **Oro Test (`trading_test_oro.db` / `stellar_test_oro.service`):** Activa 24/7 con feed real de MT5.
   - **EUR/USD Test (`trading_test_eurusd.db` / `stellar_test_eurusd.service`):** Activa 24/7 con feed real de MT5.
-  - **AUD/USD Test (`trading_test_audusd.db` / `stellar_test_audusd.service`):** Activa 24/7 con feed real de MT5.
+  - **USD/JPY Test (`trading_test_usdjpy.db` / `stellar_test_usdjpy.service`):** Activa 24/7 con feed real de MT5 (`Eficiencia Tendencial 44.9%`, `ADR ~86.8 pips`).
+  - **AUD/USD Test (`trading_test_audusd.db` / `stellar_test_audusd.service`):** Conservada en *Standby* (sin borrar historial ni configuración).
   - **S&P 500 Test (`trading_test_sp500.db` / `stellar_test_sp500.service`):** Conservada en *Standby* (sin borrar historial ni configuración).
 
 #### 3. Panel Interactivo Sandbox ([`Ver_Operaciones_Sandbox.bat`](Ver_Operaciones_Sandbox.bat)):
@@ -890,7 +892,8 @@ flowchart TD
    | :--- | :---: | :---: | :---: | :---: |
    | **XAUUSD (Oro)** | A **+1.00R** -> SL a Entrada ? $0.80 | A **+1.40R** -> Asegura **+0.60R** | A **+1.75R** -> Asegura **+1.10R** | **3 velas M15** (o **1 vela** si rango <=0.35R / Pre-Rollover +1.35R) |
    | **EURUSD (Forex)** | A **+0.95R** -> SL a Entrada ? 1.5 pips | A **+1.35R** -> Asegura **+0.50R** | A **+1.70R** -> Asegura **+1.10R** | **3 velas M15** (o **1 vela** si rango <=0.30R / Pre-Rollover +1.30R) |
-   | **AUDUSD (Forex)** | A **+0.95R** -> SL a Entrada ? 1.2 pips | A **+1.30R** -> Asegura **+0.55R** | A **+1.65R** -> Asegura **+1.10R** | **2 velas M15** (o **1 vela** si rango <=0.28R / Pre-Rollover +1.30R) |
+   | **USDJPY (Forex #3)** | A **+0.95R** -> SL a Entrada ± 1.5 pips (`0.015`) | A **+1.35R** -> Asegura **+0.55R** | A **+1.70R** -> Asegura **+1.15R** | **2 velas M15 + `0.08R`** (o **1 vela + `1.5p`** si rango <=0.30R / Pre-Rollover +1.35R) |
+   | **AUDUSD (Standby)** | A **+0.95R** -> SL a Entrada ? 1.2 pips | A **+1.30R** -> Asegura **+0.55R** | A **+1.65R** -> Asegura **+1.10R** | **2 velas M15** (o **1 vela** si rango <=0.28R / Pre-Rollover +1.30R) |
    | **S&P 500 (Standby)** | A **+1.00R** -> SL a Entrada ? 1.0 pt | A **+1.35R** -> Asegura **+0.60R** | A **+1.70R** -> Asegura **+1.15R** | **2 velas M15** (o **1 vela** si rango <=0.30R / Pre-Rollover +1.35R) |
 
    - Al activarse el Nivel 1 (BE+), el riesgo monetario de la posición pasa a **.00**, liberando automáticamente capacidad bajo la regla del **3% de Exposición Máxima** de FundedNext (Max Risk 3% At Any Time).
@@ -900,7 +903,8 @@ flowchart TD
    - **Detector de Precio Estático (*Stagnation Squeeze* Especializado por Activo):**
      * **`XAUUSD` (Oro):** En tendencia activa usa **3 velas M15 + buffer `0.10R`**, pero si las últimas 3 velas M15 se comprimen en un rango estrecho **`<= 0.35R`**, comprime automáticamente a **1 sola vela M15 cerrada + `$0.80` de buffer**.
      * **`EURUSD` (Euro):** En tendencia activa usa **3 velas M15 + buffer `0.10R`**, pero si forma una bandera horizontal **`<= 0.30R`** en 3 velas M15, comprime a **1 sola vela M15 cerrada + `1.2 pips` de buffer**.
-     * **`AUDUSD` (Dólar Australiano):** Por su menor rango diario (*ADR*) y swings más limpios, activa Nivel 2 en `+1.30R` (`+0.55R`), Nivel 3 en `+1.65R` (`+1.10R`), usa **2 velas M15 + buffer `0.08R`** en tendencia normal y comprime a **1 sola vela M15 + `1.2 pips`** si se estanca en **`<= 0.28R`**.
+     * **`USDJPY` (Dólar / Yen Japonés — Especialista Bonos US10Y 08:30 EST):** Con un rango diario de **`86.8 pips`** (`40.8 pips` en NY Open), spread de **`0.1 pips`** y la mayor eficiencia direccional en NY Open (**`44.9%`**) más descorrelación frente a `EURUSD` (`-0.63`), activa Nivel 1 (`BE+ 1.5 pips`) en `+0.95R`, Nivel 2 en `+1.35R` (`+0.55R`), Nivel 3 en `+1.70R` (asegurando **`+1.15R`**), usa **2 velas M15 + buffer `0.08R`** en tendencia activa y comprime a **1 sola vela M15 + `1.5 pips`** si se estanca en **`<= 0.30R`**. Además incorpora un **Anclaje Estructural Smart-SL (60% máx. 30 pips)** ante spikes macro de apertura > 35 pips.
+     * **`AUDUSD` (Dólar Australiano — En Standby):** Por su menor rango diario (*ADR*) y swings más limpios, activa Nivel 2 en `+1.30R` (`+0.55R`), Nivel 3 en `+1.65R` (`+1.10R`), usa **2 velas M15 + buffer `0.08R`** en tendencia normal y comprime a **1 sola vela M15 + `1.2 pips`** si se estanca en **`<= 0.28R`**.
    - **Escudo Pre-Rollover Bancario (16:30 – 16:59 EST / 03:30 – 03:59 p.m. Hora Perú):**
      * Diez a treinta minutos antes del cierre diario por Rollover (17:00 EST, donde el Oro se congela 1 hora y los spreads bancarios de Forex se ensanchan), toda posición en Nivel 3 ajusta su candado a **`+1.35R` (`XAUUSD`) / `+1.30R` (`EURUSD` y `AUDUSD`)** y ciñe el Trailing a **1 sola vela M15 cerrada**.
 

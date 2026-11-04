@@ -28,11 +28,15 @@ INSTRUMENT_SPECS: Dict[str, Dict[str, float]] = {
     # Oro XAU/USD: 1 lote estándar = 100 onzas troy, 1 pip/punto = $0.10 o $1.00, Comisión $5/lote round-turn, spread típico $0.25
     "GC=F": {"contract_size": 100.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.25},
     "XAUUSD": {"contract_size": 100.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.25},
-    # Forex Pares Mayores: 1 lote estándar = 100,000 unidades, 1 pip = 0.0001, Comisión $5/lote round-turn, spread típico 0.2 pips
+    # Forex Pares Mayores: 1 lote estándar = 100,000 unidades, Comisión $5/lote round-turn
     "EURUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
     "EURUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
-    "AUDUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
-    "AUDUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
+    # USD/JPY: 1 lote = 100,000 USD base (cotizado en JPY, 1 pip = 0.01 JPY, conversión dinámica 100,000 / precio USDJPY)
+    "USDJPY=X": {"contract_size": 640.0, "base_contract_size": 100000.0, "quote_is_jpy": True, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.002},
+    "USDJPY": {"contract_size": 640.0, "base_contract_size": 100000.0, "quote_is_jpy": True, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.002},
+    # AUD/USD: Guardado en Standby (reemplazado en el portafolio principal por USD/JPY)
+    "AUDUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015, "standby": True},
+    "AUDUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015, "standby": True},
     "GBPUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00020},
     # S&P 500 (Índice USA 500): GUARDADO EN STANDBY (Inactivo en portafolio actual, preservado íntegro para reactivación futura)
     "ES=F": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40, "standby": True},
@@ -148,6 +152,8 @@ class RiskManager:
         # Forex Pares
         if "EUR" in clean_sym:
             return INSTRUMENT_SPECS["EURUSD=X"]
+        if "JPY" in clean_sym:
+            return INSTRUMENT_SPECS["USDJPY=X"]
         if "AUD" in clean_sym:
             return INSTRUMENT_SPECS["AUDUSD=X"]
         if "GBP" in clean_sym:
@@ -198,6 +204,9 @@ class RiskManager:
 
         risk_amount_usd = round(balance * used_risk_pct, 2)
         contract_size = spec["contract_size"]
+        if spec.get("quote_is_jpy") and entry_price > 10.0:
+            # En pares XXX/JPY (ej. USDJPY), 1 lote = 100,000 USD base -> valor en USD por 1.00 JPY de movimiento = 100,000 / entry_price
+            contract_size = round(float(spec.get("base_contract_size", 100000.0)) / float(entry_price), 4)
         pip_size = spec["pip_size"]
         sl_distance_pips = round(sl_distance_price / pip_size, 2)
 

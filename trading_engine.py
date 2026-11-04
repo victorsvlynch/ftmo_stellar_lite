@@ -74,6 +74,8 @@ class MarketDataConnector:
             return "GC=F"
         if clean_upper in ("EURUSD", "EUR/USD"):
             return "EURUSD=X"
+        if clean_upper in ("USDJPY", "USD/JPY"):
+            return "USDJPY=X"
         if clean_upper in ("AUDUSD", "AUD/USD"):
             return "AUDUSD=X"
         if clean_upper in ("GBPUSD", "GBP/USD"):
@@ -92,6 +94,8 @@ class MarketDataConnector:
             return "XAUUSD"
         if "EUR" in clean:
             return "EURUSD"
+        if "JPY" in clean:
+            return "USDJPY"
         if "AUD" in clean:
             return "AUDUSD"
         if any(k in clean for k in ("ES", "500", "SPX")):
@@ -443,6 +447,8 @@ class MarketDataConnector:
             base_price = 20500.0
         elif "EUR" in sym_u:
             base_price = 1.0950
+        elif "JPY" in sym_u:
+            base_price = 156.50
         elif "BTC" in sym_u:
             base_price = 85000.0
         else:
@@ -684,6 +690,12 @@ class OpeningRangeBreakoutStrategy:
 
             stop_loss = orb_low
             sl_dist = current_price - stop_loss
+            # Especialización Institucional USD/JPY (Apertura de Bonos US10Y 08:30 EST):
+            # Si la vela ORB tuvo un spike macro > 35 pips (0.350 JPY), anclar el SL al 60% estructural (máx 30 pips)
+            # para mantener el Take Profit (2.0R <= 60 pips) dentro del rango NY Open promedio (40.8p - 86.8p ADR).
+            if "JPY" in clean_sym and sl_dist > 0.350:
+                sl_dist = round(min(sl_dist * 0.60, 0.300), 3)
+                stop_loss = round(current_price - sl_dist, 3)
             take_profit = round(current_price + (sl_dist * self.rr_ratio), 5)
             ema_tag = f" | Tendencia 1H Confirmada (Cierre > EMA{ema_span})" if ema_200_1h else ""
             return ORBSignal(
@@ -727,6 +739,9 @@ class OpeningRangeBreakoutStrategy:
 
             stop_loss = orb_high
             sl_dist = stop_loss - current_price
+            if "JPY" in clean_sym and sl_dist > 0.350:
+                sl_dist = round(min(sl_dist * 0.60, 0.300), 3)
+                stop_loss = round(current_price + sl_dist, 3)
             take_profit = round(current_price - (sl_dist * self.rr_ratio), 5)
             ema_tag = f" | Tendencia 1H Confirmada (Cierre < EMA{ema_span})" if ema_200_1h else ""
             return ORBSignal(
@@ -943,8 +958,9 @@ class AutomatedTradingEngine:
             if initial_risk_dist > 1e-8:
                 sym_upper = str(tr["symbol"]).upper()
                 is_gold = ("GC" in sym_upper or "XAU" in sym_upper or "GOLD" in sym_upper)
-                is_aud = (not is_gold and "AUD" in sym_upper)
-                is_forex = (not is_gold and not is_aud and (any(k in sym_upper for k in ("EUR", "GBP", "=X")) or entry < 10.0))
+                is_jpy = (not is_gold and "JPY" in sym_upper)
+                is_aud = (not is_gold and not is_jpy and "AUD" in sym_upper)
+                is_forex = (not is_gold and not is_jpy and not is_aud and (any(k in sym_upper for k in ("EUR", "GBP", "=X")) or entry < 10.0))
 
                 if is_gold:
                     # XAUUSD (Oro): BE+ ($0.80) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R | Pre-Rollover (+1.35R)
@@ -954,8 +970,16 @@ class AutomatedTradingEngine:
                     lock2_trigger_r, lock2_gain_r = 1.75, 1.10
                     preroll_gain_r = 1.35
                     decimals = 4
+                elif is_jpy:
+                    # USDJPY (Forex Bonos US/NY - Alta Eficiencia Tendencial 44.9%, ADR ~87p): BE+ (1.5 pips = 0.015) a +0.95R | Candado 1 (+0.55R) a +1.35R | Candado 2 (+1.15R) a +1.70R | Pre-Rollover (+1.35R)
+                    be_trigger_r = 0.95
+                    be_offset = min(0.015, initial_risk_dist * 0.15)
+                    lock1_trigger_r, lock1_gain_r = 1.35, 0.55
+                    lock2_trigger_r, lock2_gain_r = 1.70, 1.15
+                    preroll_gain_r = 1.35
+                    decimals = 3
                 elif is_aud:
-                    # AUDUSD (Forex Pacífico/NY - Menor ADR): BE+ (1.2 pips) a +0.95R | Candado 1 (+0.55R) a +1.30R | Candado 2 (+1.10R) a +1.65R | Pre-Rollover (+1.30R)
+                    # AUDUSD (Guardado en Standby): BE+ (1.2 pips) a +0.95R | Candado 1 (+0.55R) a +1.30R | Candado 2 (+1.10R) a +1.65R | Pre-Rollover (+1.30R)
                     be_trigger_r = 0.95
                     be_offset = min(0.00012, initial_risk_dist * 0.15)
                     lock1_trigger_r, lock1_gain_r = 1.30, 0.55
@@ -1008,7 +1032,7 @@ class AutomatedTradingEngine:
                     target_sl = round(entry + be_offset if side == "BUY" else entry - be_offset, decimals)
                     step_note = "BREAK_EVEN_1R_ACTIVADO"
 
-                min_step = 1e-5 if decimals == 5 else 0.01
+                min_step = 1e-5 if decimals == 5 else (1e-3 if decimals == 3 else 0.01)
                 if target_sl is not None:
                     is_better = (
                         (side == "BUY" and target_sl > (sl + min_step) and target_sl < mark)
@@ -1333,6 +1357,8 @@ class AutomatedTradingEngine:
                     strat_tag = "SP500_ORB_15M"
                 elif any(k in sym_up for k in ("EUR", "EURUSD")):
                     strat_tag = "EURUSD_ORB_15M"
+                elif any(k in sym_up for k in ("JPY", "USDJPY")):
+                    strat_tag = "USDJPY_ORB_15M"
                 elif any(k in sym_up for k in ("AUD", "AUDUSD")):
                     strat_tag = "AUDUSD_ORB_15M"
                 elif any(k in sym_up for k in ("NQ", "100", "NAS")):

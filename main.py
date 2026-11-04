@@ -679,8 +679,8 @@ MODALITIES_METADATA = [
         "num": "1",
         "label": "PORTFOLIO MT5 [EN VIVO]",
         "db": "trading_ny_open.db",
-        "symbol": "GC=F,EURUSD=X,AUDUSD=X",
-        "symbol_standby": "ES=F",  # S&P 500 guardado en Standby para reactivación futura
+        "symbol": "GC=F,EURUSD=X,USDJPY=X",
+        "symbol_standby": "ES=F,AUDUSD=X",  # S&P 500 y AUD/USD guardados en Standby para reactivación futura
         "provider": "mt5",
         "session": "PORTFOLIO_DUAL",
         "hours": "03:00-11:30 EST",
@@ -712,15 +712,15 @@ MODALITIES_METADATA = [
         "active_portfolio": True,
     },
     {
-        "id": "4_TEST_AUDUSD",
+        "id": "4_TEST_USDJPY",
         "num": "4",
-        "label": "AUDUSD TEST [SANDBOX]",
-        "db": "trading_test_audusd.db",
-        "symbol": "AUDUSD=X",
+        "label": "USDJPY TEST [SANDBOX]",
+        "db": "trading_test_usdjpy.db",
+        "symbol": "USDJPY=X",
         "provider": "mt5",
         "session": "PORTFOLIO_DUAL",
         "hours": "03-06 & 08:30-11",
-        "service": "stellar_test_audusd.service",
+        "service": "stellar_test_usdjpy.service",
         "active_portfolio": True,
     },
     {
@@ -743,7 +743,7 @@ class MultiPriceWorker:
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
-        self.prices: dict = {"GC=F": 0.0, "EURUSD=X": 0.0, "AUDUSD=X": 0.0, "ES=F": 0.0}
+        self.prices: dict = {"GC=F": 0.0, "EURUSD=X": 0.0, "USDJPY=X": 0.0, "ES=F": 0.0}
         self.running = True
         self.connector = MarketDataConnector()
         self.thread = threading.Thread(target=self._worker_loop, daemon=True)
@@ -751,7 +751,7 @@ class MultiPriceWorker:
 
     def _worker_loop(self) -> None:
         while self.running:
-            for sym in ["GC=F", "EURUSD=X", "AUDUSD=X", "ES=F"]:
+            for sym in ["GC=F", "EURUSD=X", "USDJPY=X", "ES=F"]:
                 try:
                     p = self.connector.get_latest_price(symbol=sym, provider="mt5")
                     if p > 0:
@@ -1019,6 +1019,7 @@ def reset_all_modalities(personal_cap_pct: float = 0.02, risk_pct: float = 0.005
         "trading_ny_open.db",
         "trading_test_oro.db",
         "trading_test_eurusd.db",
+        "trading_test_usdjpy.db",
         "trading_test_audusd.db",
         "trading_test_sp500.db",
         "trading_portfolio_sp_eu.db",
@@ -1420,7 +1421,7 @@ def main() -> None:
         dbs = [
             ("ORO TEST [SANDBOX]", "trading_test_oro.db"),
             ("EURUSD TEST [SANDBOX]", "trading_test_eurusd.db"),
-            ("AUDUSD TEST [SANDBOX]", "trading_test_audusd.db"),
+            ("USDJPY TEST [SANDBOX]", "trading_test_usdjpy.db"),
             ("SP500 TEST [STANDBY]", "trading_test_sp500.db"),
         ]
         print("=" * 85)

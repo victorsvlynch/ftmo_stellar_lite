@@ -150,13 +150,20 @@ class MT5Bridge:
         """
         from risk_manager import RiskManager
         synced = {}
-        for generic in ("XAUUSD", "EURUSD", "AUDUSD", "US500"):
+        for generic in ("XAUUSD", "EURUSD", "USDJPY", "AUDUSD", "US500"):
             real_sym = self.detect_broker_symbol(generic)
             spec = self.get_symbol_specification(real_sym)
             if spec:
                 pip_size = float(spec["point"]) * (10.0 if spec.get("digits", 2) in (3, 5) else 1.0)
+                is_jpy = "JPY" in real_sym.upper() or "JPY" in generic.upper()
+                base_cs = float(spec.get("trade_contract_size", 1.0))
+                tv = float(spec.get("trade_tick_value", 0.0))
+                ts = float(spec.get("trade_tick_size", 0.0))
+                eff_cs = round(tv / ts, 4) if (is_jpy and tv > 0 and ts > 0) else base_cs
                 spec_dict = {
-                    "contract_size": float(spec.get("trade_contract_size", 1.0)),
+                    "contract_size": eff_cs,
+                    "base_contract_size": base_cs,
+                    "quote_is_jpy": is_jpy,
                     "pip_size": pip_size,
                     "min_lot": float(spec.get("volume_min", 0.01)),
                     "max_lot": float(spec.get("volume_max", 100.0)),
@@ -170,6 +177,8 @@ class MT5Bridge:
                     RiskManager.set_custom_instrument_spec("ES=F", spec_dict)
                 elif generic == "EURUSD":
                     RiskManager.set_custom_instrument_spec("EURUSD=X", spec_dict)
+                elif generic == "USDJPY":
+                    RiskManager.set_custom_instrument_spec("USDJPY=X", spec_dict)
                 elif generic == "AUDUSD":
                     RiskManager.set_custom_instrument_spec("AUDUSD=X", spec_dict)
                 elif generic == "XAUUSD":
@@ -238,6 +247,10 @@ class MT5Bridge:
             candidates = ["EURUSD", "EURUSDm", "EURUSD.raw", "EURUSD.pro", "EURUSDb", "EURUSD.cash", "EURUSD+"]
             match_keywords = ["EUR", "USD"]
             fallback = "EURUSD"
+        elif "JPY" in clean:
+            candidates = ["USDJPY", "USDJPYm", "USDJPY.raw", "USDJPY.pro", "USDJPYb", "USDJPY.cash", "USDJPY+"]
+            match_keywords = ["USD", "JPY"]
+            fallback = "USDJPY"
         elif "AUD" in clean:
             candidates = ["AUDUSD", "AUDUSDm", "AUDUSD.raw", "AUDUSD.pro", "AUDUSDb", "AUDUSD.cash", "AUDUSD+"]
             match_keywords = ["AUD", "USD"]

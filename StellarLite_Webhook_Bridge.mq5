@@ -106,7 +106,14 @@ string ResolveBrokerSymbol(const string requestedSymbol)
       for(int i = 0; i < ArraySize(candidates); i++)
          if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
    }
-   // C. AUD/USD
+   // C. USD/JPY (Activo Oficial #3 del Portafolio NY Open)
+   else if(StringFind(clean, "JPY") >= 0)
+   {
+      string candidates[] = {"USDJPY", "USDJPYm", "USDJPY.raw", "USDJPY.pro", "USDJPYb", "USDJPY.cash", "USDJPY+"};
+      for(int i = 0; i < ArraySize(candidates); i++)
+         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
+   }
+   // D. AUD/USD (Guardado en Standby)
    else if(StringFind(clean, "AUD") >= 0)
    {
       string candidates[] = {"AUDUSD", "AUDUSDm", "AUDUSD.raw", "AUDUSD.pro", "AUDUSDb", "AUDUSD.cash", "AUDUSD+"};
@@ -131,6 +138,8 @@ string ResolveBrokerSymbol(const string requestedSymbol)
       if(InpEnableSP500 && StringFind(clean, "500") >= 0 && (StringFind(sUpper, "500") >= 0 || StringFind(sUpper, "SPX") >= 0))
          return sName;
       if(StringFind(clean, "EUR") >= 0 && StringFind(sUpper, "EUR") >= 0 && StringFind(sUpper, "USD") >= 0)
+         return sName;
+      if(StringFind(clean, "JPY") >= 0 && StringFind(sUpper, "USD") >= 0 && StringFind(sUpper, "JPY") >= 0)
          return sName;
       if(StringFind(clean, "AUD") >= 0 && StringFind(sUpper, "AUD") >= 0 && StringFind(sUpper, "USD") >= 0)
          return sName;
@@ -252,8 +261,9 @@ void GetAssetTrailingProfile(
    string s = sym;
    StringToUpper(s);
    bool isGold  = (StringFind(s, "XAU") >= 0 || StringFind(s, "GOLD") >= 0 || StringFind(s, "GC") >= 0);
-   bool isAud   = (!isGold && StringFind(s, "AUD") >= 0);
-   bool isForex = (!isGold && !isAud && digits >= 4);
+   bool isJpy   = (!isGold && StringFind(s, "JPY") >= 0);
+   bool isAud   = (!isGold && !isJpy && StringFind(s, "AUD") >= 0);
+   bool isForex = (!isGold && !isJpy && !isAud && digits >= 4);
 
    if(isGold)
    {
@@ -269,6 +279,24 @@ void GetAssetTrailingProfile(
       trailBufferR     = 0.10;
       stagnationRangeR = 0.35;
       minTightBuffer   = 0.80;
+   }
+   else if(isJpy)
+   {
+      // USDJPY (Forex Bonos US/NY - Alta Eficiencia Tendencial 44.9%, ADR ~87p):
+      // BE+ (1.5 pips = 0.015) a +0.95R | Candado 1 (+0.55R) a +1.35R | Candado 2 (+1.15R) a +1.70R |
+      // Trailing M15 Persistente (2 velas + 0.08R / 1 vela + 1.5 pips en estancamiento <=0.30R o Pre-Rollover)
+      double pip       = (digits == 5 || digits == 3) ? (10.0 * pt) : pt;
+      beTriggerR       = 0.95;
+      beOffset         = MathMin(1.5 * pip, initialRiskDist * 0.15);
+      lock1TriggerR    = 1.35;
+      lock1GainR       = 0.55;
+      lock2TriggerR    = 1.70;
+      lock2GainR       = 1.15;
+      trailTriggerR    = 1.70;
+      trailBarsM15     = 2;
+      trailBufferR     = 0.08;
+      stagnationRangeR = 0.30;
+      minTightBuffer   = 1.5 * pip;
    }
    else if(isAud)
    {
@@ -722,6 +750,7 @@ int OnInit()
    // Asegurar que los simbolos del portafolio esten visibles en Market Watch
    SymbolSelect("XAUUSD", true);
    SymbolSelect("EURUSD", true);
+   SymbolSelect("USDJPY", true);
    SymbolSelect("AUDUSD", true);
    if(InpEnableSP500) SymbolSelect("US500", true);
 
@@ -986,22 +1015,25 @@ void OnTimer()
    // Extraer ticks en tiempo real del broker para alimentar el feed de MT5 hacia la nube (Sandbox + Live)
    string symGold = ResolveBrokerSymbol("XAUUSD");
    string symEur  = ResolveBrokerSymbol("EURUSD");
+   string symJpy  = ResolveBrokerSymbol("USDJPY");
    string symAud  = ResolveBrokerSymbol("AUDUSD");
    string symSp   = ResolveBrokerSymbol("US500");
 
-   MqlTick tickGold, tickEur, tickAud, tickSp;
+   MqlTick tickGold, tickEur, tickJpy, tickAud, tickSp;
    string feedParams = "";
    bool hasGold = (symGold != "INACTIVE" && symGold != "") ? SymbolInfoTick(symGold, tickGold) : false;
    bool hasEur  = (symEur != "INACTIVE" && symEur != "") ? SymbolInfoTick(symEur, tickEur) : false;
+   bool hasJpy  = (symJpy != "INACTIVE" && symJpy != "") ? SymbolInfoTick(symJpy, tickJpy) : false;
    bool hasAud  = (symAud != "INACTIVE" && symAud != "") ? SymbolInfoTick(symAud, tickAud) : false;
    bool hasSp   = (symSp != "INACTIVE" && symSp != "") ? SymbolInfoTick(symSp, tickSp) : false;
 
-   if(hasGold || hasEur || hasAud || hasSp)
+   if(hasGold || hasEur || hasJpy || hasAud || hasSp)
    {
       feedParams = StringFormat(
-         "?feed=1&xau_bid=%.2f&xau_ask=%.2f&eur_bid=%.5f&eur_ask=%.5f&aud_bid=%.5f&aud_ask=%.5f&sp_bid=%.2f&sp_ask=%.2f",
+         "?feed=1&xau_bid=%.2f&xau_ask=%.2f&eur_bid=%.5f&eur_ask=%.5f&jpy_bid=%.3f&jpy_ask=%.3f&aud_bid=%.5f&aud_ask=%.5f&sp_bid=%.2f&sp_ask=%.2f",
          hasGold ? tickGold.bid : 0.0, hasGold ? tickGold.ask : 0.0,
          hasEur ? tickEur.bid : 0.0, hasEur ? tickEur.ask : 0.0,
+         hasJpy ? tickJpy.bid : 0.0, hasJpy ? tickJpy.ask : 0.0,
          hasAud ? tickAud.bid : 0.0, hasAud ? tickAud.ask : 0.0,
          hasSp ? tickSp.bid : 0.0, hasSp ? tickSp.ask : 0.0
       );

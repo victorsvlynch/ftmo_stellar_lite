@@ -63,10 +63,10 @@ sudo systemctl stop stellar_london_ny.service 2>/dev/null || true
 sudo systemctl disable stellar_london_ny.service 2>/dev/null || true
 sudo rm -f /etc/systemd/system/stellar_london_ny.service 2>/dev/null || true
 
-# Modalidad 1: Portafolio Multi-Activo Oficial MT5 (Oro GC=F + EUR/USD + AUD/USD | S&P 500 en Standby | Base de datos trading_ny_open.db)
+# Modalidad 1: Portafolio Multi-Activo Oficial MT5 (Oro GC=F + EUR/USD + USD/JPY | S&P 500 y AUD/USD en Standby | Base de datos trading_ny_open.db)
 sudo tee "/etc/systemd/system/stellar_ny_open.service" > /dev/null <<EOF
 [Unit]
-Description=FundedNext Stellar Lite - Portafolio Oficial MT5 (Oro + EUR/USD + AUD/USD $10K)
+Description=FundedNext Stellar Lite - Portafolio Oficial MT5 (Oro + EUR/USD + USD/JPY $10K)
 After=network-online.target
 Wants=network-online.target
 
@@ -76,7 +76,7 @@ User=${RUN_USER}
 Group=${RUN_USER}
 WorkingDirectory=${APP_DIR}
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=/usr/bin/python3 ${APP_DIR}/main.py run --symbol GC=F,EURUSD=X,AUDUSD=X --provider mt5 --risk 0.005 --personal-cap 0.02 --session PORTFOLIO_DUAL --db trading_ny_open.db --interval 60
+ExecStart=/usr/bin/python3 ${APP_DIR}/main.py run --symbol GC=F,EURUSD=X,USDJPY=X --provider mt5 --risk 0.005 --personal-cap 0.02 --session PORTFOLIO_DUAL --db trading_ny_open.db --interval 60
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -132,10 +132,10 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-# Sandbox 4: AUDUSD TEST [SANDBOX] (trading_test_audusd.db)
-sudo tee "/etc/systemd/system/stellar_test_audusd.service" > /dev/null <<EOF
+# Sandbox 4: USDJPY TEST [SANDBOX] (trading_test_usdjpy.db)
+sudo tee "/etc/systemd/system/stellar_test_usdjpy.service" > /dev/null <<EOF
 [Unit]
-Description=FundedNext Stellar Lite - Sandbox Test AUD/USD (AUDUSD=X)
+Description=FundedNext Stellar Lite - Sandbox Test USD/JPY (USDJPY=X)
 After=network-online.target
 Wants=network-online.target
 
@@ -145,7 +145,7 @@ User=${RUN_USER}
 Group=${RUN_USER}
 WorkingDirectory=${APP_DIR}
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=/usr/bin/python3 ${APP_DIR}/main.py run --symbol AUDUSD=X --provider mt5 --risk 0.005 --personal-cap 0.02 --session PORTFOLIO_DUAL --db trading_test_audusd.db --interval 60
+ExecStart=/usr/bin/python3 ${APP_DIR}/main.py run --symbol USDJPY=X --provider mt5 --risk 0.005 --personal-cap 0.02 --session PORTFOLIO_DUAL --db trading_test_usdjpy.db --interval 60
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -299,9 +299,12 @@ WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-# Habilitar y arrancar el Portafolio Oficial MT5, el Webhook Bridge y las 3 cuentas Sandbox activas
-sudo systemctl enable stellar_ny_open.service stellar_webhook.service stellar_test_oro.service stellar_test_eurusd.service stellar_test_audusd.service
-sudo systemctl restart stellar_ny_open.service stellar_webhook.service stellar_test_oro.service stellar_test_eurusd.service stellar_test_audusd.service
+# Detener servicio AUDUSD anterior si existía (queda en Standby)
+sudo systemctl stop stellar_test_audusd.service 2>/dev/null || true
+sudo systemctl disable stellar_test_audusd.service 2>/dev/null || true
+# Habilitar y arrancar el Portafolio Oficial MT5, el Webhook Bridge y las 3 cuentas Sandbox activas (Oro, EURUSD, USDJPY)
+sudo systemctl enable stellar_ny_open.service stellar_webhook.service stellar_test_oro.service stellar_test_eurusd.service stellar_test_usdjpy.service
+sudo systemctl restart stellar_ny_open.service stellar_webhook.service stellar_test_oro.service stellar_test_eurusd.service stellar_test_usdjpy.service
 
 echo "=============================================================================="
 echo " Instalación y despliegue completado con éxito."
