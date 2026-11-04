@@ -871,11 +871,12 @@ flowchart TD
 1. **Escalera Institucional Personalizada de Break-Even+ y Candados por Activo (GetAssetTrailingProfile):**
    - Cada activo cuenta con su propia calibración según su microestructura y volatilidad intradía, evaluada tanto en el motor Python (	rading_engine.py) como en cada tick dentro de MetaTrader 5 (StellarLite_Webhook_Bridge.mq5) bajo regla monotónica (*ratchet*):
 
-   | Activo | Nivel 1: BE+ (Cubre Costes) | Nivel 2: Candado 1 | Nivel 3: Candado 2 | Nivel 4: Trailing Estructural M15 |
+   | Activo | Nivel 1: BE+ (Cubre Costes) | Nivel 2: Candado 1 | Nivel 3: Candado 2 | Nivel 4: Trailing M15 + Anti-Estancamiento + Pre-Rollover |
    | :--- | :---: | :---: | :---: | :---: |
-   | **XAUUSD (Oro)** | A **+1.00R** -> SL a Entrada +- .80 | A **+1.40R** -> Asegura **+0.60R** | A **+1.75R** -> Asegura **+1.10R** | Desde **+1.75R** *(3 velas M15 + buffer)* |
-   | **EURUSD (Forex)** | A **+0.95R** -> SL a Entrada +- 1.5 pips | A **+1.35R** -> Asegura **+0.50R** | A **+1.70R** -> Asegura **+1.10R** | Desde **+1.70R** *(3 velas M15 + buffer)* |
-   | **S&P 500 (US500)** | A **+1.00R** -> SL a Entrada +- 1.0 pt | A **+1.35R** -> Asegura **+0.60R** | A **+1.70R** -> Asegura **+1.15R** | Desde **+1.70R** *(2 velas M15 + buffer)* |
+   | **XAUUSD (Oro)** | A **+1.00R** -> SL a Entrada ? $0.80 | A **+1.40R** -> Asegura **+0.60R** | A **+1.75R** -> Asegura **+1.10R** | **3 velas M15** (o **1 vela** si rango <=0.35R / Pre-Rollover +1.35R) |
+   | **EURUSD (Forex)** | A **+0.95R** -> SL a Entrada ? 1.5 pips | A **+1.35R** -> Asegura **+0.50R** | A **+1.70R** -> Asegura **+1.10R** | **3 velas M15** (o **1 vela** si rango <=0.30R / Pre-Rollover +1.30R) |
+   | **AUDUSD (Forex)** | A **+0.95R** -> SL a Entrada ? 1.2 pips | A **+1.30R** -> Asegura **+0.55R** | A **+1.65R** -> Asegura **+1.10R** | **2 velas M15** (o **1 vela** si rango <=0.28R / Pre-Rollover +1.30R) |
+   | **S&P 500 (Standby)** | A **+1.00R** -> SL a Entrada ? 1.0 pt | A **+1.35R** -> Asegura **+0.60R** | A **+1.70R** -> Asegura **+1.15R** | **2 velas M15** (o **1 vela** si rango <=0.30R / Pre-Rollover +1.35R) |
 
    - Al activarse el Nivel 1 (BE+), el riesgo monetario de la posición pasa a **.00**, liberando automáticamente capacidad bajo la regla del **3% de Exposición Máxima** de FundedNext (Max Risk 3% At Any Time).
 
