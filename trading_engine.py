@@ -943,36 +943,60 @@ class AutomatedTradingEngine:
             if initial_risk_dist > 1e-8:
                 sym_upper = str(tr["symbol"]).upper()
                 is_gold = ("GC" in sym_upper or "XAU" in sym_upper or "GOLD" in sym_upper)
-                is_forex = (not is_gold and (any(k in sym_upper for k in ("EUR", "AUD", "GBP", "=X")) or entry < 10.0))
+                is_aud = (not is_gold and "AUD" in sym_upper)
+                is_forex = (not is_gold and not is_aud and (any(k in sym_upper for k in ("EUR", "GBP", "=X")) or entry < 10.0))
 
                 if is_gold:
-                    # XAUUSD (Oro): BE+ ($0.80) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R
+                    # XAUUSD (Oro): BE+ ($0.80) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R | Pre-Rollover (+1.35R)
                     be_trigger_r = 1.00
                     be_offset = min(0.80, initial_risk_dist * 0.15)
                     lock1_trigger_r, lock1_gain_r = 1.40, 0.60
                     lock2_trigger_r, lock2_gain_r = 1.75, 1.10
+                    preroll_gain_r = 1.35
                     decimals = 4
+                elif is_aud:
+                    # AUDUSD (Forex Pacífico/NY - Menor ADR): BE+ (1.2 pips) a +0.95R | Candado 1 (+0.55R) a +1.30R | Candado 2 (+1.10R) a +1.65R | Pre-Rollover (+1.30R)
+                    be_trigger_r = 0.95
+                    be_offset = min(0.00012, initial_risk_dist * 0.15)
+                    lock1_trigger_r, lock1_gain_r = 1.30, 0.55
+                    lock2_trigger_r, lock2_gain_r = 1.65, 1.10
+                    preroll_gain_r = 1.30
+                    decimals = 5
                 elif is_forex:
-                    # EURUSD / AUDUSD (Forex): BE+ (1.5 pips) a +0.95R | Candado 1 (+0.50R) a +1.35R | Candado 2 (+1.10R) a +1.70R
+                    # EURUSD (Forex Europeo/NY): BE+ (1.5 pips) a +0.95R | Candado 1 (+0.50R) a +1.35R | Candado 2 (+1.10R) a +1.70R | Pre-Rollover (+1.30R)
                     be_trigger_r = 0.95
                     be_offset = min(0.00015, initial_risk_dist * 0.15)
                     lock1_trigger_r, lock1_gain_r = 1.35, 0.50
                     lock2_trigger_r, lock2_gain_r = 1.70, 1.10
+                    preroll_gain_r = 1.30
                     decimals = 5
                 else:
-                    # S&P 500 (ES=F / US500): BE+ (1.0 pt) a +1.00R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R
+                    # S&P 500 (ES=F / US500 - Standby): BE+ (1.0 pt) a +1.00R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R | Pre-Rollover (+1.35R)
                     be_trigger_r = 1.00
                     be_offset = min(1.00, initial_risk_dist * 0.15)
                     lock1_trigger_r, lock1_gain_r = 1.35, 0.60
                     lock2_trigger_r, lock2_gain_r = 1.70, 1.15
+                    preroll_gain_r = 1.35
                     decimals = 2
 
                 gain = (mark - entry) if side == "BUY" else (entry - mark)
                 current_r = gain / initial_risk_dist
 
+                # Detectar si ya alcanzó Nivel 3 anteriormente (Memoria Persistente) y si estamos en ventana Pre-Rollover (16:30-16:59 EST)
+                locked_dist = (sl - entry) if side == "BUY" else (entry - sl)
+                locked_r = locked_dist / initial_risk_dist
+                latched_level3 = locked_r >= (lock2_gain_r - 0.02)
+                dt_ny = dt.astimezone(ZoneInfo("America/New_York"))
+                ny_mins = dt_ny.hour * 60 + dt_ny.minute
+                is_prerollover = (16 * 60 + 30) <= ny_mins <= (16 * 60 + 59)
+
                 target_sl = None
                 step_note = ""
-                if current_r >= lock2_trigger_r:
+                if is_prerollover and (latched_level3 or current_r >= 1.50) and current_r > (preroll_gain_r + 0.08):
+                    off = initial_risk_dist * preroll_gain_r
+                    target_sl = round(entry + off if side == "BUY" else entry - off, decimals)
+                    step_note = f"ESCUDO_PRE_ROLLOVER (+{preroll_gain_r:.2f}R asegurado)"
+                elif current_r >= lock2_trigger_r:
                     off = initial_risk_dist * lock2_gain_r
                     target_sl = round(entry + off if side == "BUY" else entry - off, decimals)
                     step_note = f"CANDADO_NIVEL_3 (+{lock2_gain_r:.2f}R asegurado)"

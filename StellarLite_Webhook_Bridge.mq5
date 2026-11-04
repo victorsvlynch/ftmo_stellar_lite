@@ -243,50 +243,79 @@ void GetAssetTrailingProfile(
    double &lock2TriggerR,
    double &lock2GainR,
    double &trailTriggerR,
-   int &trailBarsM15
+   int &trailBarsM15,
+   double &trailBufferR,
+   double &stagnationRangeR,
+   double &minTightBuffer
 )
 {
    string s = sym;
    StringToUpper(s);
-   bool isGold = (StringFind(s, "XAU") >= 0 || StringFind(s, "GOLD") >= 0 || StringFind(s, "GC") >= 0);
-   bool isForex = (!isGold && digits >= 4);
+   bool isGold  = (StringFind(s, "XAU") >= 0 || StringFind(s, "GOLD") >= 0 || StringFind(s, "GC") >= 0);
+   bool isAud   = (!isGold && StringFind(s, "AUD") >= 0);
+   bool isForex = (!isGold && !isAud && digits >= 4);
 
    if(isGold)
    {
-      // XAUUSD (Oro): BE+ ($0.80) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R | Trailing M15 (3 velas) desde +1.75R
-      beTriggerR    = 1.00;
-      beOffset      = MathMin(0.80, initialRiskDist * 0.15);
-      lock1TriggerR = 1.40;
-      lock1GainR    = 0.60;
-      lock2TriggerR = 1.75;
-      lock2GainR    = 1.10;
-      trailTriggerR = 1.75;
-      trailBarsM15  = 3;
+      // XAUUSD (Oro): BE+ ($0.80) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R | Trailing M15 (3 velas / 1 vela en estancamiento <=0.35R)
+      beTriggerR       = 1.00;
+      beOffset         = MathMin(0.80, initialRiskDist * 0.15);
+      lock1TriggerR    = 1.40;
+      lock1GainR       = 0.60;
+      lock2TriggerR    = 1.75;
+      lock2GainR       = 1.10;
+      trailTriggerR    = 1.75;
+      trailBarsM15     = 3;
+      trailBufferR     = 0.10;
+      stagnationRangeR = 0.35;
+      minTightBuffer   = 0.80;
+   }
+   else if(isAud)
+   {
+      // AUDUSD (Forex Pacifico/NY - Menor ADR): BE+ (1.2 pips) a +0.95R | Candado 1 (+0.55R) a +1.30R | Candado 2 (+1.10R) a +1.65R | Trailing M15 (2 velas / 1 vela en estancamiento <=0.28R)
+      double pip       = (digits == 5 || digits == 3) ? (10.0 * pt) : pt;
+      beTriggerR       = 0.95;
+      beOffset         = MathMin(1.2 * pip, initialRiskDist * 0.15);
+      lock1TriggerR    = 1.30;
+      lock1GainR       = 0.55;
+      lock2TriggerR    = 1.65;
+      lock2GainR       = 1.10;
+      trailTriggerR    = 1.65;
+      trailBarsM15     = 2;
+      trailBufferR     = 0.08;
+      stagnationRangeR = 0.28;
+      minTightBuffer   = 1.2 * pip;
    }
    else if(isForex)
    {
-      // EURUSD / AUDUSD (Forex): BE+ (1.5 pips) a +0.95R | Candado 1 (+0.50R) a +1.35R | Candado 2 (+1.10R) a +1.70R | Trailing M15 (3 velas) desde +1.70R
-      double pip    = (digits == 5 || digits == 3) ? (10.0 * pt) : pt;
-      beTriggerR    = 0.95;
-      beOffset      = MathMin(1.5 * pip, initialRiskDist * 0.15);
-      lock1TriggerR = 1.35;
-      lock1GainR    = 0.50;
-      lock2TriggerR = 1.70;
-      lock2GainR    = 1.10;
-      trailTriggerR = 1.70;
-      trailBarsM15  = 3;
+      // EURUSD (Forex Europeo/NY): BE+ (1.5 pips) a +0.95R | Candado 1 (+0.50R) a +1.35R | Candado 2 (+1.10R) a +1.70R | Trailing M15 (3 velas / 1 vela en estancamiento <=0.30R)
+      double pip       = (digits == 5 || digits == 3) ? (10.0 * pt) : pt;
+      beTriggerR       = 0.95;
+      beOffset         = MathMin(1.5 * pip, initialRiskDist * 0.15);
+      lock1TriggerR    = 1.35;
+      lock1GainR       = 0.50;
+      lock2TriggerR    = 1.70;
+      lock2GainR       = 1.10;
+      trailTriggerR    = 1.70;
+      trailBarsM15     = 3;
+      trailBufferR     = 0.10;
+      stagnationRangeR = 0.30;
+      minTightBuffer   = 1.2 * pip;
    }
    else
    {
-      // S&P 500 (US500 / ES): BE+ (1.0 pt) a +1.00R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R | Trailing M15 (2 velas) desde +1.70R
-      beTriggerR    = 1.00;
-      beOffset      = MathMin(1.00, initialRiskDist * 0.15);
-      lock1TriggerR = 1.35;
-      lock1GainR    = 0.60;
-      lock2TriggerR = 1.70;
-      lock2GainR    = 1.15;
-      trailTriggerR = 1.70;
-      trailBarsM15  = 2;
+      // S&P 500 (US500 / ES - Standby): BE+ (1.0 pt) a +1.00R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R | Trailing M15 (2 velas / 1 vela en estancamiento <=0.30R)
+      beTriggerR       = 1.00;
+      beOffset         = MathMin(1.00, initialRiskDist * 0.15);
+      lock1TriggerR    = 1.35;
+      lock1GainR       = 0.60;
+      lock2TriggerR    = 1.70;
+      lock2GainR       = 1.15;
+      trailTriggerR    = 1.70;
+      trailBarsM15     = 2;
+      trailBufferR     = 0.10;
+      stagnationRangeR = 0.30;
+      minTightBuffer   = 1.00;
    }
 }
 
@@ -549,12 +578,18 @@ void ProcessCloudAction(const string json)
             double initialRiskDist = (curTp > 0.0 && MathAbs(curTp - entryPrice) > (10 * pt))
                                      ? (MathAbs(curTp - entryPrice) / 2.0)
                                      : MathAbs(entryPrice - curSl);
-            double beTriggerR, beOffset, lock1TriggerR, lock1GainR, lock2TriggerR, lock2GainR, trailTriggerR;
-            int trailBarsM15;
-            GetAssetTrailingProfile(posSym, digits, pt, initialRiskDist, beTriggerR, beOffset, lock1TriggerR, lock1GainR, lock2TriggerR, lock2GainR, trailTriggerR, trailBarsM15);
+            double beTriggerR = 1.0, beOffset = 0.0, lock1TriggerR = 1.35, lock1GainR = 0.50, lock2TriggerR = 1.70, lock2GainR = 1.10, trailTriggerR = 1.70, trailBufferR = 0.10, stagnationRangeR = 0.30, minTightBuffer = 0.0;
+            int trailBarsM15 = 3;
+            GetAssetTrailingProfile(posSym, digits, pt, initialRiskDist, beTriggerR, beOffset, lock1TriggerR, lock1GainR, lock2TriggerR, lock2GainR, trailTriggerR, trailBarsM15, trailBufferR, stagnationRangeR, minTightBuffer);
 
             double newSl = NormalizeDouble(sl, digits);
-            if(StringFind(comment, "CANDADO_NIVEL_3") >= 0)
+            if(StringFind(comment, "ESCUDO_PRE_ROLLOVER") >= 0)
+            {
+               double prerollR = (StringFind(posSym, "XAU") >= 0 || StringFind(posSym, "GOLD") >= 0) ? 1.35 : 1.30;
+               double off = initialRiskDist * prerollR;
+               newSl = NormalizeDouble((pType == POSITION_TYPE_BUY) ? (entryPrice + off) : (entryPrice - off), digits);
+            }
+            else if(StringFind(comment, "CANDADO_NIVEL_3") >= 0)
             {
                double off = initialRiskDist * lock2GainR;
                newSl = NormalizeDouble((pType == POSITION_TYPE_BUY) ? (entryPrice + off) : (entryPrice - off), digits);
@@ -757,13 +792,32 @@ void CheckAutonomousStructuralTrailing()
 
          if(initialRiskDist <= (5 * pt)) continue;
 
-         double beTriggerR, beOffset, lock1TriggerR, lock1GainR, lock2TriggerR, lock2GainR, trailTriggerR;
+         double beTriggerR, beOffset, lock1TriggerR, lock1GainR, lock2TriggerR, lock2GainR, trailTriggerR, trailBufferR, stagnationRangeR, minTightBuffer;
          int trailBarsM15;
-         GetAssetTrailingProfile(sym, digits, pt, initialRiskDist, beTriggerR, beOffset, lock1TriggerR, lock1GainR, lock2TriggerR, lock2GainR, trailTriggerR, trailBarsM15);
+         GetAssetTrailingProfile(
+            sym, digits, pt, initialRiskDist,
+            beTriggerR, beOffset, lock1TriggerR, lock1GainR, lock2TriggerR, lock2GainR,
+            trailTriggerR, trailBarsM15, trailBufferR, stagnationRangeR, minTightBuffer
+         );
 
          double gainDist = (pType == POSITION_TYPE_BUY) ? (tick.bid - openPrice) : (openPrice - tick.ask);
          double currentR = gainDist / initialRiskDist;
-         if(currentR < beTriggerR) continue;
+
+         // Memoria Persistente de Nivel 3/4: si el SL actual ya aseguro >= lock2GainR (+1.10R), el Trailing M15 permanece activo
+         double lockedDist = 0.0;
+         if(curSl > 0.0)
+         {
+            lockedDist = (pType == POSITION_TYPE_BUY) ? (curSl - openPrice) : (openPrice - curSl);
+         }
+         double lockedR = lockedDist / initialRiskDist;
+         bool isLatchedLevel3 = (lockedR >= (lock2GainR - 0.02));
+
+         if(currentR < beTriggerR && !isLatchedLevel3) continue;
+
+         // Detectar ventana Pre-Rollover Bancario (23:30 a 23:59 hora servidor MT5 = 16:30 a 16:59 EST)
+         MqlDateTime dtSrv;
+         TimeCurrent(dtSrv);
+         bool isPreRollover = (dtSrv.hour == 23 && dtSrv.min >= 30);
 
          long stopLvlPts = SymbolInfoInteger(sym, SYMBOL_TRADE_STOPS_LEVEL);
          double minSafeDist = MathMax((double)stopLvlPts * pt, 10.0 * pt);
@@ -792,25 +846,42 @@ void CheckAutonomousStructuralTrailing()
                stepTag = StringFormat("Nivel 3 Candado +%.2fR (+%.2fR alcanzado)", lock2GainR, lock2TriggerR);
             }
 
-            // Nivel 4: Trailing Estructural M15 especifico del activo
-            if(currentR >= trailTriggerR)
+            // Nivel 4: Trailing Estructural M15 con Memoria Persistente + Detector de Estancamiento / Pre-Rollover
+            if(currentR >= trailTriggerR || isLatchedLevel3)
             {
                MqlRates ratesM15[];
                ArraySetAsSeries(ratesM15, true);
-               int copied = CopyRates(sym, PERIOD_M15, 1, trailBarsM15, ratesM15);
+               int copied = CopyRates(sym, PERIOD_M15, 1, 3, ratesM15);
                if(copied >= trailBarsM15)
                {
+                  double maxHigh3 = ratesM15[0].high;
+                  double minLow3  = ratesM15[0].low;
+                  for(int c = 1; c < copied; c++)
+                  {
+                     if(ratesM15[c].high > maxHigh3) maxHigh3 = ratesM15[c].high;
+                     if(ratesM15[c].low < minLow3)   minLow3  = ratesM15[c].low;
+                  }
+                  bool isStagnant = ((maxHigh3 - minLow3) <= (initialRiskDist * stagnationRangeR));
+                  int usedBars = (isStagnant || isPreRollover) ? 1 : trailBarsM15;
+
                   double minLow = ratesM15[0].low;
-                  for(int k = 1; k < copied; k++)
+                  for(int k = 1; k < usedBars; k++)
                   {
                      if(ratesM15[k].low < minLow) minLow = ratesM15[k].low;
                   }
-                  double buffer = MathMax(5.0 * pt, initialRiskDist * 0.10);
+                  double buffer = (isStagnant || isPreRollover)
+                                  ? MathMax(minTightBuffer, initialRiskDist * 0.05)
+                                  : MathMax(5.0 * pt, initialRiskDist * trailBufferR);
                   double structSl = minLow - buffer;
                   if(structSl > (openPrice + beOffset) && structSl > targetSl && structSl <= (tick.bid - minSafeDist))
                   {
                      targetSl = structSl;
-                     stepTag = StringFormat("Trailing Estructural M15 (%d velas)", trailBarsM15);
+                     if(isPreRollover)
+                        stepTag = "Escudo Pre-Rollover M15 (1 vela)";
+                     else if(isStagnant)
+                        stepTag = "Trailing Anti-Estancamiento M15 (1 vela)";
+                     else
+                        stepTag = StringFormat("Trailing Estructural M15 (%d velas)", usedBars);
                   }
                }
             }
@@ -850,25 +921,42 @@ void CheckAutonomousStructuralTrailing()
                stepTag = StringFormat("Nivel 3 Candado +%.2fR (+%.2fR alcanzado)", lock2GainR, lock2TriggerR);
             }
 
-            // Nivel 4: Trailing Estructural M15 especifico del activo
-            if(currentR >= trailTriggerR)
+            // Nivel 4: Trailing Estructural M15 con Memoria Persistente + Detector de Estancamiento / Pre-Rollover
+            if(currentR >= trailTriggerR || isLatchedLevel3)
             {
                MqlRates ratesM15[];
                ArraySetAsSeries(ratesM15, true);
-               int copied = CopyRates(sym, PERIOD_M15, 1, trailBarsM15, ratesM15);
+               int copied = CopyRates(sym, PERIOD_M15, 1, 3, ratesM15);
                if(copied >= trailBarsM15)
                {
+                  double maxHigh3 = ratesM15[0].high;
+                  double minLow3  = ratesM15[0].low;
+                  for(int c = 1; c < copied; c++)
+                  {
+                     if(ratesM15[c].high > maxHigh3) maxHigh3 = ratesM15[c].high;
+                     if(ratesM15[c].low < minLow3)   minLow3  = ratesM15[c].low;
+                  }
+                  bool isStagnant = ((maxHigh3 - minLow3) <= (initialRiskDist * stagnationRangeR));
+                  int usedBars = (isStagnant || isPreRollover) ? 1 : trailBarsM15;
+
                   double maxHigh = ratesM15[0].high;
-                  for(int k = 1; k < copied; k++)
+                  for(int k = 1; k < usedBars; k++)
                   {
                      if(ratesM15[k].high > maxHigh) maxHigh = ratesM15[k].high;
                   }
-                  double buffer = MathMax(5.0 * pt, initialRiskDist * 0.10);
+                  double buffer = (isStagnant || isPreRollover)
+                                  ? MathMax(minTightBuffer, initialRiskDist * 0.05)
+                                  : MathMax(5.0 * pt, initialRiskDist * trailBufferR);
                   double structSl = maxHigh + buffer;
                   if(structSl < (openPrice - beOffset) && (targetSl == 0.0 || structSl < targetSl) && structSl >= (tick.ask + minSafeDist))
                   {
                      targetSl = structSl;
-                     stepTag = StringFormat("Trailing Estructural M15 (%d velas)", trailBarsM15);
+                     if(isPreRollover)
+                        stepTag = "Escudo Pre-Rollover M15 (1 vela)";
+                     else if(isStagnant)
+                        stepTag = "Trailing Anti-Estancamiento M15 (1 vela)";
+                     else
+                        stepTag = StringFormat("Trailing Estructural M15 (%d velas)", usedBars);
                   }
                }
             }
