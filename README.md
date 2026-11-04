@@ -341,6 +341,38 @@ El sistema implementa una gestión de riesgo de grado bancario dividida en tres 
 4. **Alerta Anti-Racha Negativa (`Tilt Alert`):**
    - Tras registrar 3 pérdidas consecutivas en la misma sesión, el bot inhabilita las operaciones hasta el siguiente día hábil.
 
+### ??? Las 5 Capas de Protecci?n Institucional ante P?rdidas y Rachas Negativas
+
+Para garantizar que sea matem?ticamente imposible quemar la cuenta o incurrir en un *Hard Breach* de FundedNext, el motor implementa cinco niveles sucesivos de contenci?n:
+
+```
+[ Trade Individual: 0.5% ] ??> [ Anti-Racha: 3 P?rdidas ] ??> [ Freno Diario: -2.0% ] ??> [ Piso Broker: -4.0% ] ??> [ Max DD: -8.0% ]
+      ($50.00 USD)                  (Tilt Lock)                 ($200.00 USD)             ($400.00 USD)             ($800.00 USD)
+```
+
+1. **Capa 1 ? Riesgo Fijo por Operaci?n (0.50% / $50.00 USD):**
+   - Ninguna operaci?n arriesga m?s del 0.50% del balance. Jam?s se env?a una orden a mercado sin Stop Loss precalculado.
+   - Si el broker rechaza el SL en la orden directa, el EA ejecuta un `PositionModify` de emergencia en <150 ms.
+   - El lotaje se calibra din?micamente seg?n la volatilidad (si el SL es m?s amplio, el lote se reduce autom?ticamente).
+
+2. **Capa 2 ? Filtro Anti-Racha Negativa (*Tilt Alert / Bloqueo Anti-Venganza*):**
+   - Tras acumular **3 p?rdidas consecutivas** en una misma jornada, se activa el candado `TILT_LOCK`.
+   - El sistema se congela autom?ticamente y proh?be abrir cualquier nueva operaci?n hasta el reseteo de medianoche (00:00 UTC), eliminando por completo el *revenge trading* en d?as de mercado err?tico.
+
+3. **Capa 3 ? Freno de Mano Diario Personal (*Personal Daily Cap -2.0%* / $200.00 USD):**
+   - El l?mite de p?rdida diaria de FundedNext es del **-4.0% ($400 USD)**.
+   - Nuestro motor corta operaciones preventivamente a la **mitad exacta (-2.0%)**, dejando un colch?n de seguridad intocable de otros $200 USD antes de acercarse al piso letal del broker.
+
+4. **Capa 4 ? Control de Exposici?n Abierta Total (*Regla Oficial 3% At Any Time*):**
+   - La suma del riesgo abierto en d?lares de todas las posiciones vivas jam?s excede el **3.0% ($300.00 USD)**.
+   - Cuando una posici?n alcanza **Break-Even (+1R)**, su riesgo pasa a $0.00 y reci?n ah? se autorizan nuevas oportunidades.
+
+5. **Capa 5 ? Pisos Fijos de Equidad (*Hard Breach Circuit Breakers*):**
+   - **Piso de P?rdida Diaria (4% Est?tico):** Fijado a las 00:00 UTC en `$9,600.00 USD`.
+   - **Piso de Drawdown M?ximo Total (8% Est?tico):** Fijado permanentemente en `$9,200.00 USD`.
+   - `stellar_rules.py` audita la equidad tick a tick; ante cualquier anomal?a extrema, liquida preventivamente a mercado antes de la intervenci?n del broker.
+
+
 5. **Protocolo de Target Alcanzado y Modo Micro-Lote de Seguridad (`MIN_LOT_SAFETY_DAY_REGISTRATION`):**
    - **Blindaje Anti-Overtrading (`TARGET_REACHED_TODAY_SECURED`):** En cuanto la cuenta toca el objetivo (+8% en Fase 1 o +4% en Fase 2), el bot congela inmediatamente nuevas operaciones durante el resto de la jornada, protegiendo las ganancias y eliminando la posibilidad de devolver el beneficio por sobre-operar.
    - **Registro Seguro del Día Obligatorio:** Si aún falta cumplir el requisito de 2 días mínimos de FundedNext, al inicio del siguiente día UTC (00:00 UTC) el motor conmuta automáticamente a modo micro-lote: abre una única posición con el tamaño mínimo del broker (`0.01 lotes`, riesgo de apenas ~$1.00-$2.00 USD / ~0.01%), validando la jornada reglamentaria en el servidor de MT5 sin poner en riesgo el capital ganado.
