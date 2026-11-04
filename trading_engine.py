@@ -1193,13 +1193,13 @@ class AutomatedTradingEngine:
                 "message": pre_trade.reason,
             }
 
-        # Determinar lista de símbolos a evaluar
+        # Determinar lista de símbolos a evaluar: Portafolio Oficial Exclusivo (Oro, EUR/USD, S&P 500)
         if "," in self.symbol:
             symbols_to_run = [s.strip() for s in self.symbol.split(",") if s.strip()]
-        elif self.symbol.upper() in ("MULTI", "PORTFOLIO_DUAL", "SP500_EURUSD", "DEFAULT", "ALL") and self.risk.session_mode in ("PORTFOLIO_DUAL", "SP500_EURUSD"):
-            symbols_to_run = ["ES=F", "EURUSD=X"]
-        elif self.symbol.upper() in ("MULTI", "DEFAULT") and self.risk.session_mode == "COMBO_TRIO":
-            symbols_to_run = ["GC=F", "BTC/USDT"]
+        elif self.symbol.upper() in ("MULTI", "PORTFOLIO", "PORTFOLIO_TRIO", "TRIO", "PORTFOLIO_DUAL", "SP500_EURUSD", "DEFAULT", "ALL"):
+            symbols_to_run = ["GC=F", "EURUSD=X", "ES=F"]
+        elif self.symbol.upper() in ("COMBO_TRIO", "COMBO"):
+            symbols_to_run = ["GC=F", "EURUSD=X", "ES=F"]
         else:
             symbols_to_run = [self.symbol]
 

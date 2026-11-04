@@ -1,6 +1,6 @@
-# FundedNext Stellar Lite ($10,000) & Stellar 6K Trial - Automated Trading Engine & MetaTrader 5 Bridge
+# Multi-Firm Quantitative Engine: FundedNext (Stellar 10K / 6K) & FTMO Challenge (10K) - MetaTrader 5 Bridge
 
-Motor cuantitativo de trading algorítmico, gestor de riesgo institucional y puente oficial con **MetaTrader 5 (MT5)**, diseñado específicamente para superar las fases de evaluación y operar cuentas de **FundedNext**, compatible de forma simultánea con el **Modelo Stellar Lite 2-Step ($10,000 USD)** y el desafío **Free Trial Challenge ($6,000 USD)**.
+Motor cuantitativo de trading algorítmico, gestor de riesgo institucional y puente oficial con **MetaTrader 5 (MT5)**, diseñado específicamente para superar evaluaciones y operar cuentas de fondeo profesionales, compatible de forma simultánea con **FundedNext (Stellar Lite 10K 2-Step y Free Trial 6K)** y **FTMO (Challenge 10K 2-Step)**.
 
 Desarrollado en **Python Puro de Alto Rendimiento con Arquitectura Multiperfil Aislada (sin interfaces web innecesarias, sin Docker y sin dependencias superfluas)**. Operativo tanto en servidores Linux Ubuntu en **Oracle Cloud Infrastructure (OCI)** para ejecución desatendida 24/7, como en estaciones Windows para interacción nativa directa con terminales de escritorio **MetaTrader 5**.
 
@@ -46,25 +46,26 @@ El motor cuantitativo incorpora un sistema de **Gestión Multiperfil desacoplado
 
 ### 📊 Comparativa Técnica de Perfiles Oficiales
 
-| Parámetro Institucional | Perfil: Stellar 10K Demo (`cloud.png`) | Perfil: Stellar 6K Trial (`1-trial.png` / `2-trial.png`) |
-| :--- | :--- | :--- |
-| **Identificador Interno** | `stellar_10k_demo` | `stellar_6k_trial` |
-| **Modelo de Cuenta** | **Stellar Lite 2-Step (Evaluation)** | **Free Trial Challenge (CFDs)** |
-| **Capital Base** | **$10,000.00 USD** | **$6,000.00 USD** |
-| **Plataforma / Broker** | MetaTrader 5 (MT5 - SWAP) | MetaTrader 5 (MT5 - SWAP) |
-| **Login MT5 Asignado** | *Configurable* | **#35338849** (Detectado en MT5) |
-| **Servidor Broker** | `FundedNext-Demo` | `FundedNext-Server 3` / `FundedNext-Demo` |
-| **Objetivo Fase 1 / Reto** | **+8.0% ($800.00)** $\rightarrow$ Meta: $10,800.00 | **+5.0% ($300.00)** $\rightarrow$ Meta: $6,300.00 |
-| **Objetivo Fase 2** | **+4.0% ($400.00)** $\rightarrow$ Meta: $10,400.00 | *No aplica (1 sola fase de Trial)* |
-| **Días Mínimos Operativos** | **2 Días por Fase** | **3 Días Mínimos** |
-| **Límite Pérdida Diaria** | **-4.0% ($400.00)** (sobre balance inicio día) | **-5.0% ($300.00)** (sobre balance inicio día) |
-| **Límite Drawdown Máximo** | **-8.0% ($800.00)** $\rightarrow$ **Piso Fijo: $9,200.00** | **-10.0% ($600.00)** $\rightarrow$ **Piso Fijo: $5,400.00** |
-| **Regla Max Open Risk 3%** | **3.0% ($300.00 USD)** máx. riesgo simultáneo | **3.0% ($180.00 USD)** máx. riesgo simultáneo |
-| **Riesgo por Trade (0.5%)** | **0.50% ($50.00 USD)** por operación | **0.50% ($30.00 USD)** por operación |
-| **Freno Personal Diario** | **-2.0% ($200.00 USD)** (Margen seg. 100%) | **-2.5% ($150.00 USD)** (Margen seg. 100%) |
-| **Regla Profit Noticias** | Máx. 40% ganancias en eventos NFP/CPI | Máx. 40% ganancias en eventos NFP/CPI |
-| **Base de Datos SQLite** | [`trading_history.db`](trading_history.db) | [`trading_stellar_6k_trial.db`](trading_stellar_6k_trial.db) |
-| **Estado de Cuenta** | `FASE_1` $\rightarrow$ `FASE_2` $\rightarrow$ `FUNDED` | `CHALLENGE` $\rightarrow$ `SUPERADA` |
+| Parámetro Institucional | Perfil: Stellar 10K Demo (`cloud.png`) | Perfil: Stellar 6K Trial (`1-trial.png` / `2-trial.png`) | Perfil: FTMO 10K Challenge (`Plan 10K FTMO.png`) |
+| :--- | :--- | :--- | :--- |
+| **Identificador Interno** | `stellar_10k_demo` | `stellar_6k_trial` | `ftmo_10k_challenge` |
+| **Firma / Modelo** | **FundedNext Stellar Lite 2-Step** | **FundedNext Free Trial (CFDs)** | **FTMO Challenge 2-Step (Estándar)** |
+| **Capital Base** | **$10,000.00 USD** | **$6,000.00 USD** | **$10,000.00 USD** |
+| **Plataforma / Broker** | MetaTrader 5 (MT5 - SWAP) | MetaTrader 5 (MT5 - SWAP) | MetaTrader 5 (MT5 - SWAP) |
+| **Login MT5 Asignado** | *Configurable* | **#35338849** (Detectado en MT5) | *Configurable* |
+| **Servidor Broker** | `FundedNext-Demo` | `FundedNext-Server 3` / `FundedNext-Demo` | `FTMO-Demo` |
+| **Objetivo Fase 1 / Reto** | **+8.0% ($800.00)** $\rightarrow$ $10,800.00 | **+5.0% ($300.00)** $\rightarrow$ $6,300.00 | **+10.0% ($1,000.00)** $\rightarrow$ $11,000.00 |
+| **Objetivo Fase 2** | **+4.0% ($400.00)** $\rightarrow$ $10,400.00 | *No aplica (1 sola fase de Trial)* | **+5.0% ($500.00)** $\rightarrow$ $10,500.00 |
+| **Días Mínimos Operativos** | **2 Días por Fase** | **3 Días Mínimos** | **4 Días Mínimos por Fase** |
+| **Límite Pérdida Diaria** | **-4.0% ($400.00)** (sobre balance día) | **-5.0% ($300.00)** (sobre balance día) | **-5.0% ($500.00)** (sobre balance día) |
+| **Límite Drawdown Máximo** | **-8.0% ($800.00)** $\rightarrow$ **Piso: $9,200.00** | **-10.0% ($600.00)** $\rightarrow$ **Piso: $5,400.00** | **-10.0% ($1,000.00)** $\rightarrow$ **Piso: $9,000.00** |
+| **Regla Max Open Risk** | **3.0% ($300.00 USD)** máx. simultáneo | **3.0% ($180.00 USD)** máx. simultáneo | **3.0% ($300.00 USD)** máx. simultáneo |
+| **Riesgo por Trade (0.5%)** | **0.50% ($50.00 USD)** por operación | **0.50% ($30.00 USD)** por operación | **0.50% ($50.00 USD)** por operación |
+| **Freno Personal Diario** | **-2.0% ($200.00 USD)** (Margen seg. 100%) | **-2.5% ($150.00 USD)** (Margen seg. 100%) | **-2.5% ($250.00 USD)** (Margen seg. 100%) |
+| **Regla Profit Noticias** | Máx. 40% ganancias en eventos NFP/CPI | Máx. 40% ganancias en eventos NFP/CPI | **Sin límite de noticias en Challenge** |
+| **Permiso de EAs en MT5** | Add-on requerido (< $50K) | Habilitado | **100% Autorizado sin Add-on extra** |
+| **Base de Datos SQLite** | [`trading_history.db`](trading_history.db) | [`trading_stellar_6k_trial.db`](trading_stellar_6k_trial.db) | [`trading_ftmo_10k.db`](trading_ftmo_10k.db) |
+| **Estado de Cuenta** | `FASE_1` $\rightarrow$ `FASE_2` $\rightarrow$ `FUNDED` | `CHALLENGE` $\rightarrow$ `SUPERADA` | `FASE_1` $\rightarrow$ `FASE_2` $\rightarrow$ `FUNDED` |
 
 ---
 
@@ -80,12 +81,13 @@ El motor cuantitativo incorpora un sistema de **Gestión Multiperfil desacoplado
 
 #### 1. Menú Interactivo Dedicado ([`Administrar_Perfiles.bat`](Administrar_Perfiles.bat)):
 Permite gestionar perfiles en 1 clic desde Windows:
-- **[1] Activar Perfil:** Stellar 10K Demo (Evaluación $10,000 USD).
-- **[2] Activar Perfil:** Stellar 6K Trial (Free Trial Challenge $6,000 USD).
-- **[3] Ver Ficha Técnica:** Resumen financiero completo de reglas y metas del perfil activo.
-- **[4] Configurar Login MT5:** Vincula el número de cuenta de MetaTrader 5 (ej. `#35338849`).
-- **[5] Reiniciar Cuenta (Reset):** Restablece el ciclo conservando históricos archivados.
-- **[6] Salir:** Regresa al panel principal.
+- **[1] Activar Perfil:** Stellar 10K Demo (Evaluación $10,000 USD - FundedNext).
+- **[2] Activar Perfil:** Stellar 6K Trial (Free Trial Challenge $6,000 USD - FundedNext).
+- **[3] Activar Perfil:** FTMO 10K Challenge (Evaluación 2-Step $10,000 USD - FTMO).
+- **[4] Ver Ficha Técnica:** Resumen financiero completo de reglas y metas del perfil activo.
+- **[5] Configurar Login MT5:** Vincula el número de cuenta de MetaTrader 5 (ej. `#35338849`).
+- **[6] Reiniciar Cuenta (Reset):** Restablece el ciclo conservando históricos archivados.
+- **[7] Salir:** Regresa al panel principal.
 
 #### 2. Acceso desde el Panel Maestro ([`Control_Total_Bot.bat`](Control_Total_Bot.bat)):
 - Presiona la opción **`[P]`** en cualquier momento para conmutar perfiles directamente desde el menú principal. El encabezado del panel muestra en tiempo real el perfil activo y su login MT5.
@@ -168,10 +170,11 @@ Todos los activos tradicionales operan de **Lunes a Viernes**. Como la referenci
 | 🟢 **ACTIVO** | **Oro** (`XAUUSD` / `GC=F`) | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
 | 🟢 **ACTIVO** | **EUR/USD** (`EURUSD`) *(Ventana 1)* | **Lunes a Viernes** | **Apertura Londres** | 03:00 – 03:15 | **03:15 – 06:00 a.m.** | 08:15 – 11:00 UTC |
 | 🟢 **ACTIVO** | **EUR/USD** (`EURUSD`) *(Ventana 2)* | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
-| 🟢 **ACTIVO** | **USD/JPY** (`USDJPY`) *(Ventana 1)* | **Lunes a Viernes** | **Apertura Londres** | 03:00 – 03:15 | **03:15 – 06:00 a.m.** | 08:15 – 11:00 UTC |
-| 🟢 **ACTIVO** | **USD/JPY** (`USDJPY`) *(Ventana 2)* | **Lunes a Viernes** | **Apertura NY / Bonos US10Y** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
-| ⏸️ **STANDBY** | **AUD/USD** (`AUDUSD`) | *Guardado sin borrar* | **Londres & Nueva York** | 03:00 / 08:30 | **03:15–06:00 & 08:45–11:30 a.m.** *(Standby)* | 08:15 / 13:45 UTC |
-| ⏸️ **STANDBY** | **S&P 500** (`US500` / `ES=F`) | *Guardado sin borrar* | **Wall Street Cash Open** | 09:30 – 09:45 | **09:45 – 11:30 a.m.** *(Al reactivar)* | 14:45 – 16:30 UTC |
+| 🟢 **ACTIVO** | **S&P 500** (`US500.cash` / `ES=F`) | **Lunes a Viernes** | **Wall Street Cash Open** | 09:30 – 09:45 | **09:45 – 11:30 a.m.** | 14:45 – 16:30 UTC |
+| 🔴 **INACTIVO** | **USD/JPY** (`USDJPY`) | *Desactivado* | **Inactivo en portafolio** | --- | *Desactivado (Solo Oro, EUR/USD, SP500)* | --- |
+| 🔴 **INACTIVO** | **AUD/USD** (`AUDUSD`) | *Desactivado* | **Inactivo en portafolio** | --- | *Desactivado (Solo Oro, EUR/USD, SP500)* | --- |
+| 🔴 **INACTIVO** | **Nasdaq 100** (`US100` / `NAS100`) | *Bloqueado* | **Política de Riesgo** | --- | *Bloqueado permanente por volatilidad* | --- |
+| 🔴 **INACTIVO** | **Criptoactivos** (`BTC`, `ETH`, `SOL`) | *Desactivado* | **Inactivo en sesión regular** | --- | *Desactivado en portafolio oficial* | --- |
 
 #### Reglas de Apertura, Cierre y Protección de Fin de Semana:
 1. **Apertura Semanal de Mercados:** Domingo a las 17:00 / 18:00 EST. El bot permanece en espera y **no abre operaciones el domingo** debido al spread ensanchado interbancario; espera a la sesión de Londres del lunes a las 03:00 EST.
@@ -193,6 +196,25 @@ Perú no implementa horario de verano y mantiene su huso horario fijo en **PET (
      * **Apertura NY (Oro / XAUUSD):** `07:30 a.m. – 10:30 a.m.` (Mañana de Lima).
      * **Wall Street Cash Open (S&P 500):** `08:30 a.m. – 10:30 a.m.` (Mañana de Lima).
      * **Cierre Anti-Gap (Viernes):** `02:30 p.m.` (Tarde de Lima).
+
+---
+
+---
+
+### 🛡️ Escalera Automática Institucional de Break-Even & Candados de Ganancia (4 Niveles)
+
+Los 3 activos activos (**Oro**, **EUR/USD** y **S&P 500**) cuentan con una arquitectura de protección en tiempo real de **4 Niveles Progresivos**, gestionada de forma autónoma por [`trading_engine.py`](trading_engine.py) y reflejada en MetaTrader 5:
+
+```
+[ENTRADA (0.0R)] ──► [NIVEL 1: Break-Even+] ──► [NIVEL 2: Candado 1] ──► [NIVEL 3: Candado 2] ──► [NIVEL 4: Pre-Rollover] ──► [TAKE PROFIT (+2.0R)]
+```
+
+| Nivel de Protección | Oro (`XAUUSD` / `GC=F`) | EUR/USD (`EURUSD` / `EURUSD=X`) | S&P 500 (`US500.cash` / `ES=F`) | Objetivo Estratégico |
+| :--- | :--- | :--- | :--- | :--- |
+| **Nivel 1: Break-Even Plus** | Se activa al tocar **+1.00R**.<br/>Mueve SL a **Entrada + $0.80/oz**. | Se activa al tocar **+0.95R**.<br/>Mueve SL a **Entrada + 1.5 pips**. | Se activa al tocar **+1.00R**.<br/>Mueve SL a **Entrada + 1.0 pt**. | **Elimina todo riesgo financiero ($0.00).** Cubre spread y comisiones del broker. |
+| **Nivel 2: Candado 1** | Se activa al tocar **+1.40R**.<br/>Asegura **+0.60R** garantizado. | Se activa al tocar **+1.35R**.<br/>Asegura **+0.50R** garantizado. | Se activa al tocar **+1.35R**.<br/>Asegura **+0.60R** garantizado. | **Garantiza beneficio neto positivo** ante rechazos en zonas intermedias. |
+| **Nivel 3: Candado 2** | Se activa al tocar **+1.75R**.<br/>Asegura **+1.10R** garantizado. | Se activa al tocar **+1.70R**.<br/>Asegura **+1.10R** garantizado. | Se activa al tocar **+1.70R**.<br/>Asegura **+1.15R** garantizado. | **Protege el trade a milímetros del TP** impidiendo devoluciones bruscas. |
+| **Nivel 4: Escudo Pre-Rollover** | Activo 16:30-16:59 EST.<br/>Asegura **+1.35R** garantizado. | Activo 16:30-16:59 EST.<br/>Asegura **+1.30R** garantizado. | Activo 16:30-16:59 EST.<br/>Asegura **+1.35R** garantizado. | **Protección anti-spread nocturno** antes del cambio de día del broker. |
 
 ---
 

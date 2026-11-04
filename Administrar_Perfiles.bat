@@ -1,35 +1,37 @@
 @echo off
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
-title Administrador de Perfiles de Trading - FundedNext (10K Demo / 6K Trial)
+title Administrador de Perfiles de Trading - Multi-Firma (FundedNext / FTMO)
 chcp 65001 >nul
 
 :MENU_PERFILES
 cls
 echo ==============================================================================
-echo        ADMINISTRADOR OFICIAL DE PERFILES DE TRADING -- FUNDEDNEXT
-echo        Gestion independiente de cuentas: Stellar 10K Demo y Stellar 6K Trial
+echo        ADMINISTRADOR OFICIAL DE PERFILES DE TRADING -- MULTI-FIRMA
+echo        Gestion independiente: Stellar 10K, Stellar 6K y FTMO 10K Challenge
 echo ==============================================================================
 python "%~dp0main.py" profile --list
 echo.
 echo   +-- SELECCIONE UNA ACCION -----------------------------------------------+
 echo   ^|  1. Activar Perfil: Stellar 10K Demo (Evaluacion 2-Step $10,000 USD)   ^|
 echo   ^|  2. Activar Perfil: Stellar 6K Trial (Free Trial Challenge $6,000 USD) ^|
-echo   ^|  3. Ver Ficha Tecnica Completa del Perfil Activo                       ^|
-echo   ^|  4. Configurar Numero de Cuenta / Login MT5                            ^|
-echo   ^|  5. Reiniciar Estado de la Cuenta del Perfil Activo (Reset)            ^|
-echo   ^|  6. Volver al Menu Principal                                           ^|
+echo   ^|  3. Activar Perfil: FTMO 10K Challenge (Evaluacion 2-Step $10,000 USD) ^|
+echo   ^|  4. Ver Ficha Tecnica Completa del Perfil Activo                       ^|
+echo   ^|  5. Configurar Numero de Cuenta / Login MT5                            ^|
+echo   ^|  6. Reiniciar Estado de la Cuenta del Perfil Activo (Reset)            ^|
+echo   ^|  7. Volver al Menu Principal                                           ^|
 echo   +------------------------------------------------------------------------+
 echo.
-set "popt=3"
-set /p popt=" Seleccione una opcion [1-6] (Por defecto 3): "
+set "popt=4"
+set /p popt=" Seleccione una opcion [1-7] (Por defecto 4): "
 
 if "%popt%"=="1" goto SET_10K
 if "%popt%"=="2" goto SET_6K
-if "%popt%"=="3" goto SHOW_CARD
-if "%popt%"=="4" goto SET_LOGIN
-if "%popt%"=="5" goto RESET_PROFILE
-if "%popt%"=="6" goto SALIR
+if "%popt%"=="3" goto SET_FTMO_10K
+if "%popt%"=="4" goto SHOW_CARD
+if "%popt%"=="5" goto SET_LOGIN
+if "%popt%"=="6" goto RESET_PROFILE
+if "%popt%"=="7" goto SALIR
 goto MENU_PERFILES
 
 :SET_10K
@@ -42,6 +44,13 @@ goto MENU_PERFILES
 :SET_6K
 cls
 python "%~dp0main.py" --switch-profile stellar_6k_trial
+echo.
+pause
+goto MENU_PERFILES
+
+:SET_FTMO_10K
+cls
+python "%~dp0main.py" --switch-profile ftmo_10k_challenge
 echo.
 pause
 goto MENU_PERFILES

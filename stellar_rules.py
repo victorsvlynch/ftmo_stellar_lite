@@ -370,8 +370,9 @@ class StellarLiteRulesEngine:
                         )
 
             elif phase == self.PHASE_1:
-                profit_target_amount = round(initial_balance * self.PHASE_1_TARGET_PCT, 2)  # $800.00 en $10,000 (+8%)
-                profit_target_balance = round(initial_balance + profit_target_amount, 2)    # $10,800.00 en $10,000
+                t1_pct = self.profit_target_pct if self.profit_target_pct is not None else self.PHASE_1_TARGET_PCT
+                profit_target_amount = round(initial_balance * t1_pct, 2)
+                profit_target_balance = round(initial_balance + profit_target_amount, 2)
                 if balance >= profit_target_balance:
                     target_reached = True
                     if trading_days >= self.min_trading_days:
@@ -384,7 +385,7 @@ class StellarLiteRulesEngine:
                         )
                         day_msg = f"{trading_days} días cumplidos" if self.min_trading_days > 0 else "Sin requisito de días mínimos [Add-on]"
                         alerts.append(
-                            f"¡FASE 1 SUPERADA! Target +8% (${profit_target_amount:,.2f}) alcanzado ({day_msg}). "
+                            f"¡FASE 1 SUPERADA! Target +{t1_pct * 100:.1f}% (${profit_target_amount:,.2f}) alcanzado ({day_msg}). "
                             f"Cuenta promovida a FASE 2."
                         )
                         return self.evaluate_account(floating_pnl=0.0, now_server=now_server)
@@ -396,8 +397,9 @@ class StellarLiteRulesEngine:
                         )
 
             elif phase == self.PHASE_2:
-                profit_target_amount = round(initial_balance * self.PHASE_2_TARGET_PCT, 2)  # $400.00 en $10,000 (+4%)
-                profit_target_balance = round(initial_balance + profit_target_amount, 2)    # $10,400.00 en $10,000
+                t2_pct = self.profit_target_phase2_pct if self.profit_target_phase2_pct is not None else self.PHASE_2_TARGET_PCT
+                profit_target_amount = round(initial_balance * t2_pct, 2)
+                profit_target_balance = round(initial_balance + profit_target_amount, 2)
                 if balance >= profit_target_balance:
                     target_reached = True
                     if trading_days >= self.min_trading_days:
@@ -410,7 +412,7 @@ class StellarLiteRulesEngine:
                         )
                         day_msg = f"{trading_days} días cumplidos" if self.min_trading_days > 0 else "Sin requisito de días mínimos [Add-on]"
                         alerts.append(
-                            f"¡FASE 2 SUPERADA! Target +4% (${profit_target_amount:,.2f}) alcanzado ({day_msg}). "
+                            f"¡FASE 2 SUPERADA! Target +{t2_pct * 100:.1f}% (${profit_target_amount:,.2f}) alcanzado ({day_msg}). "
                             f"¡CUENTA FONDEADA OFICIALMENTE! (Profit Split: {self.funded_profit_split * 100:.0f}%)."
                         )
                         return self.evaluate_account(floating_pnl=0.0, now_server=now_server)
@@ -480,7 +482,7 @@ class StellarLiteRulesEngine:
                     "Ya estás preparado para operar la cuenta de evaluación oficial FundedNext de $6K o $10K."
                 )
             else:
-                target_val = profit_target_amount if profit_target_amount is not None else round(initial_balance * self.PHASE_2_TARGET_PCT, 2)
+                target_val = profit_target_amount if profit_target_amount is not None else round(initial_balance * (self.profit_target_phase2_pct or self.PHASE_2_TARGET_PCT), 2)
                 real_account_recommendations.append(
                     f"🏆 [FASE SUPERADA CON ÉXITO]: Cumpliste tanto el beneficio (${target_val:,.2f}) "
                     f"como los {min_days_req} días mínimos reglamentarios."

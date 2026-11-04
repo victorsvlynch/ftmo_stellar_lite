@@ -130,8 +130,11 @@ def run_tests():
     assert spread_gold == 25.0, f"Expected 25.0 spread cost for 1 lot gold ($0.25 * 100), got {spread_gold}"
     print(f"  PASS: Oro (GC=F) 1 Lote -> Comision: ${comm_gold:.2f}, Spread: ${spread_gold:.2f}")
 
-    comm_btc, spread_btc = risk_mgr.calculate_trade_friction("BTC-USD", lots=0.5, units=0.5)
-    print(f"  PASS: BTC-USD 0.5 Lote -> Comision: ${comm_btc:.2f}, Spread: ${spread_btc:.2f}")
+    comm_sp, spread_sp = risk_mgr.calculate_trade_friction("ES=F", lots=1.0, units=1.0)
+    print(f"  PASS: S&P 500 (ES=F) 1 Lote -> Comision: ${comm_sp:.2f}, Spread: ${spread_sp:.2f}")
+
+    comm_eu, spread_eu = risk_mgr.calculate_trade_friction("EURUSD=X", lots=1.0, units=100000.0)
+    print(f"  PASS: EUR/USD (EURUSD=X) 1 Lote -> Comision: ${comm_eu:.2f}, Spread: ${spread_eu:.2f}")
 
     # -------------------------------------------------------------------------
     # TEST 3: Base de Datos & Registro con Descuento Institucional
@@ -197,23 +200,23 @@ def run_tests():
         entry_price=2000.0, stop_loss=1980.0, take_profit=2040.0,
         rr_ratio=2.0, phase="FASE_1", strategy="TEST_WEEKEND"
     )
-    tid_btc = db.record_trade_open(
-        symbol="BTC-USD", provider="yfinance", side="BUY", lots=0.01, units=0.01,
-        entry_price=60000.0, stop_loss=58000.0, take_profit=64000.0,
-        rr_ratio=2.0, phase="FASE_1", strategy="TEST_CRYPTO"
+    tid_sp = db.record_trade_open(
+        symbol="ES=F", provider="yfinance", side="BUY", lots=1.0, units=1.0,
+        entry_price=5000.0, stop_loss=4980.0, take_profit=5040.0,
+        rr_ratio=2.0, phase="FASE_1", strategy="TEST_SP500"
     )
 
     friday_window_time = datetime.datetime(2026, 10, 23, 20, 45, 0, tzinfo=datetime.timezone.utc)
     assert risk_mgr.is_friday_weekend_close_window(friday_window_time) is True
     print("  PASS: Detector de ventana de Viernes 15:30 EST activado correctamente.")
 
-    engine.manage_open_positions({"GC=F": 2002.0, "BTC-USD": 60500.0}, now_utc=friday_window_time)
+    engine.manage_open_positions({"GC=F": 2002.0, "ES=F": 5010.0}, now_utc=friday_window_time)
 
     open_trades_after = db.get_open_trades()
     open_symbols = [t["symbol"] for t in open_trades_after]
     assert "GC=F" not in open_symbols, "Expected GC=F to be flattened for weekend!"
-    assert "BTC-USD" in open_symbols, "Expected BTC-USD to remain open 24/7 during weekend!"
-    print(f"  PASS: GC=F liquidado forzosamente por fin de semana. BTC-USD conservado abierto.")
+    assert "ES=F" not in open_symbols, "Expected ES=F to be flattened for weekend!"
+    print(f"  PASS: GC=F y ES=F (S&P 500) liquidados forzosamente por fin de semana.")
 
     # -------------------------------------------------------------------------
     # TEST 7: Telegram Notifier Test
@@ -329,31 +332,31 @@ def run_tests():
     assert abs(pos_eur.risk_amount_usd - 50.0) < 0.50, f"Expected ~$50.00 risk, got {pos_eur.risk_amount_usd}"
     print(f"  PASS: EUR/USD -> Lotaje: {pos_eur.lots} lotes | Riesgo: ${pos_eur.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_eur.take_profit}")
 
-    # 1B. Dimensionamiento de Posición USD/JPY (20 pips de SL = 0.200 JPY @ 156.250 -> $50 USD de riesgo = 0.5% en $10K)
-    pos_jpy = rm_portfolio.calculate_position_size(
+    # 1B. Dimensionamiento de Posición Oro (XAUUSD / GC=F: $5.00 de SL @ 2000 -> $50 USD de riesgo = 0.5% en $10K)
+    pos_gold = rm_portfolio.calculate_position_size(
         balance=10000.0,
-        symbol="USDJPY=X",
+        symbol="GC=F",
         side="BUY",
-        entry_price=156.250,
-        stop_loss=156.050, # 20 pips
+        entry_price=2000.0,
+        stop_loss=1995.0, # $5 SL
         risk_pct=0.005,
     )
-    assert pos_jpy.lots == 0.39, f"Expected 0.39 lots for USD/JPY with 20 pips SL on 10K, got {pos_jpy.lots}"
-    assert abs(pos_jpy.risk_amount_usd - 50.0) < 1.00, f"Expected ~$50.00 risk, got {pos_jpy.risk_amount_usd}"
-    print(f"  PASS: USD/JPY -> Lotaje: {pos_jpy.lots} lotes | Riesgo: ${pos_jpy.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_jpy.take_profit}")
+    assert pos_gold.lots == 0.10, f"Expected 0.10 lots for Gold on 10K, got {pos_gold.lots}"
+    assert abs(pos_gold.risk_amount_usd - 50.0) < 0.50, f"Expected ~$50.00 risk, got {pos_gold.risk_amount_usd}"
+    print(f"  PASS: Oro (GC=F) -> Lotaje: {pos_gold.lots} lotes | Riesgo: ${pos_gold.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_gold.take_profit}")
 
-    # 1C. Dimensionamiento de Posición AUD/USD (Guardado en Standby: 20 pips de SL -> $50 USD de riesgo = 0.5% en $10K)
-    pos_aud = rm_portfolio.calculate_position_size(
-        balance=10000.0,
-        symbol="AUDUSD=X",
-        side="BUY",
-        entry_price=0.69700,
-        stop_loss=0.69500, # 20 pips
-        risk_pct=0.005,
-    )
-    assert pos_aud.lots == 0.25, f"Expected 0.25 lots for AUD/USD with 20 pips SL on 10K, got {pos_aud.lots}"
-    assert abs(pos_aud.risk_amount_usd - 50.0) < 0.50, f"Expected ~$50.00 risk, got {pos_aud.risk_amount_usd}"
-    print(f"  PASS: AUD/USD (Standby) -> Lotaje: {pos_aud.lots} lotes | Riesgo: ${pos_aud.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_aud.take_profit}")
+    # 1C. Confirmación de Bloqueo de Activos Inactivos (USD/JPY y AUD/USD)
+    try:
+        rm_portfolio.calculate_position_size(balance=10000.0, symbol="USDJPY=X", side="BUY", entry_price=156.0, stop_loss=155.0)
+        assert False, "USD/JPY should be inactive!"
+    except ValueError:
+        pass
+    try:
+        rm_portfolio.calculate_position_size(balance=10000.0, symbol="AUDUSD=X", side="BUY", entry_price=0.69, stop_loss=0.68)
+        assert False, "AUD/USD should be inactive!"
+    except ValueError:
+        pass
+    print("  PASS: USD/JPY y AUD/USD verificados como INACTIVOS en el portafolio.")
 
     # 2. Dimensionamiento de Posición S&P 500 (Guardado en Standby: 15 puntos de SL -> $50 USD de riesgo = 0.5% en $10K)
     pos_sp = rm_portfolio.calculate_position_size(

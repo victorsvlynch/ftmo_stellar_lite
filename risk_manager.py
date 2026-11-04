@@ -25,32 +25,32 @@ from database import TradingDatabase
 
 # Especificaciones de contrato por instrumento para conversión precisa de lotes, unidades y fricción institucional
 INSTRUMENT_SPECS: Dict[str, Dict[str, float]] = {
-    # Oro XAU/USD: 1 lote estándar = 100 onzas troy, 1 pip/punto = $0.10 o $1.00, Comisión $5/lote round-turn, spread típico $0.25
-    "GC=F": {"contract_size": 100.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.25},
-    "XAUUSD": {"contract_size": 100.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.25},
-    # Forex Pares Mayores: 1 lote estándar = 100,000 unidades, Comisión $5/lote round-turn
-    "EURUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
-    "EURUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015},
-    # USD/JPY: 1 lote = 100,000 USD base (cotizado en JPY, 1 pip = 0.01 JPY, conversión dinámica 100,000 / precio USDJPY)
-    "USDJPY=X": {"contract_size": 640.0, "base_contract_size": 100000.0, "quote_is_jpy": True, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.002},
-    "USDJPY": {"contract_size": 640.0, "base_contract_size": 100000.0, "quote_is_jpy": True, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.002},
-    # AUD/USD: Guardado en Standby (reemplazado en el portafolio principal por USD/JPY)
-    "AUDUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015, "standby": True},
-    "AUDUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015, "standby": True},
-    "GBPUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00020},
-    # S&P 500 (Índice USA 500): GUARDADO EN STANDBY (Inactivo en portafolio actual, preservado íntegro para reactivación futura)
-    "ES=F": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40, "standby": True},
-    "US500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40, "standby": True},
-    "SPX500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40, "standby": True},
-    "SP500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 3.0, "typical_spread": 0.40, "standby": True},
-    # Nasdaq 100 (Índice USA Tech 100): INACTIVO POR POLÍTICA INSTITUCIONAL
+    # Oro XAU/USD: 1 lote estándar = 100 onzas troy, 1 pip/punto = $0.10 o $1.00, Comisión $5/lote round-turn, spread típico $0.25 [ACTIVO OFICIAL]
+    "GC=F": {"contract_size": 100.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.25, "active": True},
+    "XAUUSD": {"contract_size": 100.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.25, "active": True},
+    # Forex EUR/USD: 1 lote estándar = 100,000 unidades, Comisión $5/lote round-turn, spread típico 0.00015 [ACTIVO OFICIAL]
+    "EURUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015, "active": True},
+    "EURUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015, "active": True},
+    # S&P 500 (Índice USA 500 / US500): 1 lote = 1 CFD, Cero comisiones en FTMO, spread típico 0.40 pts [ACTIVO OFICIAL]
+    "ES=F": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 0.0, "typical_spread": 0.40, "active": True},
+    "US500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 0.0, "typical_spread": 0.40, "active": True},
+    "SPX500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 0.0, "typical_spread": 0.40, "active": True},
+    "SP500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 0.0, "typical_spread": 0.40, "active": True},
+    # USD/JPY: INACTIVO POR CONFIGURACIÓN DE PORTAFOLIO EXCLUSIVO (ORO, EURUSD, SP500)
+    "USDJPY=X": {"contract_size": 640.0, "base_contract_size": 100000.0, "quote_is_jpy": True, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.002, "active": False, "standby": True},
+    "USDJPY": {"contract_size": 640.0, "base_contract_size": 100000.0, "quote_is_jpy": True, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.002, "active": False, "standby": True},
+    # AUD/USD: INACTIVO
+    "AUDUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015, "active": False, "standby": True},
+    "AUDUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015, "active": False, "standby": True},
+    "GBPUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00020, "active": False, "standby": True},
+    # Nasdaq 100 (Índice USA Tech 100): INACTIVO PERMANENTE
     "NQ=F": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5, "active": False},
     "NAS100": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5, "active": False},
     "US100": {"contract_size": 1.0, "pip_size": 0.25, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 3.0, "typical_spread": 1.5, "active": False},
-    # Cripto (1 lote = 1 unidad subyacente en CFD/Spot)
-    "BTC/USDT": {"contract_size": 1.0, "pip_size": 1.0, "min_lot": 0.001, "max_lot": 20.0, "lot_step": 0.001, "commission_per_lot": 2.0, "typical_spread": 2.0},
-    "ETH/USDT": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 0.5, "typical_spread": 0.3},
-    "SOL/USDT": {"contract_size": 1.0, "pip_size": 0.01, "min_lot": 0.1, "max_lot": 1000.0, "lot_step": 0.1, "commission_per_lot": 0.1, "typical_spread": 0.05},
+    # Cripto (BTC, ETH, SOL): INACTIVOS
+    "BTC/USDT": {"contract_size": 1.0, "pip_size": 1.0, "min_lot": 0.001, "max_lot": 20.0, "lot_step": 0.001, "commission_per_lot": 2.0, "typical_spread": 2.0, "active": False, "standby": True},
+    "ETH/USDT": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 0.5, "typical_spread": 0.3, "active": False, "standby": True},
+    "SOL/USDT": {"contract_size": 1.0, "pip_size": 0.01, "min_lot": 0.1, "max_lot": 1000.0, "lot_step": 0.1, "commission_per_lot": 0.1, "typical_spread": 0.05, "active": False, "standby": True},
 }
 
 
@@ -139,33 +139,27 @@ class RiskManager:
     def get_instrument_spec(symbol: str) -> Dict[str, float]:
         """Obtiene la especificación del contrato o retorna un estándar seguro."""
         clean_sym = symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
-        # Bloqueo explícito de Nasdaq 100 (Inactivo por política de riesgo institucional)
-        if any(k in clean_sym for k in ("100", "NQ", "NAS", "USTEC")):
-            raise ValueError(f"El activo {symbol} (Nasdaq 100) se encuentra INACTIVO por política de riesgo institucional.")
-        if symbol.upper() in INSTRUMENT_SPECS:
-            return INSTRUMENT_SPECS[symbol.upper()]
-        if clean_sym in INSTRUMENT_SPECS:
-            return INSTRUMENT_SPECS[clean_sym]
+        # Bloqueo explícito de activos inactivos: Portafolio Exclusivo (Oro, EUR/USD y S&P 500)
+        is_gold = any(k in clean_sym for k in ("XAU", "GC", "GOLD"))
+        is_eurusd = ("EUR" in clean_sym and "USD" in clean_sym) or clean_sym == "EURUSD"
+        is_sp500 = any(k in clean_sym for k in ("500", "SPX", "ES"))
+
+        if not (is_gold or is_eurusd or is_sp500):
+            raise ValueError(
+                f"El activo {symbol} se encuentra INACTIVO. "
+                "La configuración actual opera exclusivamente Oro (XAUUSD), EUR/USD y S&P 500 (US500)."
+            )
+
         # Índices S&P 500
-        if any(k in clean_sym for k in ("500", "SPX", "ES")):
-            return INSTRUMENT_SPECS["US500"]
-        # Forex Pares
-        if "EUR" in clean_sym:
-            return INSTRUMENT_SPECS["EURUSD=X"]
-        if "JPY" in clean_sym:
-            return INSTRUMENT_SPECS["USDJPY=X"]
-        if "AUD" in clean_sym:
-            return INSTRUMENT_SPECS["AUDUSD=X"]
-        if "GBP" in clean_sym:
-            return INSTRUMENT_SPECS["GBPUSD=X"]
+        if is_sp500:
+            return INSTRUMENT_SPECS.get(symbol.upper()) or INSTRUMENT_SPECS.get(clean_sym) or INSTRUMENT_SPECS["US500"]
+        # Forex EUR/USD
+        if is_eurusd:
+            return INSTRUMENT_SPECS.get(symbol.upper()) or INSTRUMENT_SPECS.get(clean_sym) or INSTRUMENT_SPECS["EURUSD=X"]
         # Materias Primas / Oro
-        if "XAU" in clean_sym or "GC" in clean_sym or "GOLD" in clean_sym:
-            return INSTRUMENT_SPECS["GC=F"]
-        # Cripto
-        if "BTC" in clean_sym:
-            return INSTRUMENT_SPECS["BTC/USDT"]
-        if "USD" in clean_sym and "/" not in clean_sym:
-            return INSTRUMENT_SPECS["EURUSD=X"]
+        if is_gold:
+            return INSTRUMENT_SPECS.get(symbol.upper()) or INSTRUMENT_SPECS.get(clean_sym) or INSTRUMENT_SPECS["GC=F"]
+
         return {"contract_size": 1.0, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01}
 
     def calculate_position_size(
@@ -339,9 +333,19 @@ class RiskManager:
         is_wall_street_cash = (9 * 60 + 30) <= ny_minutes <= (11 * 60 + 30)
 
         sym_upper = symbol.upper()
+        sym_clean = sym_upper.replace("=X", "").replace("=F", "").replace("/", "")
+
+        # Filtro estricto: Solo Oro (XAUUSD), EUR/USD y S&P 500 (US500) autorizados
+        is_gold = any(k in sym_clean for k in ("XAU", "GC", "GOLD"))
+        is_eurusd = ("EUR" in sym_clean and "USD" in sym_clean) or sym_clean == "EURUSD"
+        is_sp500 = any(k in sym_clean for k in ("500", "SPX", "ES"))
+
+        if not (is_gold or is_eurusd or is_sp500):
+            return False, f"INACTIVO: {symbol} está desactivado por configuración de portafolio exclusivo (Oro, EUR/USD, S&P 500)"
+
         is_crypto = "BTC" in sym_upper or "/" in sym_upper or "USDT" in sym_upper
-        is_index = any(k in sym_upper for k in ("ES", "500", "SPX", "NQ", "100", "NAS", "USTEC"))
-        is_forex = any(k in sym_upper for k in ("EUR", "GBP", "JPY", "AUD", "CAD", "CHF"))
+        is_index = is_sp500
+        is_forex = is_eurusd
 
         if is_crypto:
             if self.session_mode in ("ALL", "CRYPTO_24H", "COMBO_TRIO"):

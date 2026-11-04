@@ -146,7 +146,8 @@ def print_console_report(
     prof_title = prof.name if prof else ("Stellar 6K Trial" if getattr(rules, "is_trial", False) else "Stellar 10K Demo")
     prof_balance = float(acc.get("initial_balance", 10000.0))
     login_str = f" | Login #{acc.get('account_login')}" if acc.get("account_login") else ""
-    print(f"   FUNDEDNEXT {prof_title.upper()} (${prof_balance:,.0f} USD){login_str} - MOTOR CUANTITATIVO")
+    brand_prefix = "" if any(b in prof_title.upper() for b in ("FTMO", "FUNDEDNEXT")) else "PROP TRADING "
+    print(f"   {brand_prefix}{prof_title.upper()} (${prof_balance:,.0f} USD){login_str} - MOTOR CUANTITATIVO")
     print(f"{sep}")
     print(f" Fecha/Hora Servidor : {now_str} | Jornada: {trading_date}")
     print(f" Fase de Cuenta      : {state.phase:<12} | Estado : {state.status}")
@@ -159,7 +160,8 @@ def print_console_report(
     print(f"  Equidad Actual       : ${state.equity:>10,.2f}   | Profit Acumulado   : ${state.current_profit:>+10,.2f}")
     print(f"  Objetivo de Fase     : {target_str}")
     print(subsep)
-    print(" [REGLAS OFICIALES FUNDEDNEXT & GESTIÓN DE RIESGO]")
+    firm_tag = "FTMO" if "FTMO" in prof_title.upper() else "FUNDEDNEXT"
+    print(f" [REGLAS OFICIALES {firm_tag} & GESTIÓN DE RIESGO]")
     print(
         f"  Piso Pérdida Diaria ({rules.daily_loss_limit_pct * 100:.0f}% Estático) : ${state.daily_loss_floor:>8,.2f} "
         f"(Margen restante: ${state.daily_loss_remaining:>7,.2f})"

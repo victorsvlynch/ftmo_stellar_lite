@@ -155,6 +155,32 @@ def get_default_profiles() -> Dict[str, TradingProfile]:
             scaled_funded_split=0.90,
             notes="Free Trial $6K Challenge MT5 Swap - Login 35338849 (1-trial.png / 2-trial.png).",
         ),
+        "ftmo_10k_challenge": TradingProfile(
+            id="ftmo_10k_challenge",
+            name="FTMO 10K Challenge",
+            account_type="FTMO Challenge 2-Step",
+            platform="MT5",
+            account_mode="SWAP",
+            initial_balance=10000.0,            # $10,000 USD (€89 EUR - Plan 10K FTMO.png)
+            profit_target_pct=0.10,             # +10.0% Fase 1 ($1,000) -> Meta: $11,000
+            profit_target_phase2_pct=0.05,      # +5.0% Fase 2 ($500) -> Meta: $10,500
+            daily_loss_limit_pct=0.05,          # 5.0% ($500) límite de pérdida diaria
+            max_drawdown_limit_pct=0.10,        # 10.0% ($1,000) drawdown máximo total -> piso fijo $9,000
+            min_trading_days=4,                 # 4 días mínimos por fase (Plan 10K FTMO.png)
+            max_open_risk_pct=0.03,             # 3% riesgo máximo simultáneo ($300)
+            default_risk_per_trade_pct=0.005,   # 0.50% por operación ($50)
+            personal_daily_cap_pct=0.025,       # 2.5% freno de mano personal ($250) -> factor 2x vs 5% diario
+            db_file="trading_ftmo_10k.db",
+            login_id=None,
+            server="FTMO-Demo",
+            is_trial=False,
+            ea_enabled=True,
+            allow_overnight_weekend=True,
+            news_profit_cap_pct=1.0,            # Sin restricción de 40% News Cap en FTMO
+            funded_profit_split=0.80,           # Hasta 90% (80% inicial escalable a 90%)
+            scaled_funded_split=0.90,
+            notes="Evaluación Oficial 2-Step FTMO Challenge $10,000 USD (€89 EUR) - Plan 10K FTMO.png.",
+        ),
     }
 
 
@@ -274,7 +300,7 @@ class ProfileManager:
         Elimina un perfil personalizado.
         Protege los perfiles estándar del sistema ('stellar_10k_demo' y 'stellar_6k_trial').
         """
-        if profile_id in ("stellar_10k_demo", "stellar_6k_trial"):
+        if profile_id in ("stellar_10k_demo", "stellar_6k_trial", "ftmo_10k_challenge"):
             raise ValueError(f"No se permite eliminar los perfiles predeterminados del sistema ({profile_id}).")
 
         data = self._load_raw_config()

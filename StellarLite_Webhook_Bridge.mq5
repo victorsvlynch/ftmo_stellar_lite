@@ -42,7 +42,7 @@ input ulong  InpDeviationPoints = 30;                             // Slippage Ma
 
 input string InpPreferredSymbol = "XAUUSD";                       // Simbolo Preferido (o vacio para usar el grafico)
 
-input bool   InpEnableSP500     = false;                          // Activar S&P 500 (US500) [Guardado en Standby]
+input bool   InpEnableSP500     = true;                           // Activar S&P 500 (US500) [ACTIVO OFICIAL]                          // Activar S&P 500 (US500) [Guardado en Standby]
 
 
 
@@ -236,31 +236,15 @@ string ResolveBrokerSymbol(const string requestedSymbol)
 
    }
 
-   // C. USD/JPY (Activo Oficial #3 del Portafolio NY Open)
+   // C. USD/JPY y AUD/USD (Inactivos: Portafolio Exclusivo Oro, EURUSD y SP500)
 
-   else if(StringFind(clean, "JPY") >= 0)
-
-   {
-
-      string candidates[] = {"USDJPY", "USDJPYm", "USDJPY.raw", "USDJPY.pro", "USDJPYb", "USDJPY.cash", "USDJPY+"};
-
-      for(int i = 0; i < ArraySize(candidates); i++)
-
-         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
-
-   }
-
-   // D. AUD/USD (Guardado en Standby)
-
-   else if(StringFind(clean, "AUD") >= 0)
+   else if(StringFind(clean, "JPY") >= 0 || StringFind(clean, "AUD") >= 0 || StringFind(clean, "GBP") >= 0 || StringFind(clean, "BTC") >= 0)
 
    {
 
-      string candidates[] = {"AUDUSD", "AUDUSDm", "AUDUSD.raw", "AUDUSD.pro", "AUDUSDb", "AUDUSD.cash", "AUDUSD+"};
+      PrintFormat("[EA MT5] [INACTIVO] El activo %s esta desactivado (solo Oro, EUR/USD y SP500 activos).", requestedSymbol);
 
-      for(int i = 0; i < ArraySize(candidates); i++)
-
-         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
+      return "INACTIVE";
 
    }
 
