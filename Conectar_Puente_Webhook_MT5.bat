@@ -78,8 +78,8 @@ echo.
 echo Verificando servicio stellar_webhook en Oracle Cloud...
 ssh -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "sudo systemctl start stellar_webhook" >nul 2>&1
 
-echo Iniciando tunel SSH en segundo plano...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process ssh -ArgumentList '-i \"%KEY%\" -o StrictHostKeyChecking=no -N -n -L 8000:localhost:8000 ubuntu@157.137.225.144' -WindowStyle Hidden"
+echo Iniciando tunel SSH con Auto-Reconexion 24/7 en segundo plano...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"while($true){ ssh -i ''%KEY%'' -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes -N -n -L 8000:localhost:8000 ubuntu@157.137.225.144; Start-Sleep -Seconds 3 }\"' -WindowStyle Hidden"
 
 echo Esperando 3 segundos para confirmar conexion...
 timeout /t 3 >nul
@@ -110,7 +110,12 @@ echo    1. Marca 'Permitir WebRequest' en Herramientas -> Opciones -> Asesores E
 echo    2. Agrega la URL: http://127.0.0.1:8000
 echo    3. Arrastra 'StellarLite_Webhook_Bridge' a tu grafico de Oro (XAUUSD).
 echo.
-ssh -N -L 8000:localhost:8000 -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144
+:LOOP_FG
+echo [%TIME%] Conectando tunel SSH (KeepAlive 15s + Auto-Reconexion)...
+ssh -N -L 8000:localhost:8000 -i "%KEY%" -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes ubuntu@157.137.225.144
+echo [%TIME%] Micro-corte detectado. Reconectando automaticamente en 3 segundos...
+timeout /t 3 /nobreak >nul
+goto LOOP_FG
 pause
 goto MENU
 

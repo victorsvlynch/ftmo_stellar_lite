@@ -67,10 +67,48 @@ def init_webhook_tables(db_path: str = DB_FILE) -> None:
     conn.close()
 
 
+ACTION_TTL_SECONDS = 180.0  # Caducidad máxima de 3 minutos para evitar ráfagas de órdenes viejas tras reconectar el túnel
+
+
 def get_pending_action(db_path: str = DB_FILE) -> Optional[Dict[str, Any]]:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
+    now_dt = datetime.now(timezone.utc)
+    now_str = now_dt.isoformat()
+
+    # 1. Expirar automáticamente acciones en cola que tengan más de 3 minutos (180s) de antigüedad
+    cur.execute("SELECT id, action, trade_id, created_at FROM webhook_actions WHERE status = 'PENDING' ORDER BY id ASC")
+    pending_rows = cur.fetchall()
+    expired_any = False
+    for r in pending_rows:
+        try:
+            c_dt = datetime.fromisoformat(r["created_at"])
+            if c_dt.tzinfo is None:
+                c_dt = c_dt.replace(tzinfo=timezone.utc)
+            age_s = (now_dt - c_dt).total_seconds()
+            if age_s > ACTION_TTL_SECONDS:
+                cur.execute(
+                    "UPDATE webhook_actions SET status = 'EXPIRED_STALE', executed_at = ? WHERE id = ?",
+                    (now_str, r["id"]),
+                )
+                if r["action"] in ("OPEN_BUY", "OPEN_SELL") and r["trade_id"]:
+                    cur.execute(
+                        """
+                        UPDATE trades
+                        SET status = 'EXPIRED_OFFLINE', pnl = 0.0,
+                            notes = notes || ' | EXPIRADA_POR_DESCONEXION_PUENTE (>180s)'
+                        WHERE id = ? AND status = 'OPEN'
+                        """,
+                        (r["trade_id"],),
+                    )
+                expired_any = True
+        except Exception:
+            pass
+    if expired_any:
+        conn.commit()
+
+    # 2. Retornar únicamente la primera acción fresca vigente
     cur.execute(
         "SELECT * FROM webhook_actions WHERE status = 'PENDING' ORDER BY id ASC LIMIT 1"
     )

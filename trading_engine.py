@@ -1292,6 +1292,30 @@ class AutomatedTradingEngine:
             if signal.side not in ("BUY", "SELL"):
                 continue
 
+            # 4.5 Regla Anti-Persecución Institucional (1 Disparo por Vela ORB por Activo):
+            # Si el activo ya cerró una operación en esta misma ventana ORB (ej. '2026-11-04 03:00 EST' o '08:30 EST')
+            # con ganancia/Break-Even (o ya acumuló 2 intentos en la misma ventana), no volver a re-entrar tarde en la misma ola.
+            if not force_signal_side:
+                acc_chk = self.db.get_account_state()
+                t_date_chk = str(acc_chk.get("current_trading_day", dt.strftime("%Y-%m-%d")))
+                closed_today_sym = [
+                    t for t in self.db.get_trades_by_date(t_date_chk, status="CLOSED")
+                    if t.get("symbol") == sym
+                ]
+                orb_tag = ""
+                for tag_cand in ("03:00 EST", "08:30 EST", "09:30 EST"):
+                    if tag_cand in signal.reason:
+                        orb_tag = tag_cand
+                        break
+                if orb_tag:
+                    same_orb_trades = [t for t in closed_today_sym if orb_tag in str(t.get("notes", ""))]
+                    already_won_orb = any(float(t.get("pnl", 0.0)) > 0 or int(t.get("is_break_even", 0)) == 1 for t in same_orb_trades)
+                    if already_won_orb or len(same_orb_trades) >= 1:
+                        skipped_session_reasons.append(
+                            f"{sym}: Ventana ORB ({orb_tag}) ya operada hoy ({len(same_orb_trades)} trade previo). Evitando re-entrada tardía."
+                        )
+                        continue
+
             # 5. Calcular tamaño de posición exacto y abrir operación
             acc = self.db.get_account_state()
             risk_pct = float(acc.get("risk_per_trade_pct", self.risk.default_risk_pct))
