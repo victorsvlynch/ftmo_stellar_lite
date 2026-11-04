@@ -78,8 +78,8 @@ echo.
 echo Verificando servicio stellar_webhook en Oracle Cloud...
 ssh -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "sudo systemctl start stellar_webhook" >nul 2>&1
 
-echo Iniciando tunel SSH con Auto-Reconexion 24/7 en segundo plano...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"while($true){ ssh -i ''%KEY%'' -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes -N -n -L 8000:localhost:8000 ubuntu@157.137.225.144; Start-Sleep -Seconds 3 }\"' -WindowStyle Hidden"
+echo Iniciando tunel SSH + Guardian Watchdog Activo 24/7 en segundo plano...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process ssh -ArgumentList '-i \"%KEY%\" -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -o ServerAliveCountMax=2 -o ExitOnForwardFailure=yes -N -n -L 8000:localhost:8000 ubuntu@157.137.225.144' -WindowStyle Hidden; Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"%~dp0watchdog_tunel_mt5.ps1\"' -WindowStyle Hidden"
 
 echo Esperando 3 segundos para confirmar conexion...
 timeout /t 3 >nul
@@ -122,7 +122,7 @@ goto MENU
 :DETENER_TUNEL
 echo.
 echo Deteniendo procesos de tunel SSH...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'ssh.exe' -and $_.CommandLine -like '*8000*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'ssh.exe' -and $_.CommandLine -like '*8000*') -or ($_.CommandLine -like '*watchdog_tunel_mt5*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
 ping 127.0.0.1 -n 2 >nul
 netstat -ano | findstr /C:":8000 " | findstr /I "LISTENING" >nul 2>&1
 if not errorlevel 1 (
