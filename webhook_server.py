@@ -70,7 +70,7 @@ def init_webhook_tables(db_path: str = DB_FILE) -> None:
 ACTION_TTL_SECONDS = 180.0  # Caducidad máxima de 3 minutos para evitar ráfagas de órdenes viejas tras reconectar el túnel
 
 
-def get_pending_action(db_path: str = DB_FILE) -> Optional[Dict[str, Any]]:
+def get_pending_action(db_path: str = DB_FILE, magic: Optional[int] = None) -> Optional[Dict[str, Any]]:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
@@ -108,10 +108,16 @@ def get_pending_action(db_path: str = DB_FILE) -> Optional[Dict[str, Any]]:
     if expired_any:
         conn.commit()
 
-    # 2. Retornar únicamente la primera acción fresca vigente
-    cur.execute(
-        "SELECT * FROM webhook_actions WHERE status = 'PENDING' ORDER BY id ASC LIMIT 1"
-    )
+    # 2. Retornar únicamente la primera acción fresca vigente (aislada por Magic Number si se especifica)
+    if magic is not None and magic > 0:
+        cur.execute(
+            "SELECT * FROM webhook_actions WHERE status = 'PENDING' AND (magic = ? OR magic = 0) ORDER BY id ASC LIMIT 1",
+            (magic,),
+        )
+    else:
+        cur.execute(
+            "SELECT * FROM webhook_actions WHERE status = 'PENDING' ORDER BY id ASC LIMIT 1"
+        )
     row = cur.fetchone()
     conn.close()
     if row:
@@ -379,8 +385,15 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
 
         # 2. Polling de Señal de Trading para el EA de MT5
         if path == "/api/signal":
-            # Verificar si hay una acción en cola
-            pending = get_pending_action()
+            req_magic = None
+            if "magic" in qs:
+                try:
+                    req_magic = int(qs["magic"][0])
+                except (ValueError, TypeError):
+                    req_magic = None
+
+            # Verificar si hay una acción en cola (filtrando por Magic Number de la terminal correspondiente)
+            pending = get_pending_action(magic=req_magic)
             if pending:
                 payload = {
                     "status": "OK",

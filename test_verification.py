@@ -317,7 +317,9 @@ def run_tests():
     # TEST 10: Portafolio Profesional Multi-Activo con Capital de $10,000 USD
     # -------------------------------------------------------------------------
     print("\n[TEST 10] Portafolio Profesional en Cuenta $10K: S&P 500 (ES=F / US500) & EUR/USD (EURUSD=X)")
-    rm_portfolio = RiskManager(db=db, session_mode="PORTFOLIO_DUAL")
+    from profiles import profile_manager
+    prof_ftmo = profile_manager.get_profile("ftmo_10k_challenge")
+    rm_portfolio = RiskManager(db=db, session_mode="PORTFOLIO_DUAL", profile=prof_ftmo)
     
     # 1. Dimensionamiento de Posición EUR/USD (25 pips de SL -> $50 USD de riesgo = 0.5% en $10K)
     pos_eur = rm_portfolio.calculate_position_size(
@@ -345,18 +347,52 @@ def run_tests():
     assert abs(pos_gold.risk_amount_usd - 50.0) < 0.50, f"Expected ~$50.00 risk, got {pos_gold.risk_amount_usd}"
     print(f"  PASS: Oro (GC=F) -> Lotaje: {pos_gold.lots} lotes | Riesgo: ${pos_gold.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_gold.take_profit}")
 
-    # 1C. Confirmación de Bloqueo de Activos Inactivos (USD/JPY y AUD/USD)
-    try:
-        rm_portfolio.calculate_position_size(balance=10000.0, symbol="USDJPY=X", side="BUY", entry_price=156.0, stop_loss=155.0)
-        assert False, "USD/JPY should be inactive!"
-    except ValueError:
-        pass
+    # 1C. Dimensionamiento de Posición USD/JPY (Activo Oficial en MT2 Stellar Lite 10K)
+    pos_jpy = rm_portfolio.calculate_position_size(
+        balance=10000.0,
+        symbol="USDJPY=X",
+        side="BUY",
+        entry_price=150.0,
+        stop_loss=149.50, # 50 pips
+        risk_pct=0.005,
+    )
+    assert pos_jpy.lots > 0.0, f"Expected valid lots for USD/JPY, got {pos_jpy.lots}"
+    assert abs(pos_jpy.risk_amount_usd - 50.0) < 1.0, f"Expected ~$50.00 risk for USD/JPY, got {pos_jpy.risk_amount_usd}"
+    print(f"  PASS: USD/JPY (MT2 Stellar) -> Lotaje: {pos_jpy.lots} lotes | Riesgo: ${pos_jpy.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_jpy.take_profit}")
+
+    # 1D. Confirmación de Bloqueo de Activos Inactivos Globalmente (AUD/USD y Nasdaq)
     try:
         rm_portfolio.calculate_position_size(balance=10000.0, symbol="AUDUSD=X", side="BUY", entry_price=0.69, stop_loss=0.68)
         assert False, "AUD/USD should be inactive!"
     except ValueError:
         pass
-    print("  PASS: USD/JPY y AUD/USD verificados como INACTIVOS en el portafolio.")
+    try:
+        rm_portfolio.calculate_position_size(balance=10000.0, symbol="NQ=F", side="BUY", entry_price=20000.0, stop_loss=19900.0)
+        assert False, "Nasdaq should be inactive!"
+    except ValueError:
+        pass
+    print("  PASS: AUD/USD y Nasdaq verificados como INACTIVOS globales.")
+
+    # 1E. Validación de Aislamiento por Perfiles (FTMO vs Stellar Lite):
+    from profiles import profile_manager
+    prof_ftmo = profile_manager.get_profile("ftmo_10k_challenge")
+    prof_stellar = profile_manager.get_profile("stellar_10k_demo")
+
+    rm_ftmo = RiskManager(db=db, session_mode="ALL", profile=prof_ftmo)
+    rm_stellar = RiskManager(db=db, session_mode="ALL", profile=prof_stellar)
+
+    # En FTMO: Oro, EUR/USD y S&P 500 permitidos; USD/JPY bloqueado
+    act_ftmo_sp, _ = rm_ftmo.is_symbol_session_active("ES=F")
+    act_ftmo_jpy, lbl_ftmo_jpy = rm_ftmo.is_symbol_session_active("USDJPY=X")
+    assert act_ftmo_sp is True, "S&P 500 debe estar permitido en FTMO"
+    assert act_ftmo_jpy is False and "INACTIVO_POR_PERFIL" in lbl_ftmo_jpy, f"USD/JPY debe bloquearse en FTMO: {lbl_ftmo_jpy}"
+
+    # En Stellar: Oro, EUR/USD y USD/JPY permitidos; S&P 500 bloqueado
+    act_st_jpy, _ = rm_stellar.is_symbol_session_active("USDJPY=X")
+    act_st_sp, lbl_st_sp = rm_stellar.is_symbol_session_active("ES=F")
+    assert act_st_jpy is True, "USD/JPY debe estar permitido en Stellar"
+    assert act_st_sp is False and "INACTIVO_POR_PERFIL" in lbl_st_sp, f"S&P 500 debe bloquearse en Stellar: {lbl_st_sp}"
+    print("  PASS: Aislamiento estricto de portafolio certificado: FTMO (Oro, EURUSD, SP500) vs Stellar (Oro, EURUSD, USDJPY).")
 
     # 2. Dimensionamiento de Posición S&P 500 (Guardado en Standby: 15 puntos de SL -> $50 USD de riesgo = 0.5% en $10K)
     pos_sp = rm_portfolio.calculate_position_size(

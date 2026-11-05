@@ -36,9 +36,9 @@ INSTRUMENT_SPECS: Dict[str, Dict[str, float]] = {
     "US500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 0.0, "typical_spread": 0.40, "active": True},
     "SPX500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 0.0, "typical_spread": 0.40, "active": True},
     "SP500": {"contract_size": 1.0, "pip_size": 0.10, "min_lot": 0.1, "max_lot": 250.0, "lot_step": 0.1, "commission_per_lot": 0.0, "typical_spread": 0.40, "active": True},
-    # USD/JPY: INACTIVO POR CONFIGURACIÓN DE PORTAFOLIO EXCLUSIVO (ORO, EURUSD, SP500)
-    "USDJPY=X": {"contract_size": 640.0, "base_contract_size": 100000.0, "quote_is_jpy": True, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.002, "active": False, "standby": True},
-    "USDJPY": {"contract_size": 640.0, "base_contract_size": 100000.0, "quote_is_jpy": True, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.002, "active": False, "standby": True},
+    # USD/JPY: ACTIVO OFICIAL (Forex NY Open / FundedNext Stellar Lite)
+    "USDJPY=X": {"contract_size": 640.0, "base_contract_size": 100000.0, "quote_is_jpy": True, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.002, "active": True},
+    "USDJPY": {"contract_size": 640.0, "base_contract_size": 100000.0, "quote_is_jpy": True, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.002, "active": True},
     # AUD/USD: INACTIVO
     "AUDUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015, "active": False, "standby": True},
     "AUDUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015, "active": False, "standby": True},
@@ -139,15 +139,16 @@ class RiskManager:
     def get_instrument_spec(symbol: str) -> Dict[str, float]:
         """Obtiene la especificación del contrato o retorna un estándar seguro."""
         clean_sym = symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
-        # Bloqueo explícito de activos inactivos: Portafolio Exclusivo (Oro, EUR/USD y S&P 500)
+        # Bloqueo explícito de activos inactivos: Portafolios Oficiales (Oro, EUR/USD, S&P 500 y USD/JPY)
         is_gold = any(k in clean_sym for k in ("XAU", "GC", "GOLD"))
         is_eurusd = ("EUR" in clean_sym and "USD" in clean_sym) or clean_sym == "EURUSD"
         is_sp500 = any(k in clean_sym for k in ("500", "SPX", "ES"))
+        is_usdjpy = ("JPY" in clean_sym and "USD" in clean_sym) or clean_sym == "USDJPY"
 
-        if not (is_gold or is_eurusd or is_sp500):
+        if not (is_gold or is_eurusd or is_sp500 or is_usdjpy):
             raise ValueError(
                 f"El activo {symbol} se encuentra INACTIVO. "
-                "La configuración actual opera exclusivamente Oro (XAUUSD), EUR/USD y S&P 500 (US500)."
+                "La configuración actual opera exclusivamente Oro (XAUUSD), EUR/USD, S&P 500 (US500) y USD/JPY."
             )
 
         # Índices S&P 500
@@ -156,6 +157,9 @@ class RiskManager:
         # Forex EUR/USD
         if is_eurusd:
             return INSTRUMENT_SPECS.get(symbol.upper()) or INSTRUMENT_SPECS.get(clean_sym) or INSTRUMENT_SPECS["EURUSD=X"]
+        # Forex USD/JPY
+        if is_usdjpy:
+            return INSTRUMENT_SPECS.get(symbol.upper()) or INSTRUMENT_SPECS.get(clean_sym) or INSTRUMENT_SPECS["USDJPY=X"]
         # Materias Primas / Oro
         if is_gold:
             return INSTRUMENT_SPECS.get(symbol.upper()) or INSTRUMENT_SPECS.get(clean_sym) or INSTRUMENT_SPECS["GC=F"]
@@ -335,17 +339,41 @@ class RiskManager:
         sym_upper = symbol.upper()
         sym_clean = sym_upper.replace("=X", "").replace("=F", "").replace("/", "")
 
-        # Filtro estricto: Solo Oro (XAUUSD), EUR/USD y S&P 500 (US500) autorizados
+        # Filtro de activos autorizados: Oro (XAUUSD), EUR/USD, S&P 500 (US500) y USD/JPY
         is_gold = any(k in sym_clean for k in ("XAU", "GC", "GOLD"))
         is_eurusd = ("EUR" in sym_clean and "USD" in sym_clean) or sym_clean == "EURUSD"
         is_sp500 = any(k in sym_clean for k in ("500", "SPX", "ES"))
+        is_usdjpy = ("JPY" in sym_clean and "USD" in sym_clean) or sym_clean == "USDJPY"
 
-        if not (is_gold or is_eurusd or is_sp500):
-            return False, f"INACTIVO: {symbol} está desactivado por configuración de portafolio exclusivo (Oro, EUR/USD, S&P 500)"
+        if not (is_gold or is_eurusd or is_sp500 or is_usdjpy):
+            return False, f"INACTIVO: {symbol} está desactivado por configuración de portafolio institucional"
+
+        # Validación según perfil activo si está disponible (por familias canónicas de activos)
+        if self.profile and hasattr(self.profile, "allowed_symbols") and self.profile.allowed_symbols:
+            allowed_for_profile = False
+            for allowed in self.profile.allowed_symbols:
+                al_clean = allowed.upper().replace("=X", "").replace("=F", "").replace("/", "")
+                if is_gold and any(k in al_clean for k in ("XAU", "GC", "GOLD")):
+                    allowed_for_profile = True
+                    break
+                if is_eurusd and (("EUR" in al_clean and "USD" in al_clean) or al_clean == "EURUSD"):
+                    allowed_for_profile = True
+                    break
+                if is_sp500 and any(k in al_clean for k in ("500", "SPX", "ES")):
+                    allowed_for_profile = True
+                    break
+                if is_usdjpy and (("JPY" in al_clean and "USD" in al_clean) or al_clean == "USDJPY"):
+                    allowed_for_profile = True
+                    break
+                if al_clean in sym_clean or sym_clean in al_clean:
+                    allowed_for_profile = True
+                    break
+            if not allowed_for_profile:
+                return False, f"INACTIVO_POR_PERFIL: {symbol} no está autorizado en {self.profile.name} (activos: {', '.join(self.profile.allowed_symbols)})"
 
         is_crypto = "BTC" in sym_upper or "/" in sym_upper or "USDT" in sym_upper
         is_index = is_sp500
-        is_forex = is_eurusd
+        is_forex = is_eurusd or is_usdjpy
 
         if is_crypto:
             if self.session_mode in ("ALL", "CRYPTO_24H", "COMBO_TRIO"):

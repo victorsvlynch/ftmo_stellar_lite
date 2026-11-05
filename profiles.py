@@ -46,6 +46,8 @@ class TradingProfile:
     scaled_funded_split: float = 0.90        # Split escalado (90%)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     notes: str = ""
+    magic_number: int = 505001               # Magic Number MT5 exclusivo para aislar ejecuciones
+    allowed_symbols: List[str] = field(default_factory=lambda: ["XAUUSD", "EURUSD", "US500", "USDJPY"])
 
     # Propiedades calculadas útiles
     @property
@@ -396,6 +398,8 @@ def print_profile_card(profile: TradingProfile) -> None:
     print(f" • Login MT5 Asignado     : {login_str}")
     print(f" • Servidor Broker        : {profile.server}")
     print(f" • Base de Datos SQLite   : {profile.db_file}")
+    print(f" • Magic Number MT5       : {profile.magic_number}")
+    print(f" • Activos Autorizados    : {', '.join(profile.allowed_symbols)}")
     print(subsep)
     print(" [OBJETIVOS Y REGLAS DE EVALUACIÓN]")
     if profile.is_trial:

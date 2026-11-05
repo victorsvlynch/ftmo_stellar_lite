@@ -42,7 +42,9 @@ input ulong  InpDeviationPoints = 30;                             // Slippage Ma
 
 input string InpPreferredSymbol = "XAUUSD";                       // Simbolo Preferido (o vacio para usar el grafico)
 
-input bool   InpEnableSP500     = true;                           // Activar S&P 500 (US500) [ACTIVO OFICIAL]                          // Activar S&P 500 (US500) [Guardado en Standby]
+input bool   InpEnableSP500     = true;                           // Activar S&P 500 (US500) [MT1 FTMO: true | MT2 Stellar: false]
+
+input bool   InpEnableUSDJPY    = true;                           // Activar USD/JPY [MT1 FTMO: false | MT2 Stellar: true]
 
 
 
@@ -236,19 +238,36 @@ string ResolveBrokerSymbol(const string requestedSymbol)
 
    }
 
-   // C. USD/JPY y AUD/USD (Inactivos: Portafolio Exclusivo Oro, EURUSD y SP500)
+   // C. USD/JPY (Activo oficial MT2 Stellar Lite 10K)
 
-   else if(StringFind(clean, "JPY") >= 0 || StringFind(clean, "AUD") >= 0 || StringFind(clean, "GBP") >= 0 || StringFind(clean, "BTC") >= 0)
+   else if(StringFind(clean, "JPY") >= 0)
 
    {
 
-      PrintFormat("[EA MT5] [INACTIVO] El activo %s esta desactivado (solo Oro, EUR/USD y SP500 activos).", requestedSymbol);
+      if(!InpEnableUSDJPY)
+
+         return "INACTIVE";
+
+      string candidates[] = {"USDJPY", "USDJPYm", "USDJPY.raw", "USDJPY.pro", "USDJPYb", "USDJPY.cash", "USDJPY+"};
+
+      for(int i = 0; i < ArraySize(candidates); i++)
+
+         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
+
+   }
+
+   // D. Inactivos permanentes (AUD/USD, GBP/USD, Cripto, etc.)
+
+   else if(StringFind(clean, "AUD") >= 0 || StringFind(clean, "GBP") >= 0 || StringFind(clean, "BTC") >= 0)
+
+   {
+
+      PrintFormat("[EA MT5] [INACTIVO] El activo %s esta desactivado por configuracion institucional.", requestedSymbol);
 
       return "INACTIVE";
 
    }
-
-   // D. Oro / XAUUSD
+   // E. Oro / XAUUSD
 
    else
 
@@ -2086,7 +2105,7 @@ void OnTimer()
 
 
 
-   string signalUrl = InpServerUrl + "/api/signal" + feedParams;
+   string signalUrl = InpServerUrl + "/api/signal?magic=" + IntegerToString(InpMagicNumber) + (feedParams != "" ? ("&" + StringSubstr(feedParams, 1)) : "");
 
    string resp;
 
