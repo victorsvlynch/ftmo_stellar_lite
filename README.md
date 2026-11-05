@@ -83,14 +83,18 @@ El motor cuantitativo incorpora un sistema de **Gestión Multiperfil desacoplado
 ### 🎛️ Herramientas de Administración de Perfiles
 
 #### 1. Menú Interactivo Dedicado ([`Administrar_Perfiles.bat`](Administrar_Perfiles.bat)):
-Permite gestionar perfiles en 1 clic desde Windows:
-- **[1] Activar Perfil:** Stellar 10K Demo (Evaluación $10,000 USD - FundedNext).
-- **[2] Activar Perfil:** Stellar 6K Trial (Free Trial Challenge $6,000 USD - FundedNext).
-- **[3] Activar Perfil:** FTMO 10K Challenge (Evaluación 2-Step $10,000 USD - FTMO).
-- **[4] Ver Ficha Técnica:** Resumen financiero completo de reglas y metas del perfil activo.
-- **[5] Configurar Login MT5:** Vincula el número de cuenta de MetaTrader 5 (ej. `#35338849`).
-- **[6] Reiniciar Cuenta (Reset):** Restablece el ciclo conservando históricos archivados.
-- **[7] Salir:** Regresa al panel principal.
+Permite gestionar la arquitectura dual en 1 clic desde Windows:
+- **Detección Automática de Procesos:** Identifica en tiempo real si `MT1 (FTMO)` y `MT2 (FundedNext)` están `[ONLINE]`.
+- **[1] Activar Perfil:** FTMO 10K Challenge (MT1: Oro, EUR/USD, S&P 500 | Magic `505001`).
+- **[2] Activar Perfil:** Stellar 10K Demo (MT2: Oro, EUR/USD, USD/JPY | Magic `505002`).
+- **[3] Activar Perfil:** Stellar 6K Trial (Free Trial Challenge $6,000 USD | Magic `505003`).
+- **[4] Ver Tablero Comparativo DUAL Completo:** Despliega una tabla comparativa lado a lado con todas las reglas, metas y parámetros técnicos.
+- **[5] Ver Ficha Técnica Completa del Perfil Activo:** Resumen financiero detallado de reglas y límites en SQLite.
+- **[6] Configurar Número de Cuenta / Login MT5:** Vincula el login de MetaTrader 5 (ej. `#1515193448`).
+- **[7] Sincronizar Balance y Equidad en Vivo:** Lee saldo y equidad real de MT5 y actualiza la base de datos local.
+- **[8] Reiniciar Cuenta del Perfil Activo (Reset):** Restablece el ciclo archivando operaciones previas en `archived_trades`.
+- **[9] Lanzar Monitor DUAL en Vivo:** Abre dos ventanas independientes ([`Monitor_Dual_En_Vivo.bat`](Monitor_Dual_En_Vivo.bat)) para monitorear ambas terminales en simultáneo.
+- **[0] Volver al Menú Principal.**
 
 #### 2. Acceso desde el Panel Maestro ([`Control_Total_Bot.bat`](Control_Total_Bot.bat)):
 - Presiona la opción **`[P]`** en cualquier momento para conmutar perfiles directamente desde el menú principal. El encabezado del panel muestra en tiempo real el perfil activo y su login MT5.
@@ -600,47 +604,51 @@ Si realizas modificaciones en el código local y deseas subirlas de inmediato a 
 
 ## 🎛️ Panel de Control Maestro (`Control_Total_Bot.bat`) y Dashboards
 
-Para una operación centralizada, cómoda y sin necesidad de escribir comandos en la consola, se diseñó un menú interactivo maestro con **14 opciones integradas**:
+Para una operación centralizada, cómoda y sin necesidad de escribir comandos en la consola, se diseñó un menú interactivo maestro con **soporte nativo para arquitectura multi-cuenta dual (MT1 + MT2) y 15 opciones integradas (1-14 y acceso directo P)**:
 
-```cmd
+`cmd
 .\Control_Total_Bot.bat
-```
+`
 
-```text
-==============================================================================
-       PANEL DE CONTROL MAESTRO -- FUNDEDNEXT STELLAR LITE ($10,000 USD)
-       Estrategia Oficial: NY_OPEN (Oro GC=F / XAUUSD) | R:R 1:2
-==============================================================================
+`	ext
+============================================================================== 
+       PANEL DE CONTROL MAESTRO -- ARQUITECTURA MULTI-CUENTA DUAL
+       FTMO 10K Challenge (MT1)  &  FundedNext Stellar Lite 10K (MT2)
+============================================================================== 
+  • Perfil Activo       : FTMO 10K Challenge (,000 USD)
   • Servidor en la Nube : Oracle Cloud VPS (157.137.225.144) [ONLINE 24/7]
   • Clave Privada SSH   : [OK - Detectada]
-  • Terminal MetaTrader : [ONLINE - terminal64.exe activo]
+  • Terminales MT5      : [DUAL ONLINE - Ambas Terminales Activas (FTMO + FundedNext)]
   • Túnel Webhook (8000): [ACTIVO - Enlace 8000 Operativo]
-==============================================================================
+============================================================================== 
 
-  ┌─ [1] MONITOR Y DASHBOARDS EN TIEMPO REAL ─────────────────────────────┐
-  │  1. Dashboard Remoto en Vivo (Oracle Cloud VPS 24/7) [RECOMENDADO]    │
-  │  2. Dashboard Local en Vivo (Simulador en esta PC)                    │
-  │  3. Tablero Multi-Estrategia Detallado (Historial y Posiciones Hoy)   │
-  └───────────────────────────────────────────────────────────────────────┘
-  ┌─ [2] CONECTIVIDAD METATRADER 5 (MT5 & WEBHOOK) ───────────────────────┐
-  │  4. Gestor de Túnel Webhook (Iniciar / Detener enlace en Puerto 8000) │
-  │  5. Disparar Micro-Orden de Prueba hacia MT5 (Test 0.01 lotes Oro)    │
-  │  6. Simulación Realista con Broker MT5 (Inspección de Cuenta y Órdenes)│
-  └───────────────────────────────────────────────────────────────────────┘
-  ┌─ [3] ALERTAS MÓVILES A TU CELULAR (TELEGRAM) ─────────────────────────┐
-  │  7. Enviar Alerta Institucional de Prueba a Telegram (@victorsvlynch) │
-  │  8. Configurar / Re-vincular Telegram (Token de Bot y Chat ID)        │
-  └───────────────────────────────────────────────────────────────────────┘
-  ┌─ [4] GESTIÓN DEL SERVIDOR EN LA NUBE (ORACLE CLOUD VPS) ──────────────┐
-  │  9. Diagnóstico de Salud del Servidor (Uptime, Memoria, Servicios)    │
-  │ 10. Streaming de Logs en Tiempo Real (Segundo a Segundo - journalctl) │
-  │ 11. Reiniciar Servicios en la Nube (Bot NY_OPEN + Webhook Server)     │
-  └───────────────────────────────────────────────────────────────────────┘
-  ┌─ [5] AUDITORÍA, PORTABILIDAD Y CONTROL ──────────────────────────────┐
-  │ 12. Correr Suite de Verificación Automatizada (11 Pruebas 100% OK)    │
-  │ 13. Generar Pack Portable para Otra PC (exportar_todo.bat)            │
-  │ 14. Salir                                                             │
-  └───────────────────────────────────────────────────────────────────────┘
+  ┌─ [0] ADMINISTRACIÓN DE PERFILES Y CUENTAS DUAL ────────────────────────┐
+  │  P. Administrar Perfiles (FTMO 10K Challenge | Stellar 10K Demo)       │
+  └────────────────────────────────────────────────────────────────────────┘
+  ┌─ [1] MONITOR Y DASHBOARDS EN TIEMPO REAL ──────────────────────────────┐
+  │  1. Dashboard Remoto en Vivo (Oracle Cloud VPS 24/7) [RECOMENDADO]     │
+  │  2. Dashboard Local en Vivo (Simulador en esta PC - Perfil Activo)     │
+  │  3. Monitor DUAL en Paralelo (Abre MT1 FTMO y MT2 Stellar a la vez)    │
+  └────────────────────────────────────────────────────────────────────────┘
+  ┌─ [2] CONECTIVIDAD METATRADER 5 (MT5 & WEBHOOK) ────────────────────────┐
+  │  4. Gestor de Túnel Webhook (Iniciar / Detener enlace en Puerto 8000)  │
+  │  5. Disparar Micro-Orden de Prueba hacia MT5 (Magic 505001 o 505002)   │
+  │  6. Inspección de Cuentas, Posiciones y Deals MT5 en Tiempo Real       │
+  └────────────────────────────────────────────────────────────────────────┘
+  ┌─ [3] ALERTAS MÓVILES A TU CELULAR (TELEGRAM) ──────────────────────────┐
+  │  7. Enviar Alerta Institucional de Prueba a Telegram (@victorsvlynch)  │
+  │  8. Configurar / Re-vincular Telegram (Token de Bot y Chat ID)         │
+  └────────────────────────────────────────────────────────────────────────┘
+  ┌─ [4] GESTIÓN DEL SERVIDOR EN LA NUBE (ORACLE CLOUD VPS) ───────────────┐
+  │  9. Diagnóstico de Salud del Servidor (Uptime, Memoria, Servicios)     │
+  │ 10. Streaming de Logs en Tiempo Real (Segundo a Segundo - journalctl)  │
+  │ 11. Reiniciar Servicios en la Nube (Bot NY_OPEN + Webhook Server)      │
+  └────────────────────────────────────────────────────────────────────────┘
+  ┌─ [5] AUDITORÍA, PORTABILIDAD Y CONTROL ────────────────────────────────┐
+  │ 12. Correr Suite de Verificación Automatizada (13 Pruebas 100% OK)     │
+  │ 13. Generar Pack Portable para Otra PC (exportar_todo.bat)             │
+  │ 14. Salir                                                              │
+  └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Funcionalidad de los Tableros y Lanzadores:
@@ -960,8 +968,8 @@ El sistema incorpora tres herramientas directas de auditoría financiera para in
   1. **El historial de Deals de MetaTrader 5:** Tickets de posición, lotes, horas exactas, precios de apertura y cierre, y beneficio en dólares registrado por el broker.
   2. **El registro algorítmico en la nube (`trading_ny_open.db`):** Criterio de entrada ORB, Stop Loss, Take Profit y justificación técnica.
 
-#### 2. Auditoría Sandbox ([`Ver_Detalle_Operaciones_SANDBOX.bat`](Ver_Detalle_Operaciones_SANDBOX.bat)):
-- Haz doble clic en [`Ver_Detalle_Operaciones_SANDBOX.bat`](Ver_Detalle_Operaciones_SANDBOX.bat) para inspeccionar el estado de las cuentas virtuales independientes de $10,000 USD c/u en Oracle Cloud:
+#### 2. Auditoría de Cuentas Sandbox ([`Ver_Operaciones_Sandbox.bat`](Ver_Operaciones_Sandbox.bat) / `consultar_detalle_sandbox.py`):
+- Haz doble clic en [`Ver_Operaciones_Sandbox.bat`](Ver_Operaciones_Sandbox.bat) para inspeccionar el estado de las cuentas virtuales independientes de $10,000 USD c/u en Oracle Cloud:
   - **Oro Test (`trading_test_oro.db` / `stellar_test_oro.service`):** Activa 24/7 con feed real de MT5.
   - **EUR/USD Test (`trading_test_eurusd.db` / `stellar_test_eurusd.service`):** Activa 24/7 con feed real de MT5.
   - **USD/JPY Test (`trading_test_usdjpy.db` / `stellar_test_usdjpy.service`):** Activa 24/7 con feed real de MT5 (`Eficiencia Tendencial 44.9%`, `ADR ~86.8 pips`).
@@ -1093,9 +1101,9 @@ FTMO_Stellar_Lite/
 ├── LEEME_INSTRUCCIONES_PORTABILIDAD.md # Manual rápido de contingencia para la nueva PC
 ├── Dashboard_Operaciones_En_Vivo.bat# Dashboard en vivo con reloj NY, cuenta regresiva y break-even
 ├── Dashboard_Nube_Oracle_En_Vivo.bat# Dashboard remoto conectado en tiempo real a Oracle Cloud VPS
-├── Dashboard_Multi_Detallado.bat    # Tablero con auditoría cruzada e historial financiero
+├── Administrar_Perfiles.bat         # Panel maestro para alternar y sincronizar perfiles FTMO y Stellar
+├── Monitor_Dual_En_Vivo.bat         # Lanzador paralelo de tableros de monitoreo en vivo (MT1 + MT2)
 ├── Ver_Detalle_Operaciones_MT5.bat  # Auditoría 1-Clic comparativa de Deals MT5 vs Nube
-├── Ver_Detalle_Operaciones_SANDBOX.bat # Reporte 1-Clic de las 3 cuentas Sandbox ($10K c/u)
 ├── Ver_Operaciones_Sandbox.bat      # Menú interactivo para consultar operaciones y logs de Sandbox
 ├── consultar_detalle_operaciones.py # Script de extracción de deals MT5 y trades de la nube
 ├── consultar_detalle_sandbox.py     # Script de extracción de cuentas y trades de Sandbox
