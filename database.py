@@ -28,6 +28,16 @@ class TradingDatabase:
             self.db_path = db_path
         self._init_db()
 
+    def _resolve_profile_magic_and_prefix(self) -> tuple:
+        if self._profile and hasattr(self._profile, "magic_number"):
+            return self._profile.magic_number, self._profile.name.split()[0]
+        try:
+            from profiles import profile_manager
+            p = profile_manager.get_active_profile()
+            return p.magic_number, p.name.split()[0]
+        except Exception:
+            return 505001, "PropFirm"
+
     def _get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
@@ -568,11 +578,12 @@ class TradingDatabase:
                 sym_mt5 = "US500"
             else:
                 sym_mt5 = clean_sym
+            target_magic, prefix = self._resolve_profile_magic_and_prefix()
             cursor.execute(
                 """
                 INSERT INTO webhook_actions (
                     action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 505001, ?, 'PENDING', ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
                 """,
                 (
                     action_type,
@@ -582,7 +593,8 @@ class TradingDatabase:
                     round(entry_price, 5),
                     round(stop_loss, 5),
                     round(take_profit, 5),
-                    f"FundedNext {strategy}",
+                    target_magic,
+                    f"{prefix} {strategy}",
                     dt.isoformat(),
                 ),
             )
@@ -662,13 +674,14 @@ class TradingDatabase:
 
             # Encolar cierre para EA Webhook MT5
             sym_mt5 = "XAUUSD" if "GC" in trade["symbol"].upper() else trade["symbol"]
+            target_magic, _ = self._resolve_profile_magic_and_prefix()
             cursor.execute(
                 """
                 INSERT INTO webhook_actions (
                     action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
-                ) VALUES ('CLOSE_POSITION', ?, ?, 0.0, ?, 0.0, 0.0, 505001, ?, 'PENDING', ?)
+                ) VALUES ('CLOSE_POSITION', ?, ?, 0.0, ?, 0.0, 0.0, ?, ?, 'PENDING', ?)
                 """,
-                (trade_id, sym_mt5, round(exit_price, 5), notes or "Cierre Algorítmico", dt.isoformat()),
+                (trade_id, sym_mt5, round(exit_price, 5), target_magic, notes or "Cierre Algorítmico", dt.isoformat()),
             )
 
             conn.commit()
@@ -721,13 +734,14 @@ class TradingDatabase:
                 else:
                     sym_mt5 = trade["symbol"]
                 action_comment = (notes[:60] if notes else "Break-Even 1R")
+                target_magic, _ = self._resolve_profile_magic_and_prefix()
                 cursor.execute(
                     """
                     INSERT INTO webhook_actions (
                         action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
-                    ) VALUES ('MODIFY_SL', ?, ?, 0.0, 0.0, ?, 0.0, 505001, ?, 'PENDING', ?)
+                    ) VALUES ('MODIFY_SL', ?, ?, 0.0, 0.0, ?, 0.0, ?, ?, 'PENDING', ?)
                     """,
-                    (trade_id, sym_mt5, round(new_sl, 5), action_comment, datetime.now(timezone.utc).isoformat()),
+                    (trade_id, sym_mt5, round(new_sl, 5), target_magic, action_comment, datetime.now(timezone.utc).isoformat()),
                 )
 
             conn.commit()
@@ -820,11 +834,17 @@ class TradingDatabase:
         tp: float,
         price: float = 0.0,
         trade_id: int = 0,
-        magic: int = 505001,
-        comment: str = "FundedNext NY_ORB",
+        magic: Optional[int] = None,
+        comment: str = "",
     ) -> int:
         """Encola una orden o modificación para que el EA de MT5 la ejecute."""
         now_iso = datetime.now(timezone.utc).isoformat()
+        if magic is None or not comment:
+            res_magic, prefix = self._resolve_profile_magic_and_prefix()
+            if magic is None:
+                magic = res_magic
+            if not comment:
+                comment = f"{prefix} Action"
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
