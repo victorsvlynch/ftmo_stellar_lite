@@ -174,6 +174,7 @@ def queue_action(
     trade_id: int = 0,
     comment: str = "FundedNext NY_ORB",
     db_path: str = DB_FILE,
+    magic: int = MAGIC_NUMBER,
 ) -> int:
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
@@ -184,7 +185,7 @@ def queue_action(
             action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
         """,
-        (action, trade_id, symbol, lots, price, sl, tp, MAGIC_NUMBER, comment, now_str),
+        (action, trade_id, symbol, lots, price, sl, tp, magic, comment, now_str),
     )
     act_id = cur.lastrowid
     conn.commit()
@@ -528,6 +529,10 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
             price = float(data.get("price", 4065.0))
             sl = float(data.get("sl", price - 6.50))
             tp = float(data.get("tp", price + 13.00))
+            try:
+                magic = int(data.get("magic", 505001))
+            except (ValueError, TypeError):
+                magic = 505001
 
             act_id = queue_action(
                 action=action,
@@ -536,9 +541,10 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
                 price=price,
                 sl=sl,
                 tp=tp,
-                comment="Prueba EA Webhook MT5",
+                comment=f"Prueba EA MT5 Magic {magic}",
+                magic=magic,
             )
-            logger.info(f"Micro-orden de prueba encolada #{act_id} ({action} {lots} lotes en {symbol})")
+            logger.info(f"Micro-orden de prueba encolada #{act_id} ({action} {lots} lotes en {symbol} | Magic #{magic})")
 
             self._set_json_headers(200)
             self.wfile.write(
@@ -549,6 +555,7 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
                         "action": action,
                         "lots": lots,
                         "symbol": symbol,
+                        "magic": magic,
                     }
                 ).encode("utf-8")
             )

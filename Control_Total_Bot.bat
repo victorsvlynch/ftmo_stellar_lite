@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
-title Panel de Control Maestro - FundedNext Stellar Lite ($10,000)
+title Panel de Control Maestro - FTMO 10K & FundedNext Stellar 10K
 chcp 65001 >nul
 
 :: ============================================================================
@@ -33,41 +33,51 @@ if !ERRORLEVEL! EQU 0 (
     set "STATUS_TUNNEL=[ACTIVO - Enlace 8000 Operativo]"
 )
 
-set "STATUS_MT5=[OFFLINE - MetaTrader 5 cerrado]"
-tasklist /FI "IMAGENAME eq terminal64.exe" 2>nul | findstr /I "terminal64" >nul 2>&1
-if !ERRORLEVEL! EQU 0 (
-    set "STATUS_MT5=[ONLINE - terminal64.exe activo]"
+set "STATUS_MT5=[OFFLINE - Ningun MetaTrader 5 abierto]"
+set "MT1_RUN=0"
+set "MT2_RUN=0"
+powershell -NoProfile -Command "if (Get-Process terminal64 -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*MetaTrader 5\*' }) { exit 0 } else { exit 1 }" >nul 2>&1
+if !ERRORLEVEL! EQU 0 set "MT1_RUN=1"
+powershell -NoProfile -Command "if (Get-Process terminal64 -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*MetaTrader 5 - 2\*' }) { exit 0 } else { exit 1 }" >nul 2>&1
+if !ERRORLEVEL! EQU 0 set "MT2_RUN=1"
+
+if "!MT1_RUN!"=="1" if "!MT2_RUN!"=="1" (
+    set "STATUS_MT5=[DUAL ONLINE - Ambas Terminales Activas (FTMO + FundedNext)]"
+) else if "!MT1_RUN!"=="1" (
+    set "STATUS_MT5=[MT1 ONLINE - MetaTrader 5 (FTMO) Activo]"
+) else if "!MT2_RUN!"=="1" (
+    set "STATUS_MT5=[MT2 ONLINE - MetaTrader 5 - 2 (FundedNext) Activo]"
 )
 
-set "ACTIVE_PROFILE=Stellar 10K Demo"
+set "ACTIVE_PROFILE=FTMO 10K Challenge"
 for /f "usebackq delims=" %%A in (`python -c "from profiles import profile_manager; p = profile_manager.get_active_profile(); print(f'{p.name} (${p.initial_balance:,.0f} USD)' + (f' - Login #{p.login_id}' if p.login_id else ''))" 2^>nul`) do set "ACTIVE_PROFILE=%%A"
 
 :: ============================================================================
 :: 3. INTERFAZ GRAFICA DEL PANEL DE CONTROL
 :: ============================================================================
 echo ============================================================================== 
-echo        PANEL DE CONTROL MAESTRO -- FUNDEDNEXT PROP TRADING
-echo        Estrategia Oficial: NY_OPEN (Oro GC=F / XAUUSD) ^| R:R 1:2
+echo        PANEL DE CONTROL MAESTRO -- ARQUITECTURA MULTI-CUENTA DUAL
+echo        FTMO 10K Challenge (MT1)  ^&  FundedNext Stellar Lite 10K (MT2)
 echo ============================================================================== 
 echo   * Perfil Activo       : %ACTIVE_PROFILE%
 echo   * Servidor en la Nube : Oracle Cloud VPS (157.137.225.144) [ONLINE 24/7]
 echo   * Clave Privada SSH   : %STATUS_SSH%
-echo   * Terminal MetaTrader : %STATUS_MT5%
+echo   * Terminales MT5      : %STATUS_MT5%
 echo   * Tunel Webhook (8000): %STATUS_TUNNEL%
 echo ============================================================================== 
 echo.
-echo   +-- [0] ADMINISTRACION DE PERFILES Y CUENTAS ----------------------------+
-echo   ^|  P. Cambiar / Administrar Perfil (Stellar 10K Demo ^| Stellar 6K Trial) ^|
+echo   +-- [0] ADMINISTRACION DE PERFILES Y CUENTAS DUAL -----------------------+
+echo   ^|  P. Administrar Perfiles (FTMO 10K Challenge ^| Stellar 10K Demo)      ^|
 echo   +------------------------------------------------------------------------+
 echo   +-- [1] MONITOR Y DASHBOARDS EN TIEMPO REAL -----------------------------+
 echo   ^|  1. Dashboard Remoto en Vivo (Oracle Cloud VPS 24/7) [RECOMENDADO]     ^|
-echo   ^|  2. Dashboard Local en Vivo (Simulador en esta PC)                     ^|
-echo   ^|  3. Tablero Multi-Estrategia Detallado (Historial y Posiciones Hoy)    ^|
+echo   ^|  2. Dashboard Local en Vivo (Simulador en esta PC - Perfil Activo)     ^|
+echo   ^|  3. Monitor DUAL en Paralelo (Abre MT1 FTMO y MT2 Stellar a la vez)   ^|
 echo   +------------------------------------------------------------------------+
 echo   +-- [2] CONECTIVIDAD METATRADER 5 (MT5 ^& WEBHOOK) ------------------------+
 echo   ^|  4. Gestor de Tunel Webhook (Iniciar / Detener enlace en Puerto 8000)  ^|
-echo   ^|  5. Disparar Micro-Orden de Prueba hacia MT5 (Test 0.01 lotes Oro)     ^|
-echo   ^|  6. Simulacion Realista con Broker MT5 (Inspeccion de Cuenta y Ordenes)^|
+echo   ^|  5. Disparar Micro-Orden de Prueba hacia MT5 (Magic 505001 o 505002)   ^|
+echo   ^|  6. Inspeccion de Cuentas, Posiciones y Deals MT5 en Tiempo Real       ^|
 echo   +------------------------------------------------------------------------+
 echo   +-- [3] ALERTAS MOVILES A TU CELULAR (TELEGRAM) --------------------------+
 echo   ^|  7. Enviar Alerta Institucional de Prueba a Telegram (@victorsvlynch)  ^|
@@ -92,7 +102,7 @@ if /I "%opt%"=="profile" goto PROFILE_ADMIN
 if "%opt%"=="0" goto PROFILE_ADMIN
 if "%opt%"=="1" goto DASH_REMOTE
 if "%opt%"=="2" goto DASH_LOCAL
-if "%opt%"=="3" goto DASH_MULTI
+if "%opt%"=="3" goto DASH_DUAL
 if "%opt%"=="4" goto WEBHOOK_TUNNEL
 if "%opt%"=="5" goto WEBHOOK_TEST
 if "%opt%"=="6" goto PRUEBA_MT5
@@ -118,12 +128,12 @@ goto MENU
 
 :DASH_LOCAL
 cls
-start "Dashboard NY_OPEN (Local)" cmd /c "%~dp0Dashboard_Operaciones_En_Vivo.bat"
+start "Dashboard Local (Perfil Activo)" cmd /c "%~dp0Dashboard_Operaciones_En_Vivo.bat"
 goto MENU
 
-:DASH_MULTI
+:DASH_DUAL
 cls
-start "Tablero Multi-Estrategia Detallado" cmd /c "%~dp0Dashboard_Multi_Detallado.bat"
+call "%~dp0Monitor_Dual_En_Vivo.bat"
 goto MENU
 
 :WEBHOOK_TUNNEL
@@ -138,7 +148,10 @@ goto MENU
 
 :PRUEBA_MT5
 cls
-call "%~dp0Ejecutar_Prueba_MT5.bat"
+python "%~dp0consultar_detalle_operaciones.py"
+echo.
+echo Presione cualquier tecla para continuar...
+pause >nul
 goto MENU
 
 :TG_TEST
@@ -158,18 +171,16 @@ goto MENU
 
 :LOGS_STREAM
 cls
-echo Conectando a logs en vivo en Oracle Cloud VPS (Presiona Ctrl+C para volver)...
-echo ------------------------------------------------------------------------------
-ssh -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "journalctl -u stellar_ny_open -f"
+echo Conectando con stream de logs de la nube...
+ssh -tt -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "sudo journalctl -u stellar_ny_open -u stellar_webhook -f"
 goto MENU
 
 :RESTART_VPS
 cls
-echo ==============================================================================
-echo   REINICIANDO SERVICIOS EN ORACLE CLOUD VPS (157.137.225.144)...
-echo ==============================================================================
+echo Reiniciando servicios en Oracle Cloud...
+ssh -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "sudo systemctl restart stellar_ny_open stellar_webhook"
 echo.
-ssh -i "%KEY%" -o StrictHostKeyChecking=no ubuntu@157.137.225.144 "sudo systemctl restart stellar_ny_open.service stellar_webhook.service && systemctl status stellar_ny_open stellar_webhook --no-pager"
+echo [OK] Servicios reiniciados en la nube.
 echo.
 pause
 goto MENU
@@ -178,7 +189,8 @@ goto MENU
 cls
 python "%~dp0test_verification.py"
 echo.
-pause
+echo Presione cualquier tecla para continuar...
+pause >nul
 goto MENU
 
 :EXPORT_PACK
@@ -187,6 +199,4 @@ call "%~dp0exportar_todo.bat"
 goto MENU
 
 :SALIR
-cls
-echo Finalizando Panel de Control Maestro.
 exit /b 0
