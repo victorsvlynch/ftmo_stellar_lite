@@ -15,20 +15,14 @@ logger = logging.getLogger("TradingDatabase")
 
 def resolve_dual_target_magics(symbol: str, active_profile: Optional[Any] = None) -> List[tuple]:
     """
-    Retorna la lista de tuplas (magic_number, comment_prefix) para un símbolo dado
-    según la arquitectura multi-cuenta dual:
-      - Oro (XAUUSD / GC=F) y EUR/USD: Compartidos en MT1 (505001 FTMO) y MT2 (505002 Stellar).
-      - S&P 500 (US500 / ES=F): Exclusivo MT1 (505001 FTMO).
-      - USD/JPY (USDJPY): Exclusivo MT2 (505002 Stellar).
+    Resuelve dinámicamente qué perfiles y Magic Numbers deben recibir la orden para un símbolo dado.
+    Inspecciona todos los perfiles de trading en profiles.json:
+      - Si 2 o más perfiles contienen el activo en 'allowed_symbols' (ej. Oro, EUR/USD o cualquier par compartido),
+        la señal se despacha en paralelo a CADA terminal MT5 correspondiente con su propio Magic Number.
+      - Si un activo está configurado en un único perfil (ej. S&P 500 en FTMO o USD/JPY en Stellar),
+        se despacha únicamente a la terminal de ese perfil.
+      - Si el usuario agrega o modifica activos en cualquier perfil de profiles.json, el sistema los suscribe automáticamente.
     """
-    if active_profile is None:
-        try:
-            from profiles import profile_manager
-            active_profile = profile_manager.get_active_profile()
-        except Exception:
-            active_profile = None
-
-    # Si el perfil activo es el Free Trial 6K, operar exclusivamente para esa cuenta
     if active_profile and getattr(active_profile, "id", "") == "stellar_6k_trial":
         return [(active_profile.magic_number, "Trial6K")]
 
@@ -38,19 +32,58 @@ def resolve_dual_target_magics(symbol: str, active_profile: Optional[Any] = None
     is_sp500 = any(k in sym_clean for k in ("500", "SPX", "ES", "US500"))
     is_usdjpy = ("JPY" in sym_clean and "USD" in sym_clean) or sym_clean == "USDJPY"
 
-    targets = []
-    if is_gold or is_eurusd:
-        targets.append((505001, "FTMO"))
-        targets.append((505002, "Stellar"))
-    elif is_sp500:
-        targets.append((505001, "FTMO"))
-    elif is_usdjpy:
-        targets.append((505002, "Stellar"))
-    else:
-        magic = getattr(active_profile, "magic_number", 505001) if active_profile else 505001
-        prefix = getattr(active_profile, "name", "PropFirm").split()[0] if active_profile else "PropFirm"
-        targets.append((magic, prefix))
-    return targets
+    candidate_profiles = []
+    try:
+        from profiles import profile_manager
+        active_id = profile_manager.get_active_profile_id()
+        if active_id == "stellar_6k_trial":
+            p = profile_manager.get_profile("stellar_6k_trial")
+            return [(p.magic_number, "Trial6K")] if p else [(505003, "Trial6K")]
+
+        all_profs = profile_manager.list_profiles()
+        candidate_profiles = [p for p in all_profs if not getattr(p, "is_trial", False)]
+        if not candidate_profiles:
+            candidate_profiles = all_profs
+    except Exception:
+        candidate_profiles = []
+
+    matched = []
+    for prof in candidate_profiles:
+        allowed = getattr(prof, "allowed_symbols", []) or []
+        allows = False
+        for al in allowed:
+            al_clean = al.upper().replace("=X", "").replace("=F", "").replace("/", "")
+            if is_gold and any(k in al_clean for k in ("XAU", "GC", "GOLD")):
+                allows = True
+                break
+            if is_eurusd and (("EUR" in al_clean and "USD" in al_clean) or al_clean == "EURUSD"):
+                allows = True
+                break
+            if is_sp500 and any(k in al_clean for k in ("500", "SPX", "ES", "US500")):
+                allows = True
+                break
+            if is_usdjpy and (("JPY" in al_clean and "USD" in al_clean) or al_clean == "USDJPY"):
+                allows = True
+                break
+            if al_clean == sym_clean or al_clean in sym_clean or sym_clean in al_clean:
+                allows = True
+                break
+
+        if allows:
+            magic = getattr(prof, "magic_number", 505001)
+            prefix = getattr(prof, "name", "PropFirm").split()[0]
+            if (magic, prefix) not in matched:
+                matched.append((magic, prefix))
+
+    if not matched:
+        try:
+            from profiles import profile_manager
+            act = profile_manager.get_active_profile()
+            matched.append((act.magic_number, act.name.split()[0]))
+        except Exception:
+            matched.append((505001, "PropFirm"))
+
+    return matched
 
 
 DB_DEFAULT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trading_history.db")
