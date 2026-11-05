@@ -35,17 +35,15 @@ def resolve_dual_target_magics(symbol: str, active_profile: Optional[Any] = None
     candidate_profiles = []
     try:
         from profiles import profile_manager
-        active_id = profile_manager.get_active_profile_id()
-        if active_id == "stellar_6k_trial":
-            p = profile_manager.get_profile("stellar_6k_trial")
-            return [(p.magic_number, "Trial6K")] if p else [(505003, "Trial6K")]
-
-        all_profs = profile_manager.list_profiles()
-        candidate_profiles = [p for p in all_profs if not getattr(p, "is_trial", False)]
-        if not candidate_profiles:
-            candidate_profiles = all_profs
+        # Respeta el modo de ejecución:
+        # En modo INDIVIDUAL: retorna únicamente [active_profile]
+        # En modo DUAL: retorna todos los perfiles configurados en active_profiles_dual
+        candidate_profiles = profile_manager.get_active_target_profiles()
     except Exception:
         candidate_profiles = []
+
+    if not candidate_profiles and active_profile:
+        candidate_profiles = [active_profile]
 
     matched = []
     for prof in candidate_profiles:

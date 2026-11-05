@@ -1,5 +1,5 @@
 {
-  "active_profile_id": "ftmo_10k_challenge",
+  "active_profile_id": "stellar_10k_demo",
   "profiles": {
     "stellar_10k_demo": {
       "id": "stellar_10k_demo",
@@ -101,5 +101,10 @@
       "notes": "Evaluación Oficial 2-Step FTMO Challenge $10,000 USD (€89 EUR) - MT1: Oro, EUR/USD y S&P 500."
     }
   },
-  "last_switched_at": "2026-11-05T13:58:03.109928+00:00"
+  "last_switched_at": "2026-11-05T14:07:31.032890+00:00",
+  "execution_mode": "DUAL",
+  "active_profiles_dual": [
+    "ftmo_10k_challenge",
+    "stellar_10k_demo"
+  ]
 }

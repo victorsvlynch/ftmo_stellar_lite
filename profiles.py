@@ -273,6 +273,72 @@ class ProfileManager:
             return defaults["stellar_10k_demo"]
         return prof
 
+    def get_execution_mode(self) -> str:
+        """Retorna el modo de ejecución actual: 'DUAL' (múltiples terminales simultáneas) o 'INDIVIDUAL'."""
+        data = self._load_raw_config()
+        return data.get("execution_mode", "DUAL").upper()
+
+    def set_execution_mode(self, mode: str) -> str:
+        """Establece el modo de ejecución: 'DUAL' o 'INDIVIDUAL'."""
+        mode_clean = mode.upper().strip()
+        if mode_clean not in ("DUAL", "INDIVIDUAL"):
+            raise ValueError(f"Modo inválido '{mode}'. Debe ser 'DUAL' o 'INDIVIDUAL'.")
+        data = self._load_raw_config()
+        data["execution_mode"] = mode_clean
+        self._save_raw_config(data)
+        logger.info(f"[*] Modo de ejecución establecido en: {mode_clean}")
+        return mode_clean
+
+    def set_dual_mode(self, profile_ids: Optional[List[str]] = None) -> List[TradingProfile]:
+        """
+        Activa el modo DUAL / VARIOS para operar con múltiples terminales MT5 en paralelo.
+        Por defecto activa ['ftmo_10k_challenge', 'stellar_10k_demo'].
+        """
+        data = self._load_raw_config()
+        data["execution_mode"] = "DUAL"
+        if profile_ids:
+            data["active_profiles_dual"] = profile_ids
+        elif "active_profiles_dual" not in data or not data["active_profiles_dual"]:
+            data["active_profiles_dual"] = ["ftmo_10k_challenge", "stellar_10k_demo"]
+        self._save_raw_config(data)
+        logger.info(f"[*] Modo DUAL / VARIOS activado con perfiles: {data['active_profiles_dual']}")
+        return self.get_active_target_profiles()
+
+    def set_individual_profile(self, profile_id: str) -> TradingProfile:
+        """
+        Activa el modo INDIVIDUAL para operar exclusivamente con un solo perfil/terminal.
+        """
+        data = self._load_raw_config()
+        if profile_id not in data.get("profiles", {}):
+            raise KeyError(f"Perfil '{profile_id}' no encontrado.")
+        data["execution_mode"] = "INDIVIDUAL"
+        data["active_profile_id"] = profile_id
+        self._save_raw_config(data)
+        logger.info(f"[*] Modo INDIVIDUAL activado exclusivamente para: {profile_id}")
+        return TradingProfile.from_dict(data["profiles"][profile_id])
+
+    def get_active_target_profiles(self) -> List[TradingProfile]:
+        """
+        Retorna la lista de perfiles que deben recibir señales en tiempo real según el modo de ejecución.
+        - En modo 'INDIVIDUAL': Retorna exclusivamente [active_profile].
+        - En modo 'DUAL': Retorna todos los perfiles configurados en 'active_profiles_dual' (ej. FTMO + Stellar).
+        """
+        data = self._load_raw_config()
+        mode = data.get("execution_mode", "DUAL").upper()
+        if mode == "INDIVIDUAL":
+            return [self.get_active_profile()]
+
+        # Modo DUAL / VARIOS
+        dual_ids = data.get("active_profiles_dual", ["ftmo_10k_challenge", "stellar_10k_demo"])
+        profiles = []
+        for pid in dual_ids:
+            prof = self.get_profile(pid)
+            if prof:
+                profiles.append(prof)
+        if not profiles:
+            profiles = [self.get_active_profile()]
+        return profiles
+
     def set_active_profile(self, profile_id: str) -> TradingProfile:
         """
         Cambia el perfil activo globalmente.
@@ -352,24 +418,36 @@ profile_manager = ProfileManager()
 
 
 def print_profiles_table(active_id: Optional[str] = None) -> None:
-    """Imprime una tabla formateada en consola con todos los perfiles disponibles."""
+    """Imprime una tabla formateada en consola con todos los perfiles disponibles y el modo de ejecución."""
     if active_id is None:
         active_id = profile_manager.get_active_profile_id()
+
+    exec_mode = profile_manager.get_execution_mode()
+    target_profs = profile_manager.get_active_target_profiles()
+    target_ids = [p.id for p in target_profs]
 
     profiles = profile_manager.list_profiles()
     sep = "=" * 98
     subsep = "-" * 98
 
+    mode_label = "[DUAL / VARIOS ACTIVO: Operación Paralela de Cuentas]" if exec_mode == "DUAL" else f"[INDIVIDUAL ACTIVO: Solo una cuenta]"
+
     print(f"\n{sep}")
-    print("                    ADMINISTRADOR DE PERFILES - FUNDEDNEXT PROP TRADING")
+    print("                 ADMINISTRADOR DE PERFILES -- PROP TRADING MULTI-CUENTA")
+    print(f"  • MODO DE EJECUCIÓN : {mode_label}")
     print(sep)
     header = f" {'#':<2} {'ID':<18} {'NOMBRE':<18} {'CAPITAL':<11} {'TARGET':<8} {'DAILY':<7} {'MAX DD':<7} {'DÍAS':<7} {'LOGIN MT5':<10} {'ESTADO'}"
     print(header)
     print(subsep)
 
     for idx, p in enumerate(profiles, start=1):
-        is_active = (p.id == active_id)
-        status_tag = ">>> [ACTIVO]" if is_active else ""
+        if exec_mode == "DUAL":
+            is_active = (p.id in target_ids)
+            status_tag = ">>> [DUAL ACTIVO]" if is_active else ""
+        else:
+            is_active = (p.id == active_id)
+            status_tag = ">>> [INDIVIDUAL]" if is_active else ""
+
         login_tag = str(p.login_id) if p.login_id else "---"
         target_tag = f"+{p.profit_target_pct * 100:.0f}%"
         daily_tag = f"-{p.daily_loss_limit_pct * 100:.0f}%"

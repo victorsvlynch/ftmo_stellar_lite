@@ -1242,6 +1242,25 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Asigna el login de MT5 para el perfil activo o especificado (ej. --set-login 35338849).",
     )
+    parser.add_argument(
+        "--set-dual",
+        action="store_true",
+        default=False,
+        help="Activa el modo de ejecución DUAL / VARIOS (múltiples terminales MT5 en paralelo).",
+    )
+    parser.add_argument(
+        "--set-individual",
+        type=str,
+        default=None,
+        help="Activa el modo de ejecución INDIVIDUAL para operar exclusivamente con el perfil indicado (ej. 'ftmo_10k_challenge', 'stellar_10k_demo', 'stellar_6k_trial').",
+    )
+    parser.add_argument(
+        "--set-mode",
+        type=str,
+        default=None,
+        choices=["DUAL", "INDIVIDUAL", "dual", "individual"],
+        help="Establece el modo de ejecución: DUAL o INDIVIDUAL.",
+    )
     return parser.parse_args()
 
 
@@ -1256,7 +1275,47 @@ def main() -> None:
 
     db_target = "trading_ny_open.db" if args.command in ("winner", "winner-live") else args.db
 
-    # 1. Conmutar perfil si se solicitó con --switch-profile
+    # 1. Conmutar modo de ejecución o perfil si se solicitó
+    if args.set_dual:
+        try:
+            profs = profile_manager.set_dual_mode()
+            print("=" * 80)
+            print("  MODO DUAL / VARIOS ACTIVADO CON ÉXITO")
+            print("=" * 80)
+            print(f"  Terminales activas simultáneamente: {[p.name + f' (Magic {p.magic_number})' for p in profs]}")
+            print("  - Los activos compartidos (Oro, EUR/USD) se despachan a todas las terminales en paralelo.")
+            print("  - Los activos exclusivos (S&P 500 a FTMO, USD/JPY a Stellar) se enrutan a su terminal respectiva.")
+            print("=" * 80)
+            print_profiles_table(profile_manager.get_active_profile_id())
+        except Exception as e:
+            print(f"[!] Error al activar modo DUAL: {e}")
+        return
+
+    if args.set_individual:
+        try:
+            prof = profile_manager.set_individual_profile(args.set_individual)
+            profile_manager.sync_profile_db(prof)
+            print("=" * 80)
+            print(f"  MODO INDIVIDUAL ACTIVADO EXCLUSIVAMENTE PARA: {prof.name} (Magic {prof.magic_number})")
+            print("=" * 80)
+            print(f"  Terminal única activa : {prof.name} (Login #{prof.login_id or 'Demo'})")
+            print(f"  Símbolos suscritos    : {prof.allowed_symbols}")
+            print("  - Todas las operaciones generadas se enviarán única y exclusivamente a esta terminal MT5.")
+            print("=" * 80)
+            print_profile_card(prof)
+        except Exception as e:
+            print(f"[!] Error al activar modo INDIVIDUAL: {e}")
+        return
+
+    if args.set_mode:
+        try:
+            mode = profile_manager.set_execution_mode(args.set_mode)
+            print(f"[*] Modo de ejecución establecido en: {mode}")
+            print_profiles_table(profile_manager.get_active_profile_id())
+        except Exception as e:
+            print(f"[!] Error al establecer modo: {e}")
+        return
+
     if args.switch_profile:
         try:
             new_active = profile_manager.set_active_profile(args.switch_profile)
