@@ -50,6 +50,9 @@ El motor cuantitativo incorpora un sistema de **Gestión Multiperfil desacoplado
 | :--- | :--- | :--- | :--- |
 | **Identificador Interno** | `stellar_10k_demo` | `stellar_6k_trial` | `ftmo_10k_challenge` |
 | **Firma / Modelo** | **FundedNext Stellar Lite 2-Step** | **FundedNext Free Trial (CFDs)** | **FTMO Challenge 2-Step (Estándar)** |
+| **Instancia MT5 en PC** | **Terminal 2 (`MetaTrader 5 - 2`)** | *Terminal de Pruebas* | **Terminal 1 (`MetaTrader 5`)** |
+| **Magic Number EA** | **`505002`** | **`505003`** | **`505001`** |
+| **Portafolio de Activos** | **Oro (`XAUUSD`), EUR/USD, USD/JPY** | Oro, EUR/USD, USD/JPY | **Oro (`XAUUSD`), EUR/USD, S&P 500 (`US500`)** |
 | **Capital Base** | **$10,000.00 USD** | **$6,000.00 USD** | **$10,000.00 USD** |
 | **Plataforma / Broker** | MetaTrader 5 (MT5 - SWAP) | MetaTrader 5 (MT5 - SWAP) | MetaTrader 5 (MT5 - SWAP) |
 | **Login MT5 Asignado** | *Configurable* | **#35338849** (Detectado en MT5) | *Configurable* |
@@ -209,12 +212,48 @@ Los 3 activos activos (**Oro**, **EUR/USD** y **S&P 500**) cuentan con una arqui
 [ENTRADA (0.0R)] ──► [NIVEL 1: Break-Even+] ──► [NIVEL 2: Candado 1] ──► [NIVEL 3: Candado 2] ──► [NIVEL 4: Pre-Rollover] ──► [TAKE PROFIT (+2.0R)]
 ```
 
-| Nivel de Protección | Oro (`XAUUSD` / `GC=F`) | EUR/USD (`EURUSD` / `EURUSD=X`) | S&P 500 (`US500.cash` / `ES=F`) | Objetivo Estratégico |
-| :--- | :--- | :--- | :--- | :--- |
-| **Nivel 1: Break-Even Plus** | Se activa al tocar **+1.00R**.<br/>Mueve SL a **Entrada + $0.80/oz**. | Se activa al tocar **+0.95R**.<br/>Mueve SL a **Entrada + 1.5 pips**. | Se activa al tocar **+1.00R**.<br/>Mueve SL a **Entrada + 1.0 pt**. | **Elimina todo riesgo financiero ($0.00).** Cubre spread y comisiones del broker. |
-| **Nivel 2: Candado 1** | Se activa al tocar **+1.40R**.<br/>Asegura **+0.60R** garantizado. | Se activa al tocar **+1.35R**.<br/>Asegura **+0.50R** garantizado. | Se activa al tocar **+1.35R**.<br/>Asegura **+0.60R** garantizado. | **Garantiza beneficio neto positivo** ante rechazos en zonas intermedias. |
-| **Nivel 3: Candado 2** | Se activa al tocar **+1.75R**.<br/>Asegura **+1.10R** garantizado. | Se activa al tocar **+1.70R**.<br/>Asegura **+1.10R** garantizado. | Se activa al tocar **+1.70R**.<br/>Asegura **+1.15R** garantizado. | **Protege el trade a milímetros del TP** impidiendo devoluciones bruscas. |
-| **Nivel 4: Escudo Pre-Rollover** | Activo 16:30-16:59 EST.<br/>Asegura **+1.35R** garantizado. | Activo 16:30-16:59 EST.<br/>Asegura **+1.30R** garantizado. | Activo 16:30-16:59 EST.<br/>Asegura **+1.35R** garantizado. | **Protección anti-spread nocturno** antes del cambio de día del broker. |
+| Nivel de Protección | Oro (`XAUUSD` / `GC=F`) | EUR/USD (`EURUSD` / `EURUSD=X`) | S&P 500 (`US500` / `ES=F`) | USD/JPY (`USDJPY` / `USDJPY=X`) | Objetivo Estratégico |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Nivel 1: Break-Even Plus** | Se activa a **+1.00R**.<br/>SL a **Entrada + $0.80/oz**. | Se activa a **+0.95R**.<br/>SL a **Entrada + 1.5 pips**. | Se activa a **+1.00R**.<br/>SL a **Entrada + 1.0 pt**. | Se activa a **+0.95R**.<br/>SL a **Entrada + 1.5 pips**. | **Elimina todo riesgo financiero ($0.00).** Cubre spread y comisiones del broker. |
+| **Nivel 2: Candado 1** | Se activa a **+1.40R**.<br/>Asegura **+0.60R** neto. | Se activa a **+1.35R**.<br/>Asegura **+0.50R** neto. | Se activa a **+1.35R**.<br/>Asegura **+0.60R** neto. | Se activa a **+1.35R**.<br/>Asegura **+0.55R** neto. | **Garantiza beneficio neto positivo** ante retrocesos en zonas intermedias. |
+| **Nivel 3: Candado 2** | Se activa a **+1.75R**.<br/>Asegura **+1.10R** neto. | Se activa a **+1.70R**.<br/>Asegura **+1.10R** neto. | Se activa a **+1.70R**.<br/>Asegura **+1.15R** neto. | Se activa a **+1.70R**.<br/>Asegura **+1.15R** neto. | **Protege el trade a milímetros del TP** impidiendo devoluciones bruscas. |
+| **Nivel 4: Trailing M15** | Estructura M15 persistente.<br/>Asegura **+1.35R** mínimo. | Estructura M15 persistente.<br/>Asegura **+1.30R** mínimo. | Estructura M15 persistente.<br/>Asegura **+1.35R** mínimo. | Estructura M15 persistente.<br/>Asegura **+1.20R** mínimo. | **Rastreo tendencial dinámico** y escudo anti-spread pre-rollover. |
+
+---
+
+### 🖥️ Arquitectura de Doble Instancia MetaTrader 5 en Paralelo (FTMO 10K & FundedNext Stellar 10K)
+
+El sistema soporta y ejecuta simultáneamente **dos instancias completas e independientes de MetaTrader 5 en la misma PC**, operando perfiles de evaluación distintos sin colisiones ni cruce de órdenes:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│               ARQUITECTURA DUAL MT5 EN PARALELO (UNA SOLA PC WINDOWS)                  │
+├───────────────────────────────────────────┬────────────────────────────────────────────┤
+│   TERMINAL 1: C:\Program Files\MetaTrader 5│  TERMINAL 2: C:\Program Files\MetaTrader 5 - 2  │
+│   • Perfil: FTMO 10K Challenge            │  • Perfil: FundedNext Stellar Lite 10K     │
+│   • Magic Number EA: 505001               │  • Magic Number EA: 505002                │
+│   • Base de Datos: trading_ftmo_10k.db    │  • Base de Datos: trading_history.db       │
+│   • Activos: Oro (XAUUSD), EURUSD, US500  │  • Activos: Oro (XAUUSD), EURUSD, USDJPY   │
+│   • InpEnableSP500: true                  │  • InpEnableSP500: false                   │
+│   • InpEnableUSDJPY: false                │  • InpEnableUSDJPY: true                   │
+│   • Target F1/F2: +10% ($1K) / +5% ($500) │  • Target F1/F2: +8% ($800) / +4% ($400)   │
+│   • Pérdida Diaria: -5% ($500)            │  • Pérdida Diaria: -4% ($400)              │
+│   • Drawdown Máximo: -10% (Piso $9,000)   │  • Drawdown Máximo: -8% (Piso $9,200)      │
+└───────────────────────────────────────────┴────────────────────────────────────────────┘
+                                     │
+                                     ▼
+        ┌───────────────────────────────────────────────────────────┐
+        │  PUERTO LOCAL 8000 (Túnel SSH a Oracle Cloud VPS 24/7)    │
+        │  • GET /api/signal?magic=505001  ──► Despacha a Term. 1   │
+        │  • GET /api/signal?magic=505002  ──► Despacha a Term. 2   │
+        └───────────────────────────────────────────────────────────┘
+```
+
+#### Reglas de Cumplimiento Institucional (100% Legal en Ambas Firmas):
+1. **Misma PC y Misma IP Residencial:** Tanto FTMO como FundedNext autorizan operar múltiples cuentas simultáneas desde el mismo ordenador y dirección IP del titular.
+2. **Cero Reverse Trading (Anti-Hedging):** Ambas instancias operan la misma dirección institucional dictada por la EMA 200 en H1 (nunca toman posiciones opuestas).
+3. **Portafolios Desacoplados:** S&P 500 es exclusivo de FTMO; USD/JPY es exclusivo de FundedNext.
+4. **Aislamiento por Magic Number:** `505001` jamás toca o altera posiciones de `505002`, garantizando trazabilidad y registro limpio.
 
 ---
 
