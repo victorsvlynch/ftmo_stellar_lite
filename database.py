@@ -13,6 +13,46 @@ from typing import Dict, List, Optional, Any
 logger = logging.getLogger("TradingDatabase")
 
 
+def resolve_dual_target_magics(symbol: str, active_profile: Optional[Any] = None) -> List[tuple]:
+    """
+    Retorna la lista de tuplas (magic_number, comment_prefix) para un símbolo dado
+    según la arquitectura multi-cuenta dual:
+      - Oro (XAUUSD / GC=F) y EUR/USD: Compartidos en MT1 (505001 FTMO) y MT2 (505002 Stellar).
+      - S&P 500 (US500 / ES=F): Exclusivo MT1 (505001 FTMO).
+      - USD/JPY (USDJPY): Exclusivo MT2 (505002 Stellar).
+    """
+    if active_profile is None:
+        try:
+            from profiles import profile_manager
+            active_profile = profile_manager.get_active_profile()
+        except Exception:
+            active_profile = None
+
+    # Si el perfil activo es el Free Trial 6K, operar exclusivamente para esa cuenta
+    if active_profile and getattr(active_profile, "id", "") == "stellar_6k_trial":
+        return [(active_profile.magic_number, "Trial6K")]
+
+    sym_clean = symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
+    is_gold = any(k in sym_clean for k in ("XAU", "GC", "GOLD"))
+    is_eurusd = ("EUR" in sym_clean and "USD" in sym_clean) or sym_clean == "EURUSD"
+    is_sp500 = any(k in sym_clean for k in ("500", "SPX", "ES", "US500"))
+    is_usdjpy = ("JPY" in sym_clean and "USD" in sym_clean) or sym_clean == "USDJPY"
+
+    targets = []
+    if is_gold or is_eurusd:
+        targets.append((505001, "FTMO"))
+        targets.append((505002, "Stellar"))
+    elif is_sp500:
+        targets.append((505001, "FTMO"))
+    elif is_usdjpy:
+        targets.append((505002, "Stellar"))
+    else:
+        magic = getattr(active_profile, "magic_number", 505001) if active_profile else 505001
+        prefix = getattr(active_profile, "name", "PropFirm").split()[0] if active_profile else "PropFirm"
+        targets.append((magic, prefix))
+    return targets
+
+
 DB_DEFAULT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trading_history.db")
 
 
@@ -578,26 +618,27 @@ class TradingDatabase:
                 sym_mt5 = "US500"
             else:
                 sym_mt5 = clean_sym
-            target_magic, prefix = self._resolve_profile_magic_and_prefix()
-            cursor.execute(
-                """
-                INSERT INTO webhook_actions (
-                    action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
-                """,
-                (
-                    action_type,
-                    trade_id,
-                    sym_mt5,
-                    round(lots, 4),
-                    round(entry_price, 5),
-                    round(stop_loss, 5),
-                    round(take_profit, 5),
-                    target_magic,
-                    f"{prefix} {strategy}",
-                    dt.isoformat(),
-                ),
-            )
+            target_pairs = resolve_dual_target_magics(symbol, self._profile)
+            for t_magic, prefix in target_pairs:
+                cursor.execute(
+                    """
+                    INSERT INTO webhook_actions (
+                        action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
+                    """,
+                    (
+                        action_type,
+                        trade_id,
+                        sym_mt5,
+                        round(lots, 4),
+                        round(entry_price, 5),
+                        round(stop_loss, 5),
+                        round(take_profit, 5),
+                        t_magic,
+                        f"{prefix} {strategy}",
+                        dt.isoformat(),
+                    ),
+                )
             conn.commit()
         return trade_id
 
@@ -672,17 +713,18 @@ class TradingDatabase:
                 (trade["phase"], trade["trading_date"], net_pnl, net_pnl),
             )
 
-            # Encolar cierre para EA Webhook MT5
+            # Encolar cierre para EA Webhook MT5 (Dual Architecture: notificar a todas las terminales que operan el activo)
             sym_mt5 = "XAUUSD" if "GC" in trade["symbol"].upper() else trade["symbol"]
-            target_magic, _ = self._resolve_profile_magic_and_prefix()
-            cursor.execute(
-                """
-                INSERT INTO webhook_actions (
-                    action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
-                ) VALUES ('CLOSE_POSITION', ?, ?, 0.0, ?, 0.0, 0.0, ?, ?, 'PENDING', ?)
-                """,
-                (trade_id, sym_mt5, round(exit_price, 5), target_magic, notes or "Cierre Algorítmico", dt.isoformat()),
-            )
+            target_pairs = resolve_dual_target_magics(trade["symbol"], self._profile)
+            for t_magic, _ in target_pairs:
+                cursor.execute(
+                    """
+                    INSERT INTO webhook_actions (
+                        action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
+                    ) VALUES ('CLOSE_POSITION', ?, ?, 0.0, ?, 0.0, 0.0, ?, ?, 'PENDING', ?)
+                    """,
+                    (trade_id, sym_mt5, round(exit_price, 5), t_magic, notes or "Cierre Algorítmico", dt.isoformat()),
+                )
 
             conn.commit()
             cursor.execute("SELECT * FROM trades WHERE id = ?", (trade_id,))
@@ -734,15 +776,16 @@ class TradingDatabase:
                 else:
                     sym_mt5 = trade["symbol"]
                 action_comment = (notes[:60] if notes else "Break-Even 1R")
-                target_magic, _ = self._resolve_profile_magic_and_prefix()
-                cursor.execute(
-                    """
-                    INSERT INTO webhook_actions (
-                        action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
-                    ) VALUES ('MODIFY_SL', ?, ?, 0.0, 0.0, ?, 0.0, ?, ?, 'PENDING', ?)
-                    """,
-                    (trade_id, sym_mt5, round(new_sl, 5), target_magic, action_comment, datetime.now(timezone.utc).isoformat()),
-                )
+                target_pairs = resolve_dual_target_magics(trade["symbol"], self._profile)
+                for t_magic, _ in target_pairs:
+                    cursor.execute(
+                        """
+                        INSERT INTO webhook_actions (
+                            action, trade_id, symbol, lots, price, sl, tp, magic, comment, status, created_at
+                        ) VALUES ('MODIFY_SL', ?, ?, 0.0, 0.0, ?, 0.0, ?, ?, 'PENDING', ?)
+                        """,
+                        (trade_id, sym_mt5, round(new_sl, 5), t_magic, action_comment, datetime.now(timezone.utc).isoformat()),
+                    )
 
             conn.commit()
             return True

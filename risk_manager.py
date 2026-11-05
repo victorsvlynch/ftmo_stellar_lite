@@ -350,26 +350,30 @@ class RiskManager:
 
         # Validación según perfil activo si está disponible (por familias canónicas de activos)
         if self.profile and hasattr(self.profile, "allowed_symbols") and self.profile.allowed_symbols:
-            allowed_for_profile = False
-            for allowed in self.profile.allowed_symbols:
-                al_clean = allowed.upper().replace("=X", "").replace("=F", "").replace("/", "")
-                if is_gold and any(k in al_clean for k in ("XAU", "GC", "GOLD")):
-                    allowed_for_profile = True
-                    break
-                if is_eurusd and (("EUR" in al_clean and "USD" in al_clean) or al_clean == "EURUSD"):
-                    allowed_for_profile = True
-                    break
-                if is_sp500 and any(k in al_clean for k in ("500", "SPX", "ES")):
-                    allowed_for_profile = True
-                    break
-                if is_usdjpy and (("JPY" in al_clean and "USD" in al_clean) or al_clean == "USDJPY"):
-                    allowed_for_profile = True
-                    break
-                if al_clean in sym_clean or sym_clean in al_clean:
-                    allowed_for_profile = True
-                    break
-            if not allowed_for_profile:
-                return False, f"INACTIVO_POR_PERFIL: {symbol} no está autorizado en {self.profile.name} (activos: {', '.join(self.profile.allowed_symbols)})"
+            # En modo PORTFOLIO_DUAL se gestiona el conjunto coordinado de MT1 (Oro, EURUSD, SP500) y MT2 (Oro, EURUSD, USDJPY)
+            if self.session_mode in ("PORTFOLIO_DUAL", "SP500_EURUSD") and (is_gold or is_eurusd or is_sp500 or is_usdjpy):
+                allowed_for_profile = True
+            else:
+                allowed_for_profile = False
+                for allowed in self.profile.allowed_symbols:
+                    al_clean = allowed.upper().replace("=X", "").replace("=F", "").replace("/", "")
+                    if is_gold and any(k in al_clean for k in ("XAU", "GC", "GOLD")):
+                        allowed_for_profile = True
+                        break
+                    if is_eurusd and (("EUR" in al_clean and "USD" in al_clean) or al_clean == "EURUSD"):
+                        allowed_for_profile = True
+                        break
+                    if is_sp500 and any(k in al_clean for k in ("500", "SPX", "ES")):
+                        allowed_for_profile = True
+                        break
+                    if is_usdjpy and (("JPY" in al_clean and "USD" in al_clean) or al_clean == "USDJPY"):
+                        allowed_for_profile = True
+                        break
+                    if al_clean in sym_clean or sym_clean in al_clean:
+                        allowed_for_profile = True
+                        break
+                if not allowed_for_profile:
+                    return False, f"INACTIVO_POR_PERFIL: {symbol} no está autorizado en {self.profile.name} (activos: {', '.join(self.profile.allowed_symbols)})"
 
         is_crypto = "BTC" in sym_upper or "/" in sym_upper or "USDT" in sym_upper
         is_index = is_sp500
