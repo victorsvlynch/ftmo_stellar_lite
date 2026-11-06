@@ -50,6 +50,11 @@ input bool   InpEnableSilver    = true;                           // Activar Pla
 
 input bool   InpEnableUS30      = true;                           // Activar Dow Jones 30 (US30) [MT1 FTMO: true | MT2 Stellar: false]
 
+input group "--- Circuit Breaker & Proteccion de Reglas Prop Firm ---"
+input double InpMaxDailyLossUSD      = 350.0;                          // Limite Duro de Perdida Diaria USD (0 = desactivado)
+input int    InpMaxOpenTrades        = 1;                              // Maximas posiciones simultaneas por Magic (0 = sin limite)
+input double InpMaxPriceDeviationPct = 10.0;                           // Maxima desviacion tolerada senal vs broker (%)
+
 
 
 //--- Instancias Globales
@@ -797,7 +802,77 @@ void ProcessCloudAction(const string json)
 
    }
 
-   
+   // --- VERIFICACIONES DE SEGURIDAD INSTITUCIONAL (CIRCUIT BREAKER PRE-TRADE) ---
+   if(action == "OPEN_BUY" || action == "OPEN_SELL")
+   {
+      // 1. Limite Duro de Perdida Diaria Local en MT5 (Calculado directo del historial del broker)
+      if(InpMaxDailyLossUSD > 0.0)
+      {
+         datetime todayStart = iTime(_Symbol, PERIOD_D1, 0);
+         if(todayStart == 0) todayStart = TimeCurrent() - (TimeCurrent() % 86400);
+         HistorySelect(todayStart, TimeCurrent());
+         double realizedToday = 0.0;
+         int dTotal = HistoryDealsTotal();
+         for(int d = 0; d < dTotal; d++)
+         {
+            ulong dTicket = HistoryDealGetTicket(d);
+            if(dTicket > 0 && HistoryDealGetInteger(dTicket, DEAL_ENTRY) != DEAL_ENTRY_IN)
+            {
+               realizedToday += HistoryDealGetDouble(dTicket, DEAL_PROFIT);
+               realizedToday += HistoryDealGetDouble(dTicket, DEAL_COMMISSION);
+               realizedToday += HistoryDealGetDouble(dTicket, DEAL_SWAP);
+               realizedToday += HistoryDealGetDouble(dTicket, DEAL_FEE);
+            }
+         }
+         if(realizedToday <= -InpMaxDailyLossUSD)
+         {
+            PrintFormat("[EA MT5] [CIRCUIT BREAKER] BLOQUEO DE SEGURIDAD: Perdida hoy en MT5 ($%.2f) supero el limite diario ($%.2f). Orden descartada para proteger la cuenta.",
+                        realizedToday, InpMaxDailyLossUSD);
+            ExtLastActionMsg = StringFormat("CIRCUIT BREAKER: Perdida hoy MT5 ($%.2f) >= $%.2f", realizedToday, InpMaxDailyLossUSD);
+            ConfirmActionToCloud(actionId, 0, 0.0, true);
+            return;
+         }
+      }
+
+      // 2. Control Estricto de Posiciones Simultaneas por Magic Number
+      if(InpMaxOpenTrades > 0)
+      {
+         int countOpenThisMagic = 0;
+         for(int i = PositionsTotal() - 1; i >= 0; i--)
+         {
+            ulong t = PositionGetTicket(i);
+            if(t > 0 && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
+               countOpenThisMagic++;
+         }
+         if(countOpenThisMagic >= InpMaxOpenTrades)
+         {
+            PrintFormat("[EA MT5] [PROTECCION] Accion #%d descartada: Ya existe(n) %d posicion(es) abierta(s) con Magic %I64u (Max: %d).",
+                        actionId, countOpenThisMagic, InpMagicNumber, InpMaxOpenTrades);
+            ExtLastActionMsg = StringFormat("Omitida: Ya existe trade abierto (Magic %I64u)", InpMagicNumber);
+            ConfirmActionToCloud(actionId, 0, 0.0, true);
+            return;
+         }
+      }
+
+      // 3. Verificacion de Desviacion Severa de Precio (Proteccion contra cruce de activos)
+      if(price > 0 && InpMaxPriceDeviationPct > 0.0)
+      {
+         MqlTick chkTick;
+         if(SymbolInfoTick(realSymbol, chkTick) && chkTick.bid > 0)
+         {
+            double refPrice = (action == "OPEN_BUY") ? chkTick.ask : chkTick.bid;
+            double diffPct = (MathAbs(refPrice - price) / refPrice) * 100.0;
+            if(diffPct > InpMaxPriceDeviationPct)
+            {
+               PrintFormat("[EA MT5] [CIRCUIT BREAKER] Accion #%d RECHAZADA: Discrepancia extrema de precio (Senal: %.4f vs Broker: %.4f | Dif: %.1f%% > Max: %.1f%%). Cruce de simbolos prevenido.",
+                           actionId, price, refPrice, diffPct, InpMaxPriceDeviationPct);
+               ExtLastActionMsg = StringFormat("RECHAZO: Discrepancia precio %.1f%% (Senal %.2f vs MT5 %.2f)", diffPct, price, refPrice);
+               ConfirmActionToCloud(actionId, 0, 0.0, true);
+               return;
+            }
+         }
+      }
+   }
 
    // A. APERTURA DE COMPRA (BUY)
 
