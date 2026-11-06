@@ -1247,9 +1247,37 @@ En la auditoría del 6 de noviembre de 2026 se identificó y erradicó de raíz 
 2. **Eliminación Total del Fallback a `_Symbol` en MQL5 (`StellarLite_Webhook_Bridge.mq5`):**
    * Si un símbolo recibido no existe en el catálogo del broker o no está activado en los parámetros del EA, ahora retorna `"INACTIVE"`.
    * **Bajo ninguna circunstancia se ejecutan operaciones en el gráfico actual (`_Symbol`) si el activo solicitado no coincide.**
-3. **Protección Anti-Bucle y Debounce en `trading_engine.py`:**
+3. **Triple Circuit Breaker Autónomo Dentro de MetaTrader 5 (MQL5):**
+   * **Pérdida Diaria Local MT5 (`InpMaxDailyLossUSD = 350.0`):** El propio EA audita el PnL neto de todos los deals cerrados desde las 00:00 del día. Si la pérdida acumulada alcanza los $350 USD, **rechaza cualquier orden entrante de forma local e independiente**, blindando la cuenta ante cualquier eventualidad antes de alcanzar el piso de la prop firm (4% o 5%).
+   * **Filtro de Discrepancia de Precio (`InpMaxPriceDeviationPct = 10.0%`):** Si el precio enviado por la señal difiere más del 10% del precio Ask/Bid real del broker, la orden es rechazada automáticamente, impidiendo cruces accidentales entre activos.
+   * **Límite de Posiciones Simultáneas (`InpMaxOpenTrades = 1`):** Garantiza que jamás coexistan más de 1 posición abierta en mercado bajo el mismo Magic Number.
+4. **Protección Anti-Bucle y Debounce en `trading_engine.py`:**
    * La regla anti-persecución ahora audita todas las operaciones de la jornada (incluyendo `REJECTED_MT5`), impidiendo más de 1 intento en la misma vela ORB.
    * Se agregó un debounce de 300 segundos (5 minutos) por activo que bloquea cualquier reintento rápido.
-4. **Reconciliación y Limpieza de Bases de Datos:**
-   * Se depuraron los registros fantasma en la VPS y se sincronizó el balance exacto de MetaTrader 5 ($9,766.31 USD en FundedNext y $9,471.92 USD en FTMO).
+5. **Reconciliación y Sincronización en Vivo de Cuentas Duales:**
+   * **Terminal 1 (FTMO):** Conectada con cuenta limpia `#1515214758` ($10,003.10 USD). Primera operación de NY Open ejecutada y cerrada con profit (+ $3.13 USD).
+   * **Terminal 2 (FundedNext):** Conectada y autorizada con cuenta limpia `#5058495121` ($10,000.00 USD) en `MetaQuotes-Demo`.
+   * Servidor Webhook (`stellar_webhook.service`) y motor institucional (`stellar_ny_open.service`) activos y sincronizados en la VPS Oracle (157.137.225.144:8000).
+
+```mermaid
+flowchart TD
+    subgraph PythonEngine ["1. Motor Cuantitativo (trading_engine.py / OCI VPS)"]
+        Signal["Señal ORB 15m"] --> AntiLoop{"Filtro Anti-Persecución & Debounce 5m"}
+        AntiLoop -- "Permitido" --> DualRoute["resolve_dual_target_magics()"]
+        AntiLoop -- "Duplicado" --> Skip["Descartar Señal"]
+        DualRoute --> WebhookQ["webhook_actions (SQLite)"]
+    end
+
+    subgraph MQL5_EA ["2. Asesor Experto (StellarLite_Webhook_Bridge.mq5)"]
+        WebhookQ --> Poll["OnTimer (1s): Polling /api/signal"]
+        Poll --> SymCheck{"ResolveBrokerSymbol()"}
+        SymCheck -- "Inactivo / No encontrado" --> RejectSym["Retornar INACTIVE (Omitir)"]
+        SymCheck -- "Válido" --> CircuitBreaker{"Triple Circuit Breaker:
+        • Pérdida Hoy < $350?
+        • Posiciones Magic < 1?
+        • Desviación Precio < 10%?"}
+        CircuitBreaker -- "Falla Filtro" --> RejectCB["Rechazo Local en MT5"]
+        CircuitBreaker -- "100% OK" --> ExecOrder["CTrade: Ejecución Mercado con SL/TP"]
+    end
+```
 
