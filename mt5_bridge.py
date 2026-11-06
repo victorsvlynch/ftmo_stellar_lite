@@ -160,7 +160,7 @@ class MT5Bridge:
                 tv = float(spec.get("trade_tick_value", 0.0))
                 ts = float(spec.get("trade_tick_size", 0.0))
                 eff_cs = round(tv / ts, 4) if (is_jpy and tv > 0 and ts > 0) else base_cs
-                comm_val = 0.0 if any(k in real_sym for k in ("500", "30", "DJ")) else 5.0
+                comm_val = 0.0 if (not is_jpy and any(k in real_sym for k in ("500", "US30", "DJ30", "SPX", "WS30"))) else 5.0
                 spec_dict = {
                     "contract_size": eff_cs,
                     "base_contract_size": base_cs,
@@ -247,7 +247,15 @@ class MT5Bridge:
             return None
 
         # 1. Definir lista de candidatos prioritarios según activo
-        if any(k in clean for k in ("30", "DJ", "YM", "DOW", "WS30", "WALL")):
+        if ("JPY" in clean and "USD" in clean) or clean == "USDJPY" or "JPY" in clean:
+            candidates = ["USDJPY", "USDJPYm", "USDJPY.raw", "USDJPY.pro", "USDJPYb", "USDJPY.cash", "USDJPY+"]
+            match_keywords = ["USDJPY"]
+            fallback = "USDJPY"
+        elif ("EUR" in clean and "USD" in clean) or clean == "EURUSD" or "EUR" in clean:
+            candidates = ["EURUSD", "EURUSDm", "EURUSD.raw", "EURUSD.pro", "EURUSDb", "EURUSD.cash", "EURUSD+"]
+            match_keywords = ["EURUSD"]
+            fallback = "EURUSD"
+        elif any(k in clean for k in ("US30", "DJ30", "YM", "DOW", "WS30", "WALL")) or clean == "30" or clean.endswith("30"):
             candidates = ["US30", "US30.cash", "DJ30", "WS30", "USA30", "US30m", "US30.raw", "US30.pro", "YM"]
             match_keywords = ["US30", "DJ30", "WS30"]
             fallback = "US30"
@@ -259,14 +267,6 @@ class MT5Bridge:
             candidates = ["XAGUSD", "SILVER", "XAGUSD.m", "XAGUSDm", "XAGUSD.raw", "XAGUSD.pro", "XAGUSDb", "SI=F", "SI"]
             match_keywords = ["XAGUSD", "SILVER"]
             fallback = "XAGUSD"
-        elif "EUR" in clean:
-            candidates = ["EURUSD", "EURUSDm", "EURUSD.raw", "EURUSD.pro", "EURUSDb", "EURUSD.cash", "EURUSD+"]
-            match_keywords = ["EURUSD"]
-            fallback = "EURUSD"
-        elif "JPY" in clean:
-            candidates = ["USDJPY", "USDJPYm", "USDJPY.raw", "USDJPY.pro", "USDJPYb", "USDJPY.cash", "USDJPY+"]
-            match_keywords = ["USDJPY"]
-            fallback = "USDJPY"
         elif "AUD" in clean:
             candidates = ["AUDUSD", "AUDUSDm", "AUDUSD.raw", "AUDUSD.pro", "AUDUSDb", "AUDUSD.cash", "AUDUSD+"]
             match_keywords = ["AUDUSD"]

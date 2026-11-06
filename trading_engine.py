@@ -98,16 +98,16 @@ class MarketDataConnector:
             return "XAUUSD"
         if any(k in clean for k in ("SI", "XAG", "SILVER")):
             return "XAGUSD"
-        if any(k in clean for k in ("30", "DJ", "YM", "DOW")):
-            return "US30"
-        if "EUR" in clean:
-            return "EURUSD"
-        if "JPY" in clean:
+        if ("JPY" in clean and "USD" in clean) or clean == "USDJPY" or "JPY" in clean:
             return "USDJPY"
+        if ("EUR" in clean and "USD" in clean) or clean == "EURUSD" or "EUR" in clean:
+            return "EURUSD"
         if "AUD" in clean:
             return "AUDUSD"
-        if any(k in clean for k in ("ES", "500", "SPX")):
+        if any(k in clean for k in ("ES", "500", "SPX", "US500", "SP500")):
             return "US500"
+        if any(k in clean for k in ("US30", "DJ30", "YM", "DOW", "WS30")) or clean == "30" or clean.endswith("30"):
+            return "US30"
         return clean
 
     @classmethod
@@ -1015,9 +1015,9 @@ class AutomatedTradingEngine:
                 sym_upper = str(tr["symbol"]).upper()
                 is_gold = ("GC" in sym_upper or "XAU" in sym_upper or "GOLD" in sym_upper)
                 is_silver = ("SI" in sym_upper or "XAG" in sym_upper or "SILVER" in sym_upper)
-                is_us30 = ("30" in sym_upper or "DJ" in sym_upper or "YM" in sym_upper or "DOW" in sym_upper)
+                is_jpy = (not is_gold and not is_silver and (("JPY" in sym_upper and "USD" in sym_upper) or "JPY" in sym_upper))
+                is_us30 = (not is_jpy and ("30" in sym_upper or "DJ30" in sym_upper or "US30" in sym_upper or "YM" in sym_upper or "DOW" in sym_upper or "WS30" in sym_upper))
                 is_sp500 = ("500" in sym_upper or "SPX" in sym_upper or "ES" in sym_upper)
-                is_jpy = (not is_gold and not is_silver and "JPY" in sym_upper)
                 is_aud = (not is_gold and not is_silver and not is_jpy and "AUD" in sym_upper)
                 is_forex = (not is_gold and not is_silver and not is_jpy and not is_aud and not is_us30 and not is_sp500 and (any(k in sym_upper for k in ("EUR", "GBP", "=X")) or entry < 10.0))
 
@@ -1378,13 +1378,13 @@ class AutomatedTradingEngine:
                 continue
 
             # 4.5 Regla Anti-Persecución Institucional (1 Disparo por Vela ORB por Activo):
-            # Si el activo ya cerró una operación en esta misma ventana ORB (ej. '2026-11-04 03:00 EST' o '08:30 EST')
-            # con ganancia/Break-Even (o ya acumuló 2 intentos en la misma ventana), no volver a re-entrar tarde en la misma ola.
+            # Si el activo ya registró una operación en esta misma ventana ORB (ej. '2026-11-04 03:00 EST' o '08:30 EST')
+            # con ganancia/Break-Even (o ya acumuló 1 intento en la misma ventana), no volver a re-entrar tarde en la misma ola.
             if not force_signal_side:
                 acc_chk = self.db.get_account_state()
                 t_date_chk = str(acc_chk.get("current_trading_day", dt.strftime("%Y-%m-%d")))
-                closed_today_sym = [
-                    t for t in self.db.get_trades_by_date(t_date_chk, status="CLOSED")
+                all_today_sym = [
+                    t for t in self.db.get_trades_by_date(t_date_chk)
                     if t.get("symbol") == sym
                 ]
                 orb_tag = ""
@@ -1393,13 +1393,24 @@ class AutomatedTradingEngine:
                         orb_tag = tag_cand
                         break
                 if orb_tag:
-                    same_orb_trades = [t for t in closed_today_sym if orb_tag in str(t.get("notes", ""))]
+                    same_orb_trades = [t for t in all_today_sym if orb_tag in str(t.get("notes", ""))]
                     already_won_orb = any(float(t.get("pnl", 0.0)) > 0 or int(t.get("is_break_even", 0)) == 1 for t in same_orb_trades)
                     if already_won_orb or len(same_orb_trades) >= 1:
                         skipped_session_reasons.append(
-                            f"{sym}: Ventana ORB ({orb_tag}) ya operada hoy ({len(same_orb_trades)} trade previo). Evitando re-entrada tardía."
+                            f"{sym}: Ventana ORB ({orb_tag}) ya procesada hoy ({len(same_orb_trades)} trade previo). Evitando re-entrada tardía."
                         )
                         continue
+
+                # Debounce / Cooldown de Seguridad: Evitar re-intentos continuos si se ejecutó un trade hace menos de 5 min
+                recent_attempts = [
+                    t for t in all_today_sym
+                    if t.get("opened_at") and abs((dt - datetime.fromisoformat(str(t["opened_at"]).replace("Z", "+00:00"))).total_seconds()) < 300
+                ]
+                if recent_attempts:
+                    skipped_session_reasons.append(
+                        f"{sym}: Debounce activo (trade #{recent_attempts[-1]['id']} ejecutado hace <5 min). Esperando estabilización."
+                    )
+                    continue
 
             # 5. Calcular tamaño de posición exacto y abrir operación
             acc = self.db.get_account_state()

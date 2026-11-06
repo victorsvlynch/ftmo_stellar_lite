@@ -1224,3 +1224,32 @@ XAUUSD, EURUSD, US500"]
 2. **Sub-Milisegundo en Windows:** En la máquina Windows local donde corre MT5, [`trading_engine.py`](trading_engine.py) utiliza la API nativa `MetaTrader5` con latencia por IPC de **< 1 ms**.
 3. **Bridge Bidireccional en VPS:** En el servidor en la nube (`Ubuntu 22.04`), el EA transmite los ticks de los 3 activos en cada ciclo de sondeo (`GET /api/signal?feed=1...`), manteniendo actualizado `mt5_feed.json` con una frescura de 1 segundo.
 4. **Fallback Seguro de Respaldo:** Si la terminal de MetaTrader 5 se cierra o el feed supera los 35 segundos de inactividad (`STALE`), el motor conmuta automáticamente a Yahoo Direct sin interrumpir la operación.
+
+---
+
+## 🛡️ Resolución y Blindaje Institucional: Mapeo Inmune de Símbolos y Aislamiento de Activos (Parche Crítico 2026-11-06)
+
+En la auditoría del 6 de noviembre de 2026 se identificó y erradicó de raíz la causa por la cual se abrieron órdenes imprevistas en `XAUUSD` en ambas terminales de MetaTrader 5:
+
+### 1. Causa Raíz Detectada
+1. **Colisión de Subcadena `"DJ"` dentro de `"USDJPY"`:**
+   La secuencia alfabética `U S [D J] P Y` contiene la subcadena `"DJ"`. Al evaluar identificadores para Dow Jones (`US30`), las comparaciones `any(k in clean for k in ("30", "DJ", "YM", "DOW"))` evaluaban como verdaderas para `USDJPY`, traduciendo erróneamente señales de `USDJPY` a `US30`.
+2. **Fallback No Seguro en el Asesor Experto (`StellarLite_Webhook_Bridge.mq5`):**
+   Al no encontrarse cotización activa para `US30` en FundedNext, la función `ResolveBrokerSymbol()` ejecutaba un `return _Symbol;`. Como el EA estaba colocado en el gráfico de `XAUUSD`, la orden huérfana caía automáticamente en Oro (`XAUUSD`).
+3. **Bucle Rápido por Estado `REJECTED_MT5`:**
+   Al ser rechazada la orden o no coincidir el ticket de `USDJPY` en MT5, la base de datos marcaba el trade como `REJECTED_MT5`, lo que retiraba el trade de `status = 'OPEN'`. En el siguiente ciclo de 60s, el motor re-evaluaba la señal y enviaba una nueva apertura.
+
+### 2. Medidas de Blindaje Definitivas Implementadas
+1. **Mapeo Prioritario e Inmune en Python (`database.py`, `trading_engine.py`, `mt5_bridge.py`):**
+   * Se evalúan `USDJPY` y `EURUSD` estrictamente antes de cualquier regla de índices.
+   * Se sustituyó el token genérico `"DJ"` por `"DJ30"` y `"US30"`, asegurando que `USDJPY` jamás coincida con el Dow Jones.
+   * `resolve_dual_target_magics()` ahora rutea `USDJPY` exclusivamente al Magic de Stellar (`505002`) y `US30` exclusivamente a FTMO (`505001`).
+2. **Eliminación Total del Fallback a `_Symbol` en MQL5 (`StellarLite_Webhook_Bridge.mq5`):**
+   * Si un símbolo recibido no existe en el catálogo del broker o no está activado en los parámetros del EA, ahora retorna `"INACTIVE"`.
+   * **Bajo ninguna circunstancia se ejecutan operaciones en el gráfico actual (`_Symbol`) si el activo solicitado no coincide.**
+3. **Protección Anti-Bucle y Debounce en `trading_engine.py`:**
+   * La regla anti-persecución ahora audita todas las operaciones de la jornada (incluyendo `REJECTED_MT5`), impidiendo más de 1 intento en la misma vela ORB.
+   * Se agregó un debounce de 300 segundos (5 minutos) por activo que bloquea cualquier reintento rápido.
+4. **Reconciliación y Limpieza de Bases de Datos:**
+   * Se depuraron los registros fantasma en la VPS y se sincronizó el balance exacto de MetaTrader 5 ($9,766.31 USD en FundedNext y $9,471.92 USD en FTMO).
+

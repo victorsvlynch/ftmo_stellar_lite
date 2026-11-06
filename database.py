@@ -29,10 +29,10 @@ def resolve_dual_target_magics(symbol: str, active_profile: Optional[Any] = None
     sym_clean = symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
     is_gold = any(k in sym_clean for k in ("XAU", "GC", "GOLD"))
     is_silver = any(k in sym_clean for k in ("XAG", "SI", "SILVER"))
-    is_us30 = any(k in sym_clean for k in ("30", "DJ", "YM", "DOW", "WS30"))
-    is_sp500 = any(k in sym_clean for k in ("500", "SPX", "ES", "US500"))
     is_usdjpy = ("JPY" in sym_clean and "USD" in sym_clean) or sym_clean == "USDJPY"
     is_eurusd = ("EUR" in sym_clean and "USD" in sym_clean) or sym_clean == "EURUSD"
+    is_us30 = (not is_usdjpy) and any(k in sym_clean for k in ("30", "DJ30", "US30", "YM", "DOW", "WS30"))
+    is_sp500 = any(k in sym_clean for k in ("500", "SPX", "ES", "US500"))
 
     candidate_profiles = []
     try:
@@ -53,22 +53,23 @@ def resolve_dual_target_magics(symbol: str, active_profile: Optional[Any] = None
         allows = False
         for al in allowed:
             al_clean = al.upper().replace("=X", "").replace("=F", "").replace("/", "")
+            al_is_usdjpy = ("JPY" in al_clean and "USD" in al_clean) or al_clean == "USDJPY"
             if is_gold and any(k in al_clean for k in ("XAU", "GC", "GOLD")):
                 allows = True
                 break
             if is_silver and any(k in al_clean for k in ("XAG", "SI", "SILVER")):
                 allows = True
                 break
-            if is_us30 and any(k in al_clean for k in ("30", "DJ", "YM", "DOW", "WS30")):
-                allows = True
-                break
-            if is_sp500 and any(k in al_clean for k in ("500", "SPX", "ES", "US500")):
-                allows = True
-                break
-            if is_usdjpy and (("JPY" in al_clean and "USD" in al_clean) or al_clean == "USDJPY"):
+            if is_usdjpy and al_is_usdjpy:
                 allows = True
                 break
             if is_eurusd and (("EUR" in al_clean and "USD" in al_clean) or al_clean == "EURUSD"):
+                allows = True
+                break
+            if is_us30 and (not al_is_usdjpy) and any(k in al_clean for k in ("30", "DJ30", "US30", "YM", "DOW", "WS30")):
+                allows = True
+                break
+            if is_sp500 and any(k in al_clean for k in ("500", "SPX", "ES", "US500")):
                 allows = True
                 break
             if al_clean == sym_clean or al_clean in sym_clean or sym_clean in al_clean:
@@ -767,16 +768,16 @@ class TradingDatabase:
                 sym_mt5 = "XAUUSD"
             elif any(k in clean_sym for k in ("SI", "XAG", "SILVER")):
                 sym_mt5 = "XAGUSD"
-            elif any(k in clean_sym for k in ("YM", "30", "DJ", "WS30", "DOW")):
-                sym_mt5 = "US30"
-            elif any(k in clean_sym for k in ("ES", "500", "SPX", "US500", "SP500")):
-                sym_mt5 = "US500"
-            elif any(k in clean_sym for k in ("EURUSD", "EUR")):
-                sym_mt5 = "EURUSD"
-            elif any(k in clean_sym for k in ("USDJPY", "JPY")):
+            elif ("JPY" in clean_sym and "USD" in clean_sym) or any(k in clean_sym for k in ("USDJPY", "JPY")):
                 sym_mt5 = "USDJPY"
+            elif ("EUR" in clean_sym and "USD" in clean_sym) or any(k in clean_sym for k in ("EURUSD", "EUR")):
+                sym_mt5 = "EURUSD"
             elif any(k in clean_sym for k in ("AUDUSD", "AUD")):
                 sym_mt5 = "AUDUSD"
+            elif any(k in clean_sym for k in ("ES", "500", "SPX", "US500", "SP500")):
+                sym_mt5 = "US500"
+            elif any(k in clean_sym for k in ("YM", "US30", "DJ30", "WS30", "DOW")) or clean_sym == "30" or clean_sym.endswith("30"):
+                sym_mt5 = "US30"
             else:
                 sym_mt5 = clean_sym
             target_pairs = resolve_dual_target_magics(symbol, self._profile)
@@ -880,16 +881,16 @@ class TradingDatabase:
                 sym_mt5 = "XAUUSD"
             elif any(k in raw_sym for k in ("SI", "XAG", "SILVER")):
                 sym_mt5 = "XAGUSD"
-            elif any(k in raw_sym for k in ("YM", "30", "DJ", "WS30", "DOW")):
-                sym_mt5 = "US30"
-            elif any(k in raw_sym for k in ("ES", "500", "SPX", "US500", "SP500")):
-                sym_mt5 = "US500"
-            elif any(k in raw_sym for k in ("EURUSD", "EUR")):
-                sym_mt5 = "EURUSD"
-            elif any(k in raw_sym for k in ("USDJPY", "JPY")):
+            elif ("JPY" in raw_sym and "USD" in raw_sym) or any(k in raw_sym for k in ("USDJPY", "JPY")):
                 sym_mt5 = "USDJPY"
+            elif ("EUR" in raw_sym and "USD" in raw_sym) or any(k in raw_sym for k in ("EURUSD", "EUR")):
+                sym_mt5 = "EURUSD"
             elif any(k in raw_sym for k in ("AUDUSD", "AUD")):
                 sym_mt5 = "AUDUSD"
+            elif any(k in raw_sym for k in ("ES", "500", "SPX", "US500", "SP500")):
+                sym_mt5 = "US500"
+            elif any(k in raw_sym for k in ("YM", "US30", "DJ30", "WS30", "DOW")) or raw_sym == "30" or raw_sym.endswith("30"):
+                sym_mt5 = "US30"
             else:
                 sym_mt5 = trade["symbol"]
             target_pairs = resolve_dual_target_magics(trade["symbol"], self._profile)
@@ -944,16 +945,16 @@ class TradingDatabase:
                     sym_mt5 = "XAUUSD"
                 elif any(k in raw_sym for k in ("SI", "XAG", "SILVER")):
                     sym_mt5 = "XAGUSD"
-                elif any(k in raw_sym for k in ("YM", "30", "DJ", "WS30", "DOW")):
-                    sym_mt5 = "US30"
-                elif any(k in raw_sym for k in ("ES", "500", "SPX", "US500", "SP500")):
-                    sym_mt5 = "US500"
-                elif any(k in raw_sym for k in ("EURUSD", "EUR")):
-                    sym_mt5 = "EURUSD"
-                elif any(k in raw_sym for k in ("USDJPY", "JPY")):
+                elif ("JPY" in raw_sym and "USD" in raw_sym) or any(k in raw_sym for k in ("USDJPY", "JPY")):
                     sym_mt5 = "USDJPY"
+                elif ("EUR" in raw_sym and "USD" in raw_sym) or any(k in raw_sym for k in ("EURUSD", "EUR")):
+                    sym_mt5 = "EURUSD"
                 elif any(k in raw_sym for k in ("AUDUSD", "AUD")):
                     sym_mt5 = "AUDUSD"
+                elif any(k in raw_sym for k in ("ES", "500", "SPX", "US500", "SP500")):
+                    sym_mt5 = "US500"
+                elif any(k in raw_sym for k in ("YM", "US30", "DJ30", "WS30", "DOW")) or raw_sym == "30" or raw_sym.endswith("30"):
+                    sym_mt5 = "US30"
                 else:
                     sym_mt5 = trade["symbol"]
                 action_comment = (notes[:60] if notes else "Break-Even 1R")

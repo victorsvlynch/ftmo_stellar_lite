@@ -210,8 +210,24 @@ string ResolveBrokerSymbol(const string requestedSymbol)
 
 
 
-   // A. Dow Jones 30 / US30 (FTMO 10K Challenge)
-   if(StringFind(clean, "30") >= 0 || StringFind(clean, "DJ") >= 0 || StringFind(clean, "YM") >= 0 || StringFind(clean, "WS30") >= 0 || StringFind(clean, "DOW") >= 0)
+   // A. USD/JPY (Activo oficial MT2 Stellar Lite 10K)
+   if(StringFind(clean, "JPY") >= 0)
+   {
+      if(!InpEnableUSDJPY)
+         return "INACTIVE";
+      string candidates[] = {"USDJPY", "USDJPYm", "USDJPY.raw", "USDJPY.pro", "USDJPYb", "USDJPY.cash", "USDJPY+"};
+      for(int i = 0; i < ArraySize(candidates); i++)
+         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
+   }
+   // B. EUR/USD
+   else if(StringFind(clean, "EUR") >= 0)
+   {
+      string candidates[] = {"EURUSD", "EURUSDm", "EURUSD.raw", "EURUSD.pro", "EURUSDb", "EURUSD.cash", "EURUSD+"};
+      for(int i = 0; i < ArraySize(candidates); i++)
+         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
+   }
+   // C. Dow Jones 30 / US30 (FTMO 10K Challenge)
+   else if(StringFind(clean, "US30") >= 0 || StringFind(clean, "DJ30") >= 0 || StringFind(clean, "YM") >= 0 || StringFind(clean, "WS30") >= 0 || StringFind(clean, "DOW") >= 0 || clean == "30")
    {
       if(!InpEnableUS30)
          return "INACTIVE";
@@ -219,7 +235,7 @@ string ResolveBrokerSymbol(const string requestedSymbol)
       for(int i = 0; i < ArraySize(candidates); i++)
          if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
    }
-   // B. S&P 500 (Guardado en Standby - se activa cambiando InpEnableSP500 = true)
+   // D. S&P 500 (FTMO 10K Challenge)
    else if(StringFind(clean, "500") >= 0 || StringFind(clean, "SPX") >= 0 || StringFind(clean, "ES") >= 0)
    {
       if(!InpEnableSP500)
@@ -228,7 +244,7 @@ string ResolveBrokerSymbol(const string requestedSymbol)
       for(int i = 0; i < ArraySize(candidates); i++)
          if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
    }
-   // C. Plata / XAGUSD (Stellar 10K Demo)
+   // E. Plata / XAGUSD (Stellar 10K Demo)
    else if(StringFind(clean, "XAG") >= 0 || StringFind(clean, "SILVER") >= 0 || StringFind(clean, "SI") >= 0)
    {
       if(!InpEnableSilver)
@@ -237,34 +253,18 @@ string ResolveBrokerSymbol(const string requestedSymbol)
       for(int i = 0; i < ArraySize(candidates); i++)
          if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
    }
-   // D. EUR/USD
-   else if(StringFind(clean, "EUR") >= 0)
-   {
-      string candidates[] = {"EURUSD", "EURUSDm", "EURUSD.raw", "EURUSD.pro", "EURUSDb", "EURUSD.cash", "EURUSD+"};
-      for(int i = 0; i < ArraySize(candidates); i++)
-         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
-   }
-   // E. USD/JPY (Activo oficial MT2 Stellar Lite 10K)
-   else if(StringFind(clean, "JPY") >= 0)
-   {
-      if(!InpEnableUSDJPY)
-         return "INACTIVE";
-      string candidates[] = {"USDJPY", "USDJPYm", "USDJPY.raw", "USDJPY.pro", "USDJPYb", "USDJPY.cash", "USDJPY+"};
-      for(int i = 0; i < ArraySize(candidates); i++)
-         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
-   }
-   // F. Inactivos permanentes (AUD/USD, GBP/USD, Cripto, etc.)
-   else if(StringFind(clean, "AUD") >= 0 || StringFind(clean, "GBP") >= 0 || StringFind(clean, "BTC") >= 0)
-   {
-      PrintFormat("[EA MT5] [INACTIVO] El activo %s esta desactivado por configuracion institucional.", requestedSymbol);
-      return "INACTIVE";
-   }
-   // G. Oro / XAUUSD
-   else
+   // F. Oro / XAUUSD
+   else if(StringFind(clean, "XAU") >= 0 || StringFind(clean, "GOLD") >= 0 || StringFind(clean, "GC") >= 0)
    {
       string candidates[] = {"XAUUSD", "GOLD", "XAUUSDm", "XAUUSD.raw", "XAUUSD.pro", "XAUUSDb"};
       for(int i = 0; i < ArraySize(candidates); i++)
          if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
+   }
+   // G. Inactivos permanentes (AUD/USD, GBP/USD, Cripto, etc.)
+   else if(StringFind(clean, "AUD") >= 0 || StringFind(clean, "GBP") >= 0 || StringFind(clean, "BTC") >= 0)
+   {
+      PrintFormat("[EA MT5] [INACTIVO] El activo %s esta desactivado por configuracion institucional.", requestedSymbol);
+      return "INACTIVE";
    }
 
    // Busqueda inteligente en la lista completa de simbolos del broker
@@ -274,23 +274,22 @@ string ResolveBrokerSymbol(const string requestedSymbol)
       string sName = SymbolName(i, false);
       string sUpper = sName;
       StringToUpper(sUpper);
-      if(InpEnableUS30 && (StringFind(clean, "30") >= 0 || StringFind(clean, "DJ") >= 0 || StringFind(clean, "YM") >= 0) && (StringFind(sUpper, "30") >= 0 || StringFind(sUpper, "DJ") >= 0))
+      if(InpEnableUSDJPY && StringFind(clean, "JPY") >= 0 && StringFind(sUpper, "USD") >= 0 && StringFind(sUpper, "JPY") >= 0)
+         return sName;
+      if(StringFind(clean, "EUR") >= 0 && StringFind(sUpper, "EUR") >= 0 && StringFind(sUpper, "USD") >= 0)
+         return sName;
+      if(InpEnableUS30 && StringFind(clean, "JPY") < 0 && (StringFind(clean, "30") >= 0 || StringFind(clean, "DJ30") >= 0 || StringFind(clean, "YM") >= 0) && (StringFind(sUpper, "30") >= 0 || StringFind(sUpper, "DJ") >= 0))
          return sName;
       if(InpEnableSP500 && StringFind(clean, "500") >= 0 && (StringFind(sUpper, "500") >= 0 || StringFind(sUpper, "SPX") >= 0))
          return sName;
       if(InpEnableSilver && (StringFind(clean, "XAG") >= 0 || StringFind(clean, "SILVER") >= 0 || StringFind(clean, "SI") >= 0) && (StringFind(sUpper, "XAG") >= 0 || StringFind(sUpper, "SILVER") >= 0))
          return sName;
-      if(StringFind(clean, "EUR") >= 0 && StringFind(sUpper, "EUR") >= 0 && StringFind(sUpper, "USD") >= 0)
-         return sName;
-      if(StringFind(clean, "JPY") >= 0 && StringFind(sUpper, "USD") >= 0 && StringFind(sUpper, "JPY") >= 0)
-         return sName;
       if((StringFind(clean, "XAU") >= 0 || StringFind(clean, "GC") >= 0) && (StringFind(sUpper, "XAU") >= 0 || StringFind(sUpper, "GOLD") >= 0))
          return sName;
    }
 
-
-
-   return _Symbol;
+   PrintFormat("[EA MT5] [ALERTA] Simbolo '%s' no resuelto en catalogo MT5 ni en chart. Operacion omitida de forma segura.", requestedSymbol);
+   return "INACTIVE";
 
 }
 
