@@ -22,17 +22,19 @@
       "is_trial": false,
       "ea_enabled": true,
       "allow_overnight_weekend": true,
+      "drawdown_type": "STATIC",
+      "consistency_rule_pct": 0.0,
       "news_profit_cap_pct": 0.4,
       "funded_profit_split": 0.8,
       "scaled_funded_split": 0.9,
       "magic_number": 505002,
       "allowed_symbols": [
         "XAUUSD",
-        "EURUSD",
+        "XAGUSD",
         "USDJPY"
       ],
       "created_at": "2026-11-02T20:37:33.571004+00:00",
-      "notes": "Evaluación Oficial 2-Step FundedNext Stellar Lite $10,000 USD (MT2: Oro, EUR/USD y USD/JPY)."
+      "notes": "Evaluación Oficial 2-Step FundedNext Stellar Lite $10,000 USD (Oro/XAUUSD, Plata/XAGUSD y USD/JPY)."
     },
     "stellar_6k_trial": {
       "id": "stellar_6k_trial",
@@ -55,17 +57,19 @@
       "is_trial": true,
       "ea_enabled": true,
       "allow_overnight_weekend": true,
+      "drawdown_type": "STATIC",
+      "consistency_rule_pct": 0.0,
       "news_profit_cap_pct": 0.4,
       "funded_profit_split": 0.8,
       "scaled_funded_split": 0.9,
       "magic_number": 505003,
       "allowed_symbols": [
         "XAUUSD",
-        "EURUSD",
+        "XAGUSD",
         "USDJPY"
       ],
       "created_at": "2026-11-02T20:37:33.571024+00:00",
-      "notes": "Free Trial $6K Challenge MT5 Swap - Login 35338849 (1-trial.png / 2-trial.png)."
+      "notes": "Free Trial $6K Challenge MT5 Swap - Login 35338849 (Oro, Plata y USD/JPY)."
     },
     "ftmo_10k_challenge": {
       "id": "ftmo_10k_challenge",
@@ -87,21 +91,23 @@
       "server": "FTMO-Demo",
       "is_trial": false,
       "ea_enabled": true,
-      "allow_overnight_weekend": true,
+      "allow_overnight_weekend": false,
+      "drawdown_type": "TRAILING",
+      "consistency_rule_pct": 0.5,
       "news_profit_cap_pct": 1.0,
       "funded_profit_split": 0.8,
       "scaled_funded_split": 0.9,
       "magic_number": 505001,
       "allowed_symbols": [
         "XAUUSD",
-        "EURUSD",
+        "US30",
         "US500"
       ],
       "created_at": "2026-11-04T21:25:28.579600+00:00",
-      "notes": "Evaluación Oficial 2-Step FTMO Challenge $10,000 USD (€89 EUR) - MT1: Oro, EUR/USD y S&P 500."
+      "notes": "Evaluación Oficial 2-Step FTMO Challenge $10,000 USD (€89 EUR) - MT1: Oro, Dow Jones (US30) y S&P 500 (US500). Trailing DD + Consistencia 50%."
     }
   },
-  "last_switched_at": "2026-11-05T14:07:31.032890+00:00",
+  "last_switched_at": "2026-11-06T02:41:30.569766+00:00",
   "execution_mode": "DUAL",
   "active_profiles_dual": [
     "ftmo_10k_challenge",

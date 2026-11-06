@@ -158,6 +158,15 @@ def confirm_action(
                 """,
                 (row[1],),
             )
+    elif mt5_ticket > 0:
+        cur.execute(
+            """
+            UPDATE trades
+            SET mt5_ticket = ?
+            WHERE id = (SELECT trade_id FROM webhook_actions WHERE id = ?)
+            """,
+            (mt5_ticket, action_id),
+        )
 
     conn.commit()
     conn.close()
@@ -246,6 +255,28 @@ def update_live_ticks_from_query(qs: Dict[str, Any], now_utc: Optional[datetime]
         symbols_data["XAUUSD"] = gold_item
         symbols_data["GC=F"] = gold_item
         symbols_data["GOLD"] = gold_item
+
+    # Plata / XAGUSD (Stellar Lite 10K)
+    xag_bid = _parse_val("xag_bid")
+    xag_ask = _parse_val("xag_ask")
+    if xag_bid > 0 and xag_ask > 0:
+        sp = round(xag_ask - xag_bid, 4)
+        mid = round((xag_bid + xag_ask) / 2.0, 4)
+        silver_item = {"symbol": "XAGUSD", "bid": xag_bid, "ask": xag_ask, "mid": mid, "spread": sp, "updated_at": now_iso}
+        symbols_data["XAGUSD"] = silver_item
+        symbols_data["SI=F"] = silver_item
+        symbols_data["SILVER"] = silver_item
+
+    # Dow Jones 30 / US30 (FTMO 10K Challenge)
+    us30_bid = _parse_val("us30_bid")
+    us30_ask = _parse_val("us30_ask")
+    if us30_bid > 0 and us30_ask > 0:
+        sp = round(us30_ask - us30_bid, 2)
+        mid = round((us30_bid + us30_ask) / 2.0, 2)
+        us30_item = {"symbol": "US30", "bid": us30_bid, "ask": us30_ask, "mid": mid, "spread": sp, "updated_at": now_iso}
+        symbols_data["US30"] = us30_item
+        symbols_data["YM=F"] = us30_item
+        symbols_data["DJ30"] = us30_item
 
     # EUR/USD
     eur_bid = _parse_val("eur_bid")
@@ -360,8 +391,19 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
         now_str = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
 
         # Ingestar feed de ticks en tiempo real desde el EA de MT5
-        if "feed" in qs or "xau_bid" in qs or "eur_bid" in qs or "jpy_bid" in qs or "aud_bid" in qs or "sp_bid" in qs:
+        if "feed" in qs or "xau_bid" in qs or "xag_bid" in qs or "us30_bid" in qs or "eur_bid" in qs or "jpy_bid" in qs or "aud_bid" in qs or "sp_bid" in qs:
             update_live_ticks_from_query(qs, now_utc)
+
+        # Auto-sincronización instantánea de Balance y Equidad de MT5
+        if "balance" in qs and "equity" in qs:
+            try:
+                bal = float(qs["balance"][0])
+                eq = float(qs["equity"][0])
+                if bal > 0:
+                    db_sync = TradingDatabase(DB_FILE)
+                    db_sync.update_account_state_from_mt5(balance=bal, equity=eq)
+            except Exception as ex:
+                logger.debug(f"Error procesando sync balance en GET: {ex}")
 
         # 0. Feed de Mercado en Tiempo Real para Sandbox y Motores de Trading
         if path == "/api/feed":
@@ -520,6 +562,31 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
             self._set_json_headers(200)
             self.wfile.write(json.dumps({"status": "ACK", "action_id": action_id}).encode("utf-8"))
             return
+
+        # 2. Notificación en Tiempo Real de Cierre de Deal desde MT5 (SL/TP/Cierre Manual)
+        if path == "/api/deal_closed":
+            db_sync = TradingDatabase(DB_FILE)
+            synced = db_sync.sync_deal_from_mt5(data)
+            dt_deal = data.get("deal_ticket", data.get("ticket", 0))
+            pnl_val = float(data.get("profit", 0.0)) + float(data.get("swap", 0.0)) + float(data.get("commission", 0.0))
+            logger.info(
+                f"[MT5 REAL DEAL] Deal #{dt_deal} ({data.get('symbol')}) procesado -> Net PnL: ${pnl_val:+,.2f} | Balance: ${float(data.get('balance', 0)):,.2f}"
+            )
+            self._set_json_headers(200)
+            self.wfile.write(json.dumps({"status": "DEAL_SYNCED", "deal_ticket": dt_deal, "trade_matched": synced}).encode("utf-8"))
+            return
+
+        # 3. Sincronización Directa de Cuenta desde MT5
+        if path == "/api/sync_account":
+            bal = float(data.get("balance", 0.0))
+            eq = float(data.get("equity", 0.0))
+            if bal > 0:
+                db_sync = TradingDatabase(DB_FILE)
+                db_sync.update_account_state_from_mt5(balance=bal, equity=eq)
+                logger.info(f"[MT5 ACCOUNT SYNC] Balance: ${bal:,.2f} | Equidad: ${eq:,.2f} sincronizados.")
+                self._set_json_headers(200)
+                self.wfile.write(json.dumps({"status": "ACCOUNT_SYNCED", "balance": bal, "equity": eq}).encode("utf-8"))
+                return
 
         # 2. Endpoint de Prueba: Disparar micro-orden de test hacia MT5
         if path == "/api/test_order":

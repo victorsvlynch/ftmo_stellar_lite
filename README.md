@@ -15,8 +15,8 @@ Desarrollado en **Python Puro de Alto Rendimiento con Arquitectura Multiperfil A
 2. [Estrategia Ganadora Seleccionada y Portafolio Multi-Activo](#-estrategia-ganadora-seleccionada-y-portafolio-multi-activo)
    - [Calendario y Horarios Operativos de los Activos (EST / UTC-5)](#-calendario-y-horarios-operativos-de-los-activos-est--utc-5)
    - [Arquitectura Master Bridge en MetaTrader 5 (3 Gráficos en Mosaico)](#-arquitectura-master-bridge-en-metatrader-5-3-gráficos-en-mosaico)
-   - [Portafolio Profesional Multi-Activo Oficial: Oro (XAUUSD) + EUR/USD (EURUSD) + S&P 500 (US500)](#-portafolio-profesional-multi-activo-oficial-oro-xauusd--eurusd-eurusd--sp-500-us500)
-   - [Laboratorio de Pruebas en Paralelo (3 Cuentas Sandbox Individuales de ,000 c/u, SIN MT5)](#-laboratorio-de-pruebas-en-paralelo-3-cuentas-sandbox-individuales-de-10000-cu-sin-metatrader-5)
+   - [Portafolio Profesional Multi-Activo Oficial: Oro (XAUUSD), Plata (XAGUSD), Dow Jones (US30), S&P 500 (US500) y USD/JPY](#-portafolio-profesional-multi-activo-oficial)
+   - [Laboratorio de Pruebas en Paralelo (Cuentas Sandbox Individuales de $10,000 c/u, SIN MT5)](#-laboratorio-de-pruebas-en-paralelo-cuentas-sandbox-individuales-de-10000-cu-sin-metatrader-5)
    - [Protocolo de Permisos de Trading Algorítmico en MT5 (Solución Error 4752)](#-protocolo-de-permisos-de-trading-algorítmico-en-metatrader-5-solución-error-4752)
 3. [Arquitectura del Motor Cuantitativo y Reglas de Riesgo](#-arquitectura-del-motor-cuantitativo-y-reglas-de-riesgo)
 4. [Puente Institucional con MetaTrader 5 (`mt5_bridge.py`)](#-puente-institucional-con-metatrader-5-mt5_bridgepy)
@@ -52,16 +52,16 @@ El motor cuantitativo incorpora un sistema de **Gestión Multiperfil desacoplado
 | **Firma / Modelo** | **FundedNext Stellar Lite 2-Step** | **FundedNext Free Trial (CFDs)** | **FTMO Challenge 2-Step (Estándar)** |
 | **Instancia MT5 en PC** | **Terminal 2 (`MetaTrader 5 - 2`)** | *Terminal de Pruebas* | **Terminal 1 (`MetaTrader 5`)** |
 | **Magic Number EA** | **`505002`** | **`505003`** | **`505001`** |
-| **Portafolio de Activos** | **Oro (`XAUUSD`), EUR/USD, USD/JPY** | Oro, EUR/USD, USD/JPY | **Oro (`XAUUSD`), EUR/USD, S&P 500 (`US500`)** |
+| **Portafolio de Activos** | **Oro (`XAUUSD`), Plata (`XAGUSD`), USD/JPY (`USDJPY`)** | Oro, Plata, USD/JPY | **Oro (`XAUUSD`), Dow Jones (`US30`), S&P 500 (`US500`)** |
 | **Capital Base** | **$10,000.00 USD** | **$6,000.00 USD** | **$10,000.00 USD** |
 | **Plataforma / Broker** | MetaTrader 5 (MT5 - SWAP) | MetaTrader 5 (MT5 - SWAP) | MetaTrader 5 (MT5 - SWAP) |
-| **Login MT5 Asignado** | *Configurable* | **#35338849** (Detectado en MT5) | *Configurable* |
-| **Servidor Broker** | `FundedNext-Demo` | `FundedNext-Server 3` / `FundedNext-Demo` | `FTMO-Demo` |
+| **Login MT5 Asignado** | **#114929787** (Detectado en MT5) | **#35338849** (Detectado en MT5) | **#1515193448** (Detectado en MT5) |
+| **Servidor Broker** | `FundedNext-Demo` / `MetaQuotes-Demo` | `FundedNext-Server 3` / `FundedNext-Demo` | `FTMO-Demo` |
 | **Objetivo Fase 1 / Reto** | **+8.0% ($800.00)** $\rightarrow$ $10,800.00 | **+5.0% ($300.00)** $\rightarrow$ $6,300.00 | **+10.0% ($1,000.00)** $\rightarrow$ $11,000.00 |
 | **Objetivo Fase 2** | **+4.0% ($400.00)** $\rightarrow$ $10,400.00 | *No aplica (1 sola fase de Trial)* | **+5.0% ($500.00)** $\rightarrow$ $10,500.00 |
 | **Días Mínimos Operativos** | **2 Días por Fase** | **3 Días Mínimos** | **4 Días Mínimos por Fase** |
 | **Límite Pérdida Diaria** | **-4.0% ($400.00)** (sobre balance día) | **-5.0% ($300.00)** (sobre balance día) | **-5.0% ($500.00)** (sobre balance día) |
-| **Límite Drawdown Máximo** | **-8.0% ($800.00)** $\rightarrow$ **Piso: $9,200.00** | **-10.0% ($600.00)** $\rightarrow$ **Piso: $5,400.00** | **-10.0% ($1,000.00)** $\rightarrow$ **Piso: $9,000.00** |
+| **Límite Drawdown Máximo** | **-8.0% ($800.00)** $\rightarrow$ **Piso Estático: $9,200.00** | **-10.0% ($600.00)** $\rightarrow$ **Piso Estático: $5,400.00** | **-10.0% ($1,000.00)** $\rightarrow$ **Trailing Drawdown Dinámico (Escala con HWM)** |
 | **Regla Max Open Risk** | **3.0% ($300.00 USD)** máx. simultáneo | **3.0% ($180.00 USD)** máx. simultáneo | **3.0% ($300.00 USD)** máx. simultáneo |
 | **Riesgo por Trade (0.5%)** | **0.50% ($50.00 USD)** por operación | **0.50% ($30.00 USD)** por operación | **0.50% ($50.00 USD)** por operación |
 | **Freno Personal Diario** | **-2.0% ($200.00 USD)** (Margen seg. 100%) | **-2.5% ($150.00 USD)** (Margen seg. 100%) | **-2.5% ($250.00 USD)** (Margen seg. 100%) |
@@ -85,8 +85,8 @@ El motor cuantitativo incorpora un sistema de **Gestión Multiperfil desacoplado
 #### 1. Menú Interactivo Dedicado ([`Administrar_Perfiles.bat`](Administrar_Perfiles.bat)):
 Permite gestionar la arquitectura dual en 1 clic desde Windows:
 - **Detección Automática de Procesos:** Identifica en tiempo real si `MT1 (FTMO)` y `MT2 (FundedNext)` están `[ONLINE]`.
-- **[1] Activar Perfil:** FTMO 10K Challenge (MT1: Oro, EUR/USD, S&P 500 | Magic `505001`).
-- **[2] Activar Perfil:** Stellar 10K Demo (MT2: Oro, EUR/USD, USD/JPY | Magic `505002`).
+- **[1] Activar Perfil:** FTMO 10K Challenge (MT1: Oro, US30, S&P 500 | Magic `505001`).
+- **[2] Activar Perfil:** Stellar 10K Demo (MT2: Oro, Plata, USD/JPY | Magic `505002`).
 - **[3] Activar Perfil:** Stellar 6K Trial (Free Trial Challenge $6,000 USD | Magic `505003`).
 - **[4] Ver Tablero Comparativo DUAL Completo:** Despliega una tabla comparativa lado a lado con todas las reglas, metas y parámetros técnicos.
 - **[5] Ver Ficha Técnica Completa del Perfil Activo:** Resumen financiero detallado de reglas y límites en SQLite.
@@ -164,7 +164,9 @@ El sistema ha sido exhaustivamente auditado y programado para **cumplir con toda
 
 ## 🏆 Estrategia Ganadora Seleccionada y Portafolio Multi-Activo
 
-Tras auditar y simular múltiples configuraciones bajo fricción institucional real (comisiones, spreads dinámicos y slippage), el sistema opera con dos configuraciones de élite: la **estrategia monoproducto ganadora en Oro (`NY_OPEN`)** y el **portafolio diversificado descorrelacionado (S&P 500 + EUR/USD)**.
+Tras auditar y simular múltiples configuraciones bajo fricción institucional real (comisiones, spreads dinámicos y slippage), el sistema opera con dos portafolios de élite desacoplados según las reglas específicas de cada firma de fondeo:
+- **Portafolio FundedNext Stellar Lite 10K (`stellar_10k_demo`):** **Oro (`XAUUSD`)**, **Plata (`XAGUSD`)** y **USD/JPY (`USDJPY`)**.
+- **Portafolio FTMO 10K Challenge (`ftmo_10k_challenge`):** **Oro (`XAUUSD`)**, **Dow Jones 30 (`US30`)** y **S&P 500 (`US500`)**.
 
 ---
 
@@ -172,20 +174,21 @@ Tras auditar y simular múltiples configuraciones bajo fricción institucional r
 
 Todos los activos tradicionales operan de **Lunes a Viernes**. Como la referencia horaria del bot es **Hora de Nueva York (EST)**, los horarios en huso horario **UTC-5** (Colombia, Perú, Ecuador, CDMX) coinciden exactamente con la hora de Wall Street:
 
-| Estado | Activo | Días Operativos | Sesión Clave | Vela de Rango (ORB 15m) | Ventana Operativa Activa (Hora Lima Perú / EST UTC-5) | Hora Servidor VPS (UTC) |
-| :---: | :--- | :---: | :--- | :---: | :---: | :---: |
-| 🟢 **ACTIVO** | **Oro** (`XAUUSD` / `GC=F`) | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
-| 🟢 **ACTIVO** | **EUR/USD** (`EURUSD`) *(Ventana 1)* | **Lunes a Viernes** | **Apertura Londres** | 03:00 – 03:15 | **03:15 – 06:00 a.m.** | 08:15 – 11:00 UTC |
-| 🟢 **ACTIVO** | **EUR/USD** (`EURUSD`) *(Ventana 2)* | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
-| 🟢 **ACTIVO** | **S&P 500** (`US500.cash` / `ES=F`) | **Lunes a Viernes** | **Wall Street Cash Open** | 09:30 – 09:45 | **09:45 – 11:30 a.m.** | 14:45 – 16:30 UTC |
-| 🔴 **INACTIVO** | **USD/JPY** (`USDJPY`) | *Desactivado* | **Inactivo en portafolio** | --- | *Desactivado (Solo Oro, EUR/USD, SP500)* | --- |
-| 🔴 **INACTIVO** | **AUD/USD** (`AUDUSD`) | *Desactivado* | **Inactivo en portafolio** | --- | *Desactivado (Solo Oro, EUR/USD, SP500)* | --- |
+| Estado | Activo | Perfil Asignado | Días Operativos | Sesión Clave | Vela ORB 15m | Ventana Operativa Activa (Hora Lima / EST UTC-5) | Hora Servidor VPS (UTC) |
+| :---: | :--- | :---: | :---: | :--- | :---: | :---: | :---: |
+| 🟢 **ACTIVO** | **Oro** (`XAUUSD` / `GC=F`) | Dual (FTMO & Stellar) | **Lunes a Viernes** | **Apertura Nueva York** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
+| 🟢 **ACTIVO** | **Plata** (`XAGUSD` / `SI=F`) | Stellar Lite 10K | **Lunes a Viernes** | **Metales NY Open** | 08:30 – 08:45 | **08:45 – 11:30 a.m.** | 13:45 – 16:30 UTC |
+| 🟢 **ACTIVO** | **Dow Jones 30** (`US30` / `YM=F`) | FTMO 10K Challenge | **Lunes a Viernes** | **Wall Street Cash Open** | 09:30 – 09:45 | **09:45 – 11:30 a.m.** | 14:45 – 16:30 UTC |
+| 🟢 **ACTIVO** | **S&P 500** (`US500.cash` / `ES=F`) | FTMO 10K Challenge | **Lunes a Viernes** | **Wall Street Cash Open** | 09:30 – 09:45 | **09:45 – 11:30 a.m.** | 14:45 – 16:30 UTC |
+| 🟢 **ACTIVO** | **USD/JPY** (`USDJPY`) | Stellar Lite 10K | **Lunes a Viernes** | **Londres / NY Overlap** | 03:00 / 08:30 | **03:15–06:00 & 08:45–11:30** | 08:15–11:00 & 13:45–16:30 |
+| 🔴 **INACTIVO** | **EUR/USD** (`EURUSD`) | *Reemplazado* | **Inactivo** | --- | *Reemplazado por Plata (Stellar) y US30 (FTMO)* | --- |
+| 🔴 **INACTIVO** | **AUD/USD** (`AUDUSD`) | *Desactivado* | **Inactivo en portafolio** | --- | *Desactivado por baja volatilidad* | --- |
 | 🔴 **INACTIVO** | **Nasdaq 100** (`US100` / `NAS100`) | *Bloqueado* | **Política de Riesgo** | --- | *Bloqueado permanente por volatilidad* | --- |
 | 🔴 **INACTIVO** | **Criptoactivos** (`BTC`, `ETH`, `SOL`) | *Desactivado* | **Inactivo en sesión regular** | --- | *Desactivado en portafolio oficial* | --- |
 
 #### Reglas de Apertura, Cierre y Protección de Fin de Semana:
 1. **Apertura Semanal de Mercados:** Domingo a las 17:00 / 18:00 EST. El bot permanece en espera y **no abre operaciones el domingo** debido al spread ensanchado interbancario; espera a la sesión de Londres del lunes a las 03:00 EST.
-2. **Cierre Forzoso Anti-Gap de Fin de Semana:** **Viernes a las 15:30 EST**. Toda posición abierta en Oro, S&P 500 o EUR/USD es liquidada forzosamente 90 minutos antes del cierre semanal para blindar la cuenta ante saltos de precios por noticias geopolíticas de fin de semana.
+2. **Cierre Forzoso Anti-Gap de Fin de Semana:** **Viernes a las 15:30 EST**. Toda posición abierta en Oro, Plata, US30, S&P 500 o USD/JPY es liquidada forzosamente 90 minutos antes del cierre semanal para blindar la cuenta ante saltos de precios por noticias geopolíticas de fin de semana.
 3. **Sábados y Domingos:** Mercados cerrados (`4756 - Market closed`). Cero trading tradicional.
 
 #### 🇵🇪 Equivalencia y Referencia Horaria en Lima, Perú (PET / UTC-5):
@@ -193,15 +196,15 @@ Perú no implementa horario de verano y mantiene su huso horario fijo en **PET (
 
 1. **Horario de Invierno en EE. UU. (Noviembre a Marzo — EST = UTC-5):**
    * **Coincidencia 100% exacta minuto a minuto:**
-     * **Apertura Londres (EUR/USD):** `03:00 a.m. – 06:00 a.m.` (Madrugada de Lima).
-     * **Apertura NY (Oro / XAUUSD):** `08:30 a.m. – 11:30 a.m.` (Mañana de Lima).
-     * **Wall Street Cash Open (S&P 500):** `09:30 a.m. – 11:30 a.m.` (Mañana de Lima).
+     * **Apertura Londres (USD/JPY):** `03:00 a.m. – 06:00 a.m.` (Madrugada de Lima).
+     * **Apertura NY (Oro y Plata):** `08:30 a.m. – 11:30 a.m.` (Mañana de Lima).
+     * **Wall Street Cash Open (Dow Jones 30 y S&P 500):** `09:30 a.m. – 11:30 a.m.` (Mañana de Lima).
      * **Cierre Anti-Gap (Viernes):** `03:30 p.m.` (Tarde de Lima).
 2. **Horario de Verano en EE. UU. (Marzo a Noviembre — EDT = UTC-4):**
    * Nueva York se adelanta 1 hora; por tanto, en Lima la campana abre **1 hora más temprano**:
-     * **Apertura Londres (EUR/USD):** `02:00 a.m. – 05:00 a.m.` (Madrugada de Lima).
-     * **Apertura NY (Oro / XAUUSD):** `07:30 a.m. – 10:30 a.m.` (Mañana de Lima).
-     * **Wall Street Cash Open (S&P 500):** `08:30 a.m. – 10:30 a.m.` (Mañana de Lima).
+     * **Apertura Londres (USD/JPY):** `02:00 a.m. – 05:00 a.m.` (Madrugada de Lima).
+     * **Apertura NY (Oro y Plata):** `07:30 a.m. – 10:30 a.m.` (Mañana de Lima).
+     * **Wall Street Cash Open (Dow Jones 30 y S&P 500):** `08:30 a.m. – 10:30 a.m.` (Mañana de Lima).
      * **Cierre Anti-Gap (Viernes):** `02:30 p.m.` (Tarde de Lima).
 
 ---
@@ -210,18 +213,18 @@ Perú no implementa horario de verano y mantiene su huso horario fijo en **PET (
 
 ### 🛡️ Escalera Automática Institucional de Break-Even & Candados de Ganancia (4 Niveles)
 
-Los 3 activos activos (**Oro**, **EUR/USD** y **S&P 500**) cuentan con una arquitectura de protección en tiempo real de **4 Niveles Progresivos**, gestionada de forma autónoma por [`trading_engine.py`](trading_engine.py) y reflejada en MetaTrader 5:
+Todos los activos activos (**Oro**, **Plata**, **Dow Jones 30**, **S&P 500** y **USD/JPY**) cuentan con una arquitectura de protección en tiempo real de **4 Niveles Progresivos**, gestionada de forma autónoma por [`trading_engine.py`](trading_engine.py) y reflejada en MetaTrader 5:
 
 ```
 [ENTRADA (0.0R)] ──► [NIVEL 1: Break-Even+] ──► [NIVEL 2: Candado 1] ──► [NIVEL 3: Candado 2] ──► [NIVEL 4: Pre-Rollover] ──► [TAKE PROFIT (+2.0R)]
 ```
 
-| Nivel de Protección | Oro (`XAUUSD` / `GC=F`) | EUR/USD (`EURUSD` / `EURUSD=X`) | S&P 500 (`US500` / `ES=F`) | USD/JPY (`USDJPY` / `USDJPY=X`) | Objetivo Estratégico |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Nivel 1: Break-Even Plus** | Se activa a **+1.00R**.<br/>SL a **Entrada + $0.80/oz**. | Se activa a **+0.95R**.<br/>SL a **Entrada + 1.5 pips**. | Se activa a **+1.00R**.<br/>SL a **Entrada + 1.0 pt**. | Se activa a **+0.95R**.<br/>SL a **Entrada + 1.5 pips**. | **Elimina todo riesgo financiero ($0.00).** Cubre spread y comisiones del broker. |
-| **Nivel 2: Candado 1** | Se activa a **+1.40R**.<br/>Asegura **+0.60R** neto. | Se activa a **+1.35R**.<br/>Asegura **+0.50R** neto. | Se activa a **+1.35R**.<br/>Asegura **+0.60R** neto. | Se activa a **+1.35R**.<br/>Asegura **+0.55R** neto. | **Garantiza beneficio neto positivo** ante retrocesos en zonas intermedias. |
-| **Nivel 3: Candado 2** | Se activa a **+1.75R**.<br/>Asegura **+1.10R** neto. | Se activa a **+1.70R**.<br/>Asegura **+1.10R** neto. | Se activa a **+1.70R**.<br/>Asegura **+1.15R** neto. | Se activa a **+1.70R**.<br/>Asegura **+1.15R** neto. | **Protege el trade a milímetros del TP** impidiendo devoluciones bruscas. |
-| **Nivel 4: Trailing M15** | Estructura M15 persistente.<br/>Asegura **+1.35R** mínimo. | Estructura M15 persistente.<br/>Asegura **+1.30R** mínimo. | Estructura M15 persistente.<br/>Asegura **+1.35R** mínimo. | Estructura M15 persistente.<br/>Asegura **+1.20R** mínimo. | **Rastreo tendencial dinámico** y escudo anti-spread pre-rollover. |
+| Nivel de Protección | Oro (`XAUUSD` / `GC=F`) | Plata (`XAGUSD` / `SI=F`) | Dow Jones (`US30` / `YM=F`) | S&P 500 (`US500` / `ES=F`) | USD/JPY (`USDJPY` / `USDJPY=X`) | Objetivo Estratégico |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Nivel 1: Break-Even Plus** | Se activa a **+1.00R**.<br/>SL a **Entrada + $0.80/oz**. | Se activa a **+1.00R**.<br/>SL a **Entrada + $0.04/oz**. | Se activa a **+0.95R**.<br/>SL a **Entrada + 12 pts**. | Se activa a **+1.00R**.<br/>SL a **Entrada + 1.0 pt**. | Se activa a **+0.95R**.<br/>SL a **Entrada + 1.5 pips**. | **Elimina todo riesgo financiero ($0.00).** Cubre spread y comisiones del broker. |
+| **Nivel 2: Candado 1** | Se activa a **+1.40R**.<br/>Asegura **+0.60R** neto. | Se activa a **+1.40R**.<br/>Asegura **+0.60R** neto. | Se activa a **+1.35R**.<br/>Asegura **+0.60R** neto. | Se activa a **+1.35R**.<br/>Asegura **+0.60R** neto. | Se activa a **+1.35R**.<br/>Asegura **+0.55R** neto. | **Garantiza beneficio neto positivo** ante retrocesos en zonas intermedias. |
+| **Nivel 3: Candado 2** | Se activa a **+1.75R**.<br/>Asegura **+1.10R** neto. | Se activa a **+1.75R**.<br/>Asegura **+1.10R** neto. | Se activa a **+1.70R**.<br/>Asegura **+1.15R** neto. | Se activa a **+1.70R**.<br/>Asegura **+1.15R** neto. | Se activa a **+1.70R**.<br/>Asegura **+1.15R** neto. | **Protege el trade a milímetros del TP** impidiendo devoluciones bruscas. |
+| **Nivel 4: Trailing M15** | Estructura M15 persistente.<br/>Asegura **+1.35R** mínimo. | Estructura M15 persistente.<br/>Asegura **+1.35R** mínimo. | Estructura M15 persistente.<br/>Asegura **+1.35R** mínimo. | Estructura M15 persistente.<br/>Asegura **+1.35R** mínimo. | Estructura M15 persistente.<br/>Asegura **+1.20R** mínimo. | **Rastreo tendencial dinámico** y escudo anti-spread pre-rollover. |
 
 ---
 
@@ -237,12 +240,16 @@ El sistema soporta y ejecuta simultáneamente **dos instancias completas e indep
 │   • Perfil: FTMO 10K Challenge            │  • Perfil: FundedNext Stellar Lite 10K     │
 │   • Magic Number EA: 505001               │  • Magic Number EA: 505002                │
 │   • Base de Datos: trading_ftmo_10k.db    │  • Base de Datos: trading_history.db       │
-│   • Activos: Oro (XAUUSD), EURUSD, US500  │  • Activos: Oro (XAUUSD), EURUSD, USDJPY   │
+│   • Activos: Oro (XAUUSD), US30, US500    │  • Activos: Oro (XAUUSD), XAGUSD, USDJPY   │
+│   • InpEnableUS30: true                   │  • InpEnableUS30: false                    │
 │   • InpEnableSP500: true                  │  • InpEnableSP500: false                   │
+│   • InpEnableSilver: false                │  • InpEnableSilver: true                   │
 │   • InpEnableUSDJPY: false                │  • InpEnableUSDJPY: true                   │
 │   • Target F1/F2: +10% ($1K) / +5% ($500) │  • Target F1/F2: +8% ($800) / +4% ($400)   │
 │   • Pérdida Diaria: -5% ($500)            │  • Pérdida Diaria: -4% ($400)              │
-│   • Drawdown Máximo: -10% (Piso $9,000)   │  • Drawdown Máximo: -8% (Piso $9,200)      │
+│   • Drawdown Máximo: Trailing DD Dinámico │  • Drawdown Máximo: -8% Estático ($9,200)  │
+│   • Regla Consistencia: 50% Obligatorio   │  • Regla Consistencia: Sin regla           │
+│   • Cierre Nocturno: 16:55 EST (Oblig.)   │  • Cierre Nocturno: Permitido (Overnight)  │
 └───────────────────────────────────────────┴────────────────────────────────────────────┘
                                      │
                                      ▼
@@ -312,40 +319,44 @@ Para visualizar y operar simultáneamente los 3 activos de forma profesional sin
      3. **Margen de Madurez de Posici?n (> 30s):** Solo liquida posiciones que lleven m?s de 30 segundos abiertas, protegiendo trades reci?n ejecutados y garantizando una liquidaci?n 100% limpia y sincronizada con la nube.
 8. **Protección de Fin de Semana:** Todo trade de Oro se liquida forzosamente los viernes a las **15:30 EST** para evitar riesgos de gap al abrir el mercado el domingo.
 
-### 🌐 Portafolio Profesional Multi-Activo Oficial: Oro (XAUUSD) + EUR/USD (EURUSD) + S&P 500 (US500)
+### 🌐 Portafolio Profesional Multi-Activo Oficial
 
-El sistema ejecuta una arquitectura institucional **multi-activo descorrelacionada** sobre una única cuenta oficial de **,000 USD** respetando las reglas de **FundedNext Stellar Lite 10K**:
+El sistema ejecuta una arquitectura institucional **multi-activo descorrelacionada** sobre dos cuentas oficiales de **$10,000 USD** respetando las reglas de **FundedNext Stellar Lite 10K** y **FTMO 10K Challenge**:
 
-- **Diversificación Real entre Clases de Activo:** Combina materias primas (**Oro Spot / Futuros COMEX**), divisas mayores (**EUR/USD**) e índices bursátiles (**S&P 500**), eliminando el riesgo de sobreexposición a un solo mercado.
-- **Gestión Unificada del Riesgo Institucional:** Todas las operaciones abiertas de los 3 activos comparten la base de datos 	rading_ny_open.db, garantizando que la exposición total jamás exceda el **3.0% ( USD)** de riesgo abierto simultáneo ni el **Freno Diario Personal del 2.0% ( USD)**.
+- **Diversificación Real entre Clases de Activo:** Combina materias primas (**Oro Spot / Futuros COMEX** y **Plata Spot**), índices bursátiles de Wall Street (**Dow Jones 30** y **S&P 500**) y divisas mayores de política monetaria (**USD/JPY**), eliminando el riesgo de sobreexposición a un solo mercado.
+- **Gestión Unificada del Riesgo Institucional:** Todas las operaciones abiertas comparten la base de datos de su perfil respectivo, garantizando que la exposición total jamás exceda el **3.0% ($300.00 USD)** de riesgo abierto simultáneo ni el **Freno Diario Personal del 2.0% ($200.00 USD)**.
 - **Dimensionamiento Automático de Lote por Instrumento:**
-  - **Oro (XAUUSD / GC=F):** 1 lote = 100 onzas troy. Riesgo: 0.50% ( USD).
-  - **EUR/USD (EURUSD / EURUSD=X):** 1 lote = 100,000 unidades de divisa base (/pip). Riesgo: 0.50% ( USD).
-  - **S&P 500 (US500 / ES=F):** 1 lote = 1 contrato CFD (tick_value = .01 por punto en FundedNext, paso 0.10 lotes). Riesgo: 0.50% ( USD).
-- **Puente Webhook y Ejecución Broker-Agnostic:** Las señales generadas en el VPS de Oracle se despachan a través de stellar_webhook.service (puerto 8000) hacia el Asesor Experto [StellarLite_Webhook_Bridge.ex5](StellarLite_Webhook_Bridge.ex5) en MetaTrader 5, traduciendo automáticamente los símbolos a la nomenclatura nativa del broker (XAUUSD, EURUSD, US500).
-- **Blindaje Anti-Ghost Trades:** Si por alguna razón de mercado o conectividad MT5 rechaza una orden, la base de datos la marca inmediatamente como REJECTED_MT5 evitando posiciones fantasma abiertas en el registro.
-- **Lanzador Directo en 1-Clic:** Haz doble clic en [Monitor_Portfolio_SP500_EURUSD.bat](Monitor_Portfolio_SP500_EURUSD.bat) para abrir el monitor en tiempo real del portafolio.
+  - **Oro (`XAUUSD` / `GC=F`):** 1 lote = 100 onzas troy. Riesgo: 0.50% ($50.00 USD).
+  - **Plata (`XAGUSD` / `SI=F`):** 1 lote = 5,000 onzas troy. Riesgo: 0.50% ($50.00 USD). Pip = $0.01.
+  - **Dow Jones 30 (`US30` / `YM=F`):** 1 lote CFD = $1.00 USD por punto. Riesgo: 0.50% ($50.00 USD).
+  - **S&P 500 (`US500` / `ES=F`):** 1 lote CFD = $1.00 USD por punto. Riesgo: 0.50% ($50.00 USD).
+  - **USD/JPY (`USDJPY` / `USDJPY=X`):** 1 lote = 100,000 unidades. Riesgo: 0.50% ($50.00 USD). Pip = 0.01 JPY.
+- **Puente Webhook y Ejecución Broker-Agnostic:** Las señales generadas en el VPS de Oracle se despachan a través de `stellar_webhook.service` (puerto 8000) hacia el Asesor Experto [`StellarLite_Webhook_Bridge.ex5`](StellarLite_Webhook_Bridge.ex5) en MetaTrader 5, traduciendo automáticamente los símbolos a la nomenclatura nativa de cada broker (`XAUUSD`, `XAGUSD`, `US30.cash`, `US500.cash`, `USDJPY`).
+- **Sincronización Automática Cerrada (Closed-Loop Master Sync):** Motor maestro de reconciliación en [`mt5_bridge.py`](mt5_bridge.py) que audita los deals cerrados de MT5, actualiza comisiones, swaps, precios reales de salida y PnL neto en SQLite, eliminando cualquier discrepancia entre el bot y MetaTrader.
+- **Blindaje Anti-Ghost Trades:** Si por alguna razón de mercado o conectividad MT5 rechaza una orden, la base de datos la marca inmediatamente como `REJECTED_MT5` evitando posiciones fantasma abiertas en el registro.
 
 ---
 
-### 🧪 Laboratorio de Pruebas en Paralelo (3 Cuentas Sandbox Individuales de ,000 c/u, SIN MetaTrader 5)
+### 🧪 Laboratorio de Pruebas en Paralelo (Cuentas Sandbox Individuales de $10,000 c/u, SIN MetaTrader 5)
 
-Para probar, auditar y comparar el rendimiento estadístico individual de cada activo de forma aislada, el servidor en Oracle Cloud ejecuta simultáneamente **3 servicios demonio independientes**, cada uno con su propia cuenta virtual de **,000.00 USD** y base de datos SQLite separada:
+Para probar, auditar y comparar el rendimiento estadístico individual de cada activo de forma aislada, el servidor en Oracle Cloud ejecuta simultáneamente servicios demonio independientes, cada uno con su propia cuenta virtual de **$10,000.00 USD** y base de datos SQLite separada:
 
-`
+```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │             ARQUITECTURA DE EJECUCIÓN PARALELA (ORACLE CLOUD VPS 24/7)                 │
 ├─────────────────────────┬──────────────────────────────────────────────────────────────┤
-│ CANAL OFICIAL EN VIVO   │ [1] stellar_ny_open.service (Portafolio MT5: Oro + EUR + SP) │
-│ (Conectado a MT5)       │     --> Base de datos: trading_ny_open.db (,000)          │
+│ CANAL OFICIAL EN VIVO   │ [1] stellar_ny_open.service (Portafolio MT5: Oro + Plata + JPY)│
+│ (Conectado a MT5)       │     --> Base de datos: trading_ny_open.db ($10,000)          │
 │                         │     --> Webhook: stellar_webhook.service (Puerto 8000)       │
 ├─────────────────────────┼──────────────────────────────────────────────────────────────┤
 │ CANAL LABORATORIO TEST  │ [2] stellar_test_oro.service    --> trading_test_oro.db      │
-│ (Interno Sin MT5)       │ [3] stellar_test_eurusd.service --> trading_test_eurusd.db   │
-│                         │ [4] stellar_test_sp500.service  --> trading_test_sp500.db    │
-│                         │     --> Cuentas  independientes, 100% internas en Python │
+│ (Interno Sin MT5)       │ [3] stellar_test_plata.service  --> trading_test_plata.db    │
+│                         │ [4] stellar_test_usdjpy.service --> trading_test_usdjpy.db   │
+│                         │ [5] stellar_test_us30.service   --> trading_test_us30.db     │
+│                         │ [6] stellar_test_sp500.service  --> trading_test_sp500.db    │
+│                         │     --> Cuentas $10K independientes, 100% internas en Python │
 └─────────────────────────┴──────────────────────────────────────────────────────────────┘
-`
+```
 
 1. **Oro Individual (stellar_test_oro.service):**
    - Base de datos: 	rading_test_oro.db (,000 USD).

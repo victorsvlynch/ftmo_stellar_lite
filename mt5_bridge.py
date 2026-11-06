@@ -13,8 +13,8 @@ Funcionalidades:
 import os
 import sys
 import logging
-from datetime import datetime, timezone
-from typing import Optional, Dict, Tuple, Any
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict, Tuple, Any, List
 import pandas as pd
 import numpy as np
 
@@ -150,7 +150,7 @@ class MT5Bridge:
         """
         from risk_manager import RiskManager
         synced = {}
-        for generic in ("XAUUSD", "EURUSD", "USDJPY", "AUDUSD", "US500"):
+        for generic in ("XAUUSD", "XAGUSD", "US30", "US500", "USDJPY", "EURUSD", "AUDUSD"):
             real_sym = self.detect_broker_symbol(generic)
             spec = self.get_symbol_specification(real_sym)
             if spec:
@@ -160,6 +160,7 @@ class MT5Bridge:
                 tv = float(spec.get("trade_tick_value", 0.0))
                 ts = float(spec.get("trade_tick_size", 0.0))
                 eff_cs = round(tv / ts, 4) if (is_jpy and tv > 0 and ts > 0) else base_cs
+                comm_val = 0.0 if any(k in real_sym for k in ("500", "30", "DJ")) else 5.0
                 spec_dict = {
                     "contract_size": eff_cs,
                     "base_contract_size": base_cs,
@@ -168,13 +169,20 @@ class MT5Bridge:
                     "min_lot": float(spec.get("volume_min", 0.01)),
                     "max_lot": float(spec.get("volume_max", 100.0)),
                     "lot_step": float(spec.get("volume_step", 0.01)),
-                    "commission_per_lot": 3.0 if "500" in real_sym else 5.0,
+                    "commission_per_lot": comm_val,
                     "typical_spread": float(spec.get("spread", 10)) * float(spec.get("point", 0.01)),
                 }
                 RiskManager.set_custom_instrument_spec(real_sym, spec_dict)
                 RiskManager.set_custom_instrument_spec(generic, spec_dict)
                 if generic == "US500":
                     RiskManager.set_custom_instrument_spec("ES=F", spec_dict)
+                elif generic == "US30":
+                    RiskManager.set_custom_instrument_spec("YM=F", spec_dict)
+                    RiskManager.set_custom_instrument_spec("DJ30", spec_dict)
+                    RiskManager.set_custom_instrument_spec("WS30", spec_dict)
+                elif generic == "XAGUSD":
+                    RiskManager.set_custom_instrument_spec("SI=F", spec_dict)
+                    RiskManager.set_custom_instrument_spec("SILVER", spec_dict)
                 elif generic == "EURUSD":
                     RiskManager.set_custom_instrument_spec("EURUSD=X", spec_dict)
                 elif generic == "USDJPY":
@@ -239,25 +247,33 @@ class MT5Bridge:
             return None
 
         # 1. Definir lista de candidatos prioritarios según activo
-        if any(k in clean for k in ("500", "ES", "SPX")):
+        if any(k in clean for k in ("30", "DJ", "YM", "DOW", "WS30", "WALL")):
+            candidates = ["US30", "US30.cash", "DJ30", "WS30", "USA30", "US30m", "US30.raw", "US30.pro", "YM"]
+            match_keywords = ["US30", "DJ30", "WS30"]
+            fallback = "US30"
+        elif any(k in clean for k in ("500", "ES", "SPX")):
             candidates = ["US500", "US500.cash", "SPX500", "USA500", "US500m", "US500.raw", "US500.pro", "SP500", "ES"]
-            match_keywords = ["500", "SPX"]
+            match_keywords = ["US500", "SPX500", "SP500"]
             fallback = "US500"
+        elif any(k in clean for k in ("XAG", "SILVER", "SI")):
+            candidates = ["XAGUSD", "SILVER", "XAGUSD.m", "XAGUSDm", "XAGUSD.raw", "XAGUSD.pro", "XAGUSDb", "SI=F", "SI"]
+            match_keywords = ["XAGUSD", "SILVER"]
+            fallback = "XAGUSD"
         elif "EUR" in clean:
             candidates = ["EURUSD", "EURUSDm", "EURUSD.raw", "EURUSD.pro", "EURUSDb", "EURUSD.cash", "EURUSD+"]
-            match_keywords = ["EUR", "USD"]
+            match_keywords = ["EURUSD"]
             fallback = "EURUSD"
         elif "JPY" in clean:
             candidates = ["USDJPY", "USDJPYm", "USDJPY.raw", "USDJPY.pro", "USDJPYb", "USDJPY.cash", "USDJPY+"]
-            match_keywords = ["USD", "JPY"]
+            match_keywords = ["USDJPY"]
             fallback = "USDJPY"
         elif "AUD" in clean:
             candidates = ["AUDUSD", "AUDUSDm", "AUDUSD.raw", "AUDUSD.pro", "AUDUSDb", "AUDUSD.cash", "AUDUSD+"]
-            match_keywords = ["AUD", "USD"]
+            match_keywords = ["AUDUSD"]
             fallback = "AUDUSD"
         else:
             candidates = ["XAUUSD", "GOLD", "XAUUSD.m", "XAUUSDm", "XAUUSD.raw", "XAUUSD.pro", "GC=F"]
-            match_keywords = ["XAU", "GOLD"]
+            match_keywords = ["XAUUSD", "GOLD"]
             fallback = "XAUUSD"
 
         # 2. Probar candidatos típicos directos
@@ -273,7 +289,7 @@ class MT5Bridge:
         if symbols:
             for s in symbols:
                 name_upper = s.name.upper()
-                if all(kw in name_upper for kw in match_keywords):
+                if any(kw in name_upper for kw in match_keywords):
                     if not s.visible:
                         mt5.symbol_select(s.name, True)
                     return s.name
@@ -516,6 +532,302 @@ class MT5Bridge:
                 return True
 
         return False
+
+    def get_open_positions(self, magic: Optional[int] = None, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Devuelve todas las posiciones abiertas actualmente en MT5 con datos institucionales."""
+        if not self.connected:
+            return []
+        mt5 = self._ensure_mt5_module()
+        raw = mt5.positions_get(symbol=symbol) if symbol else mt5.positions_get()
+        if raw is None:
+            return []
+        result = []
+        for p in raw:
+            if magic is not None and int(p.magic) != int(magic):
+                continue
+            result.append({
+                "ticket": int(p.ticket),
+                "symbol": str(p.symbol),
+                "type": "BUY" if p.type == mt5.ORDER_TYPE_BUY else "SELL",
+                "volume": float(p.volume),
+                "price_open": float(p.price_open),
+                "price_current": float(p.price_current),
+                "sl": float(p.sl),
+                "tp": float(p.tp),
+                "profit": float(p.profit),
+                "swap": float(p.swap),
+                "magic": int(p.magic),
+                "comment": str(p.comment),
+                "time": datetime.fromtimestamp(p.time, timezone.utc).isoformat(),
+            })
+        return result
+
+    def get_closed_deals(
+        self,
+        days: int = 7,
+        magic: Optional[int] = None,
+        symbol: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Extrae el historial de deals de salida (cierre de operaciones) desde MT5.
+        Incluye ticket de deal, position_id, precio exacto, swap, comisión y PnL neto del broker.
+        """
+        if not self.connected:
+            return []
+        mt5 = self._ensure_mt5_module()
+        from_date = datetime.now(timezone.utc) - timedelta(days=days)
+        to_date = datetime.now(timezone.utc) + timedelta(minutes=10)
+        deals = mt5.history_deals_get(from_date, to_date)
+        if deals is None:
+            return []
+
+        result = []
+        for d in deals:
+            # DEAL_ENTRY_OUT (1) indica salida/cierre de posición
+            if d.entry != mt5.DEAL_ENTRY_OUT:
+                continue
+            if magic is not None and int(d.magic) != int(magic):
+                continue
+            if symbol and str(d.symbol).upper() != str(symbol).upper():
+                continue
+
+            net_pnl = round(float(d.profit) + float(d.swap) + float(d.commission) + float(d.fee), 2)
+            result.append({
+                "ticket": int(d.ticket),
+                "order": int(d.order),
+                "position_id": int(d.position_id),
+                "symbol": str(d.symbol),
+                "type": "SELL" if d.type == mt5.DEAL_TYPE_SELL else "BUY",
+                "volume": float(d.volume),
+                "price": float(d.price),
+                "profit": round(float(d.profit), 2),
+                "swap": round(float(d.swap), 2),
+                "commission": round(abs(float(d.commission)) + abs(float(d.fee)), 2),
+                "net_pnl": net_pnl,
+                "magic": int(d.magic),
+                "comment": str(d.comment),
+                "time": datetime.fromtimestamp(d.time, timezone.utc).isoformat(),
+            })
+        return result
+
+    def reconcile_with_database(
+        self,
+        db: Any,
+        magic: Optional[int] = None,
+        lookback_days: int = 7,
+    ) -> Dict[str, Any]:
+        """
+        Motor Maestro de Reconciliación: Sincroniza la base de datos SQLite con los datos
+        fidedignos y oficiales de MetaTrader 5 (MT5 como Única Fuente de Verdad).
+        
+        Acciones automáticas:
+        1. Actualiza balance y equidad de account_state al centavo exacto con MT5.
+        2. Cierra posiciones que figuren OPEN en SQLite pero ya fueron cerradas en MT5 (por SL/TP del broker).
+        3. Corrige PnL, precio de salida, swaps y comisiones de trades cerrados en SQLite con los deals reales.
+        4. Detecta y aísla operaciones 'fantasma' que nunca se ejecutaron en la cuenta real del broker.
+        5. Actualiza High Water Mark y pisos de Trailing Drawdown con el saldo real.
+        """
+        if not self.connected:
+            if not self.initialize():
+                return {"success": False, "reason": "No se pudo conectar al terminal MT5"}
+
+        acc_summary = self.get_account_summary()
+        real_balance = float(acc_summary.get("balance", 0.0))
+        real_equity = float(acc_summary.get("equity", 0.0))
+        login = acc_summary.get("login")
+        server = acc_summary.get("server")
+
+        if real_balance <= 0:
+            return {"success": False, "reason": "Balance inválido retornado por MT5"}
+
+        open_positions = self.get_open_positions(magic=magic)
+        open_pos_map = {p["ticket"]: p for p in open_positions}
+        closed_deals = self.get_closed_deals(days=lookback_days, magic=magic)
+        deals_by_pos = {d["position_id"]: d for d in closed_deals}
+
+        reconciled_trades = []
+        closed_from_mt5 = []
+        corrections = []
+
+        now_utc = datetime.now(timezone.utc)
+        now_iso = now_utc.isoformat()
+
+        with db._get_connection() as conn:
+            cursor = conn.cursor()
+
+            # 1. Reconciliar posiciones que SQLite tiene marcadas como OPEN
+            cursor.execute("SELECT * FROM trades WHERE status = 'OPEN'")
+            open_sqlite = [dict(r) for r in cursor.fetchall()]
+
+            for tr in open_sqlite:
+                tr_id = tr["id"]
+                tr_ticket = tr.get("mt5_ticket", 0)
+
+                # Caso 1.A: Posición sigue abierta en MT5
+                if tr_ticket and tr_ticket in open_pos_map:
+                    pos = open_pos_map[tr_ticket]
+                    cursor.execute(
+                        "UPDATE trades SET stop_loss = ?, take_profit = ? WHERE id = ?",
+                        (pos["sl"], pos["tp"], tr_id),
+                    )
+                    continue
+
+                # Caso 1.B: Posición NO está abierta en MT5 -> Buscar deal de cierre en MT5
+                matched_deal = None
+                if tr_ticket and tr_ticket in deals_by_pos:
+                    matched_deal = deals_by_pos[tr_ticket]
+                else:
+                    clean_sym = tr["symbol"].replace("=X", "").replace("=F", "").replace("GC", "XAUUSD")
+                    for d in closed_deals:
+                        if clean_sym in d["symbol"] or d["symbol"] in clean_sym:
+                            if abs(d["volume"] - float(tr["lots"])) < 0.01:
+                                matched_deal = d
+                                break
+
+                if matched_deal:
+                    net_pnl = matched_deal["net_pnl"]
+                    gross_pnl = matched_deal["profit"]
+                    comm = matched_deal["commission"]
+                    swap = matched_deal["swap"]
+                    exit_p = matched_deal["price"]
+                    dt_closed = matched_deal["time"]
+                    notes = f"{tr.get('notes', '')} | SYNC_MT5_CLOSED_DEAL #{matched_deal['ticket']} ({matched_deal['comment']})".strip(" |")
+
+                    cursor.execute(
+                        """
+                        UPDATE trades
+                        SET status = 'CLOSED',
+                            exit_price = ?,
+                            pnl = ?,
+                            gross_pnl = ?,
+                            commission = ?,
+                            swap = ?,
+                            spread_cost = 0.0,
+                            closed_at = ?,
+                            mt5_ticket = ?,
+                            mt5_deal_ticket = ?,
+                            notes = ?
+                        WHERE id = ?
+                        """,
+                        (exit_p, net_pnl, gross_pnl, comm, swap, dt_closed, matched_deal["position_id"], matched_deal["ticket"], notes, tr_id),
+                    )
+                    closed_from_mt5.append({
+                        "trade_id": tr_id,
+                        "symbol": tr["symbol"],
+                        "ticket": matched_deal["ticket"],
+                        "exit_price": exit_p,
+                        "net_pnl": net_pnl,
+                        "swap": swap,
+                        "commission": comm,
+                    })
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE trades
+                        SET status = 'EXPIRED_MT5_UNCONFIRMED',
+                            pnl = 0.0,
+                            notes = notes || ' | NO_EJECUTADA_EN_MT5'
+                        WHERE id = ?
+                        """,
+                        (tr_id,),
+                    )
+
+            # 2. Reconciliar trades cerrados en SQLite: asegurar que coincidan al centavo con MT5 deals
+            cursor.execute("SELECT * FROM trades WHERE status = 'CLOSED' ORDER BY id DESC LIMIT 50")
+            closed_sqlite = [dict(r) for r in cursor.fetchall()]
+
+            for tr in closed_sqlite:
+                tr_id = tr["id"]
+                tr_ticket = tr.get("mt5_ticket", 0)
+                matched_deal = None
+                if tr_ticket and tr_ticket in deals_by_pos:
+                    matched_deal = deals_by_pos[tr_ticket]
+                else:
+                    clean_sym = tr["symbol"].replace("=X", "").replace("=F", "").replace("GC", "XAUUSD")
+                    for d in closed_deals:
+                        if (clean_sym in d["symbol"] or d["symbol"] in clean_sym) and abs(d["volume"] - float(tr["lots"])) < 0.01:
+                            if abs(float(tr.get("exit_price", 0.0) or 0.0) - d["price"]) < 2.0 or abs(float(tr.get("pnl", 0.0) or 0.0) - d["net_pnl"]) < 25.0:
+                                matched_deal = d
+                                break
+
+                if matched_deal:
+                    cur_pnl = float(tr.get("pnl", 0.0) or 0.0)
+                    cur_exit = float(tr.get("exit_price", 0.0) or 0.0)
+                    diff_pnl = abs(cur_pnl - matched_deal["net_pnl"])
+                    diff_exit = abs(cur_exit - matched_deal["price"])
+                    if diff_pnl > 0.01 or diff_exit > 0.001 or float(tr.get("swap", 0.0) or 0.0) != matched_deal["swap"]:
+                        old_pnl = cur_pnl
+                        new_pnl = matched_deal["net_pnl"]
+                        cursor.execute(
+                            """
+                            UPDATE trades
+                            SET exit_price = ?,
+                                pnl = ?,
+                                gross_pnl = ?,
+                                commission = ?,
+                                swap = ?,
+                                spread_cost = 0.0,
+                                mt5_ticket = ?,
+                                mt5_deal_ticket = ?,
+                                notes = notes || ' | RECONCILIADO_MT5_CENTAVOS'
+                            WHERE id = ?
+                            """,
+                            (matched_deal["price"], new_pnl, matched_deal["profit"], matched_deal["commission"], matched_deal["swap"], matched_deal["position_id"], matched_deal["ticket"], tr_id),
+                        )
+                        corrections.append({
+                            "trade_id": tr_id,
+                            "symbol": tr["symbol"],
+                            "old_pnl": old_pnl,
+                            "real_mt5_pnl": new_pnl,
+                            "real_exit_price": matched_deal["price"],
+                            "swap": matched_deal["swap"],
+                            "diff": round(new_pnl - old_pnl, 2),
+                        })
+
+            # 3. Actualizar account_state de SQLite con el saldo y equidad real de MT5
+            cursor.execute("SELECT initial_balance, high_water_mark, max_drawdown_limit_pct, drawdown_type FROM account_state WHERE id = 1")
+            acc_row = cursor.fetchone()
+            init_b = float(acc_row["initial_balance"]) if acc_row else 10000.0
+            cur_hwm = float(acc_row["high_water_mark"]) if acc_row and acc_row["high_water_mark"] else real_balance
+            new_hwm = round(max(cur_hwm, real_balance), 2)
+
+            is_trailing = bool(acc_row and (acc_row["drawdown_type"] or "").upper() == "TRAILING")
+            max_dd_pct = float(acc_row["max_drawdown_limit_pct"]) if acc_row else 0.08
+            trailing_floor = round(new_hwm - (init_b * max_dd_pct), 2) if is_trailing else 0.0
+
+            cursor.execute(
+                """
+                UPDATE account_state
+                SET balance = ?,
+                    equity = ?,
+                    high_water_mark = ?,
+                    trailing_max_loss_floor = ?,
+                    updated_at = ?
+                WHERE id = 1
+                """,
+                (real_balance, real_equity, new_hwm, trailing_floor, now_iso),
+            )
+            conn.commit()
+
+        audit_msg = (
+            f"Sincronización profesional MT5 #{login} ({server}): Balance ${real_balance:,.2f}, Equidad ${real_equity:,.2f}. "
+            f"Trades cerrados MT5: {len(closed_from_mt5)}, Correcciones PnL: {len(corrections)}."
+        )
+        db.log_event("SINCRONIZACION_AUTOMATICA_MT5", "ALL", audit_msg)
+        logger.info(audit_msg)
+
+        return {
+            "success": True,
+            "login": login,
+            "server": server,
+            "balance": real_balance,
+            "equity": real_equity,
+            "open_positions_mt5": len(open_positions),
+            "closed_from_mt5": closed_from_mt5,
+            "corrections": corrections,
+            "high_water_mark": new_hwm,
+            "trailing_max_loss_floor": trailing_floor,
+        }
 
     def shutdown(self) -> None:
         """Cierra la conexión con el terminal MT5."""

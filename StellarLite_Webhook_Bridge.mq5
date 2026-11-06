@@ -46,6 +46,10 @@ input bool   InpEnableSP500     = true;                           // Activar S&P
 
 input bool   InpEnableUSDJPY    = true;                           // Activar USD/JPY [MT1 FTMO: false | MT2 Stellar: true]
 
+input bool   InpEnableSilver    = true;                           // Activar Plata (XAGUSD) [MT1 FTMO: false | MT2 Stellar: true]
+
+input bool   InpEnableUS30      = true;                           // Activar Dow Jones 30 (US30) [MT1 FTMO: true | MT2 Stellar: false]
+
 
 
 //--- Instancias Globales
@@ -206,117 +210,82 @@ string ResolveBrokerSymbol(const string requestedSymbol)
 
 
 
-   // A. S&P 500 (Guardado en Standby - se activa cambiando InpEnableSP500 = true)
-
-   if(StringFind(clean, "500") >= 0 || StringFind(clean, "SPX") >= 0 || StringFind(clean, "ES") >= 0)
-
+   // A. Dow Jones 30 / US30 (FTMO 10K Challenge)
+   if(StringFind(clean, "30") >= 0 || StringFind(clean, "DJ") >= 0 || StringFind(clean, "YM") >= 0 || StringFind(clean, "WS30") >= 0 || StringFind(clean, "DOW") >= 0)
    {
-
+      if(!InpEnableUS30)
+         return "INACTIVE";
+      string candidates[] = {"US30", "US30.cash", "DJ30", "WS30", "USA30", "US30m", "US30.raw", "US30.pro", "YM"};
+      for(int i = 0; i < ArraySize(candidates); i++)
+         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
+   }
+   // B. S&P 500 (Guardado en Standby - se activa cambiando InpEnableSP500 = true)
+   else if(StringFind(clean, "500") >= 0 || StringFind(clean, "SPX") >= 0 || StringFind(clean, "ES") >= 0)
+   {
       if(!InpEnableSP500)
-
          return "INACTIVE";
-
       string candidates[] = {"US500", "US500.cash", "SPX500", "USA500", "US500m", "US500.raw", "US500.pro", "SP500", "ES"};
-
       for(int i = 0; i < ArraySize(candidates); i++)
-
          if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
-
    }
-
-   // B. EUR/USD
-
-   else if(StringFind(clean, "EUR") >= 0)
-
+   // C. Plata / XAGUSD (Stellar 10K Demo)
+   else if(StringFind(clean, "XAG") >= 0 || StringFind(clean, "SILVER") >= 0 || StringFind(clean, "SI") >= 0)
    {
-
-      string candidates[] = {"EURUSD", "EURUSDm", "EURUSD.raw", "EURUSD.pro", "EURUSDb", "EURUSD.cash", "EURUSD+"};
-
-      for(int i = 0; i < ArraySize(candidates); i++)
-
-         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
-
-   }
-
-   // C. USD/JPY (Activo oficial MT2 Stellar Lite 10K)
-
-   else if(StringFind(clean, "JPY") >= 0)
-
-   {
-
-      if(!InpEnableUSDJPY)
-
+      if(!InpEnableSilver)
          return "INACTIVE";
-
+      string candidates[] = {"XAGUSD", "SILVER", "XAGUSDm", "XAGUSD.raw", "XAGUSD.pro", "XAGUSDb", "SI=F", "SI"};
+      for(int i = 0; i < ArraySize(candidates); i++)
+         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
+   }
+   // D. EUR/USD
+   else if(StringFind(clean, "EUR") >= 0)
+   {
+      string candidates[] = {"EURUSD", "EURUSDm", "EURUSD.raw", "EURUSD.pro", "EURUSDb", "EURUSD.cash", "EURUSD+"};
+      for(int i = 0; i < ArraySize(candidates); i++)
+         if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
+   }
+   // E. USD/JPY (Activo oficial MT2 Stellar Lite 10K)
+   else if(StringFind(clean, "JPY") >= 0)
+   {
+      if(!InpEnableUSDJPY)
+         return "INACTIVE";
       string candidates[] = {"USDJPY", "USDJPYm", "USDJPY.raw", "USDJPY.pro", "USDJPYb", "USDJPY.cash", "USDJPY+"};
-
       for(int i = 0; i < ArraySize(candidates); i++)
-
          if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
-
    }
-
-   // D. Inactivos permanentes (AUD/USD, GBP/USD, Cripto, etc.)
-
+   // F. Inactivos permanentes (AUD/USD, GBP/USD, Cripto, etc.)
    else if(StringFind(clean, "AUD") >= 0 || StringFind(clean, "GBP") >= 0 || StringFind(clean, "BTC") >= 0)
-
    {
-
       PrintFormat("[EA MT5] [INACTIVO] El activo %s esta desactivado por configuracion institucional.", requestedSymbol);
-
       return "INACTIVE";
-
    }
-   // E. Oro / XAUUSD
-
+   // G. Oro / XAUUSD
    else
-
    {
-
       string candidates[] = {"XAUUSD", "GOLD", "XAUUSDm", "XAUUSD.raw", "XAUUSD.pro", "XAUUSDb"};
-
       for(int i = 0; i < ArraySize(candidates); i++)
-
          if(SymbolInfoDouble(candidates[i], SYMBOL_BID) > 0) return candidates[i];
-
    }
-
-
 
    // Busqueda inteligente en la lista completa de simbolos del broker
-
    int total = SymbolsTotal(false);
-
    for(int i = 0; i < total; i++)
-
    {
-
       string sName = SymbolName(i, false);
-
       string sUpper = sName;
-
       StringToUpper(sUpper);
-
+      if(InpEnableUS30 && (StringFind(clean, "30") >= 0 || StringFind(clean, "DJ") >= 0 || StringFind(clean, "YM") >= 0) && (StringFind(sUpper, "30") >= 0 || StringFind(sUpper, "DJ") >= 0))
+         return sName;
       if(InpEnableSP500 && StringFind(clean, "500") >= 0 && (StringFind(sUpper, "500") >= 0 || StringFind(sUpper, "SPX") >= 0))
-
          return sName;
-
+      if(InpEnableSilver && (StringFind(clean, "XAG") >= 0 || StringFind(clean, "SILVER") >= 0 || StringFind(clean, "SI") >= 0) && (StringFind(sUpper, "XAG") >= 0 || StringFind(sUpper, "SILVER") >= 0))
+         return sName;
       if(StringFind(clean, "EUR") >= 0 && StringFind(sUpper, "EUR") >= 0 && StringFind(sUpper, "USD") >= 0)
-
          return sName;
-
       if(StringFind(clean, "JPY") >= 0 && StringFind(sUpper, "USD") >= 0 && StringFind(sUpper, "JPY") >= 0)
-
          return sName;
-
-      if(StringFind(clean, "AUD") >= 0 && StringFind(sUpper, "AUD") >= 0 && StringFind(sUpper, "USD") >= 0)
-
-         return sName;
-
       if((StringFind(clean, "XAU") >= 0 || StringFind(clean, "GC") >= 0) && (StringFind(sUpper, "XAU") >= 0 || StringFind(sUpper, "GOLD") >= 0))
-
          return sName;
-
    }
 
 
@@ -547,13 +516,19 @@ void GetAssetTrailingProfile(
 
    StringToUpper(s);
 
-   bool isGold  = (StringFind(s, "XAU") >= 0 || StringFind(s, "GOLD") >= 0 || StringFind(s, "GC") >= 0);
+   bool isGold   = (StringFind(s, "XAU") >= 0 || StringFind(s, "GOLD") >= 0 || StringFind(s, "GC") >= 0);
 
-   bool isJpy   = (!isGold && StringFind(s, "JPY") >= 0);
+   bool isSilver = (!isGold && (StringFind(s, "XAG") >= 0 || StringFind(s, "SILVER") >= 0 || StringFind(s, "SI") >= 0));
 
-   bool isAud   = (!isGold && !isJpy && StringFind(s, "AUD") >= 0);
+   bool isUs30   = (!isGold && !isSilver && (StringFind(s, "US30") >= 0 || StringFind(s, "DJ30") >= 0 || StringFind(s, "WS30") >= 0 || StringFind(s, "YM") >= 0 || StringFind(s, "DOW") >= 0));
 
-   bool isForex = (!isGold && !isJpy && !isAud && digits >= 4);
+   bool isSp500  = (!isGold && !isSilver && !isUs30 && (StringFind(s, "500") >= 0 || StringFind(s, "SPX") >= 0 || StringFind(s, "ES") >= 0));
+
+   bool isJpy    = (!isGold && !isSilver && !isUs30 && !isSp500 && StringFind(s, "JPY") >= 0);
+
+   bool isAud    = (!isGold && !isSilver && !isUs30 && !isSp500 && !isJpy && StringFind(s, "AUD") >= 0);
+
+   bool isForex  = (!isGold && !isSilver && !isUs30 && !isSp500 && !isJpy && !isAud && digits >= 4);
 
 
 
@@ -584,6 +559,66 @@ void GetAssetTrailingProfile(
       stagnationRangeR = 0.35;
 
       minTightBuffer   = 0.80;
+
+   }
+
+   else if(isSilver)
+
+   {
+
+      // XAGUSD (Plata / Silver Spot): BE+ ($0.04) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R | Trailing M15 (2 velas / 1 vela en estancamiento <=0.35R)
+
+      beTriggerR       = 1.00;
+
+      beOffset         = MathMin(0.04, initialRiskDist * 0.15);
+
+      lock1TriggerR    = 1.40;
+
+      lock1GainR       = 0.60;
+
+      lock2TriggerR    = 1.75;
+
+      lock2GainR       = 1.10;
+
+      trailTriggerR    = 1.75;
+
+      trailBarsM15     = 2;
+
+      trailBufferR     = 0.10;
+
+      stagnationRangeR = 0.35;
+
+      minTightBuffer   = 0.04;
+
+   }
+
+   else if(isUs30)
+
+   {
+
+      // US30 (Dow Jones 30 Index / Wall Street 30): BE+ (12.0 pts) a +0.95R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R | Trailing M15 (2 velas / 1 vela en estancamiento <=0.30R)
+
+      beTriggerR       = 0.95;
+
+      beOffset         = MathMin(12.0, initialRiskDist * 0.15);
+
+      lock1TriggerR    = 1.35;
+
+      lock1GainR       = 0.60;
+
+      lock2TriggerR    = 1.70;
+
+      lock2GainR       = 1.15;
+
+      trailTriggerR    = 1.70;
+
+      trailBarsM15     = 2;
+
+      trailBufferR     = 0.10;
+
+      stagnationRangeR = 0.30;
+
+      minTightBuffer   = 10.0;
 
    }
 
@@ -2053,59 +2088,45 @@ void OnTimer()
 
    // Extraer ticks en tiempo real del broker para alimentar el feed de MT5 hacia la nube (Sandbox + Live)
 
-   string symGold = ResolveBrokerSymbol("XAUUSD");
+   string symGold   = ResolveBrokerSymbol("XAUUSD");
+   string symSilver = ResolveBrokerSymbol("XAGUSD");
+   string symDow    = ResolveBrokerSymbol("US30");
+   string symEur    = ResolveBrokerSymbol("EURUSD");
+   string symJpy    = ResolveBrokerSymbol("USDJPY");
+   string symAud    = ResolveBrokerSymbol("AUDUSD");
+   string symSp     = ResolveBrokerSymbol("US500");
 
-   string symEur  = ResolveBrokerSymbol("EURUSD");
-
-   string symJpy  = ResolveBrokerSymbol("USDJPY");
-
-   string symAud  = ResolveBrokerSymbol("AUDUSD");
-
-   string symSp   = ResolveBrokerSymbol("US500");
-
-
-
-   MqlTick tickGold, tickEur, tickJpy, tickAud, tickSp;
-
+   MqlTick tickGold, tickSilver, tickDow, tickEur, tickJpy, tickAud, tickSp;
    string feedParams = "";
+   bool hasGold   = (symGold != "INACTIVE" && symGold != "") ? SymbolInfoTick(symGold, tickGold) : false;
+   bool hasSilver = (symSilver != "INACTIVE" && symSilver != "") ? SymbolInfoTick(symSilver, tickSilver) : false;
+   bool hasDow    = (symDow != "INACTIVE" && symDow != "") ? SymbolInfoTick(symDow, tickDow) : false;
+   bool hasEur    = (symEur != "INACTIVE" && symEur != "") ? SymbolInfoTick(symEur, tickEur) : false;
+   bool hasJpy    = (symJpy != "INACTIVE" && symJpy != "") ? SymbolInfoTick(symJpy, tickJpy) : false;
+   bool hasAud    = (symAud != "INACTIVE" && symAud != "") ? SymbolInfoTick(symAud, tickAud) : false;
+   bool hasSp     = (symSp != "INACTIVE" && symSp != "") ? SymbolInfoTick(symSp, tickSp) : false;
 
-   bool hasGold = (symGold != "INACTIVE" && symGold != "") ? SymbolInfoTick(symGold, tickGold) : false;
-
-   bool hasEur  = (symEur != "INACTIVE" && symEur != "") ? SymbolInfoTick(symEur, tickEur) : false;
-
-   bool hasJpy  = (symJpy != "INACTIVE" && symJpy != "") ? SymbolInfoTick(symJpy, tickJpy) : false;
-
-   bool hasAud  = (symAud != "INACTIVE" && symAud != "") ? SymbolInfoTick(symAud, tickAud) : false;
-
-   bool hasSp   = (symSp != "INACTIVE" && symSp != "") ? SymbolInfoTick(symSp, tickSp) : false;
-
-
-
-   if(hasGold || hasEur || hasJpy || hasAud || hasSp)
-
+   if(hasGold || hasSilver || hasDow || hasEur || hasJpy || hasAud || hasSp)
    {
-
       feedParams = StringFormat(
-
-         "?feed=1&xau_bid=%.2f&xau_ask=%.2f&eur_bid=%.5f&eur_ask=%.5f&jpy_bid=%.3f&jpy_ask=%.3f&aud_bid=%.5f&aud_ask=%.5f&sp_bid=%.2f&sp_ask=%.2f",
-
+         "?feed=1&xau_bid=%.2f&xau_ask=%.2f&xag_bid=%.3f&xag_ask=%.3f&us30_bid=%.1f&us30_ask=%.1f&eur_bid=%.5f&eur_ask=%.5f&jpy_bid=%.3f&jpy_ask=%.3f&aud_bid=%.5f&aud_ask=%.5f&sp_bid=%.2f&sp_ask=%.2f",
          hasGold ? tickGold.bid : 0.0, hasGold ? tickGold.ask : 0.0,
-
+         hasSilver ? tickSilver.bid : 0.0, hasSilver ? tickSilver.ask : 0.0,
+         hasDow ? tickDow.bid : 0.0, hasDow ? tickDow.ask : 0.0,
          hasEur ? tickEur.bid : 0.0, hasEur ? tickEur.ask : 0.0,
-
          hasJpy ? tickJpy.bid : 0.0, hasJpy ? tickJpy.ask : 0.0,
-
          hasAud ? tickAud.bid : 0.0, hasAud ? tickAud.ask : 0.0,
-
          hasSp ? tickSp.bid : 0.0, hasSp ? tickSp.ask : 0.0
-
       );
-
    }
 
 
 
-   string signalUrl = InpServerUrl + "/api/signal?magic=" + IntegerToString(InpMagicNumber) + (feedParams != "" ? ("&" + StringSubstr(feedParams, 1)) : "");
+   double curBal = AccountInfoDouble(ACCOUNT_BALANCE);
+   double curEq = AccountInfoDouble(ACCOUNT_EQUITY);
+   string accParams = StringFormat("&balance=%.2f&equity=%.2f", curBal, curEq);
+
+   string signalUrl = InpServerUrl + "/api/signal?magic=" + IntegerToString(InpMagicNumber) + accParams + (feedParams != "" ? ("&" + StringSubstr(feedParams, 1)) : "");
 
    string resp;
 
@@ -2291,6 +2312,44 @@ void OnTick()
 
    CheckAutonomousStructuralTrailing();
 
+}
+
+//+------------------------------------------------------------------+
+//| Trade Transaction function - Notificación Instantánea de Cierres |
+//+------------------------------------------------------------------+
+void OnTradeTransaction(const MqlTradeTransaction& trans, const MqlTradeRequest& request, const MqlTradeResult& result)
+{
+   if(trans.type == TRADE_TRANSACTION_DEAL_ADD)
+   {
+      ulong dealTicket = trans.deal;
+      if(HistoryDealSelect(dealTicket))
+      {
+         long entryType = HistoryDealGetInteger(dealTicket, DEAL_ENTRY);
+         long dealMagic = HistoryDealGetInteger(dealTicket, DEAL_MAGIC);
+         // Notificar si es un deal de salida (cierre de operacion)
+         if(entryType == DEAL_ENTRY_OUT && (dealMagic == InpMagicNumber || dealMagic == 0))
+         {
+            ulong positionId = (ulong)HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
+            string sym = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
+            double profit = HistoryDealGetDouble(dealTicket, DEAL_PROFIT);
+            double swap = HistoryDealGetDouble(dealTicket, DEAL_SWAP);
+            double comm = HistoryDealGetDouble(dealTicket, DEAL_COMMISSION) + HistoryDealGetDouble(dealTicket, DEAL_FEE);
+            double exitPrice = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
+            string dealComment = HistoryDealGetString(dealTicket, DEAL_COMMENT);
+            double curBal = AccountInfoDouble(ACCOUNT_BALANCE);
+            double curEq = AccountInfoDouble(ACCOUNT_EQUITY);
+
+            string url = InpServerUrl + "/api/deal_closed";
+            string payload = StringFormat(
+               "{\"magic\":%I64d,\"deal_ticket\":%I64u,\"position_id\":%I64u,\"symbol\":\"%s\",\"exit_price\":%.5f,\"profit\":%.2f,\"swap\":%.2f,\"commission\":%.2f,\"comment\":\"%s\",\"balance\":%.2f,\"equity\":%.2f}",
+               dealMagic, dealTicket, positionId, sym, exitPrice, profit, swap, comm, dealComment, curBal, curEq
+            );
+            string resp; int status;
+            PrintFormat("[EA MT5] Notificando cierre de deal #%I64u (%s | PnL: %.2f) hacia la nube...", dealTicket, sym, profit + swap + comm);
+            SendHttpRequest("POST", url, payload, resp, status);
+         }
+      }
+   }
 }
 
 //+------------------------------------------------------------------+

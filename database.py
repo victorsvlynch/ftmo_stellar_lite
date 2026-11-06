@@ -28,9 +28,11 @@ def resolve_dual_target_magics(symbol: str, active_profile: Optional[Any] = None
 
     sym_clean = symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
     is_gold = any(k in sym_clean for k in ("XAU", "GC", "GOLD"))
-    is_eurusd = ("EUR" in sym_clean and "USD" in sym_clean) or sym_clean == "EURUSD"
+    is_silver = any(k in sym_clean for k in ("XAG", "SI", "SILVER"))
+    is_us30 = any(k in sym_clean for k in ("30", "DJ", "YM", "DOW", "WS30"))
     is_sp500 = any(k in sym_clean for k in ("500", "SPX", "ES", "US500"))
     is_usdjpy = ("JPY" in sym_clean and "USD" in sym_clean) or sym_clean == "USDJPY"
+    is_eurusd = ("EUR" in sym_clean and "USD" in sym_clean) or sym_clean == "EURUSD"
 
     candidate_profiles = []
     try:
@@ -54,13 +56,19 @@ def resolve_dual_target_magics(symbol: str, active_profile: Optional[Any] = None
             if is_gold and any(k in al_clean for k in ("XAU", "GC", "GOLD")):
                 allows = True
                 break
-            if is_eurusd and (("EUR" in al_clean and "USD" in al_clean) or al_clean == "EURUSD"):
+            if is_silver and any(k in al_clean for k in ("XAG", "SI", "SILVER")):
+                allows = True
+                break
+            if is_us30 and any(k in al_clean for k in ("30", "DJ", "YM", "DOW", "WS30")):
                 allows = True
                 break
             if is_sp500 and any(k in al_clean for k in ("500", "SPX", "ES", "US500")):
                 allows = True
                 break
             if is_usdjpy and (("JPY" in al_clean and "USD" in al_clean) or al_clean == "USDJPY"):
+                allows = True
+                break
+            if is_eurusd and (("EUR" in al_clean and "USD" in al_clean) or al_clean == "EURUSD"):
                 allows = True
                 break
             if al_clean == sym_clean or al_clean in sym_clean or sym_clean in al_clean:
@@ -180,6 +188,10 @@ class TradingDatabase:
                 "ALTER TABLE trades ADD COLUMN commission REAL DEFAULT 0.0",
                 "ALTER TABLE trades ADD COLUMN spread_cost REAL DEFAULT 0.0",
                 "ALTER TABLE trades ADD COLUMN is_break_even INTEGER DEFAULT 0",
+                "ALTER TABLE trades ADD COLUMN mt5_ticket INTEGER DEFAULT 0",
+                "ALTER TABLE trades ADD COLUMN mt5_deal_ticket INTEGER DEFAULT 0",
+                "ALTER TABLE trades ADD COLUMN swap REAL DEFAULT 0.0",
+                "ALTER TABLE trades ADD COLUMN magic INTEGER DEFAULT 0",
                 "ALTER TABLE account_state ADD COLUMN max_drawdown_limit_pct REAL DEFAULT 0.08",
                 "ALTER TABLE account_state ADD COLUMN min_trading_days INTEGER DEFAULT 2",
                 "ALTER TABLE account_state ADD COLUMN funded_profit_split REAL DEFAULT 0.80",
@@ -190,6 +202,10 @@ class TradingDatabase:
                 "ALTER TABLE account_state ADD COLUMN profile_id TEXT DEFAULT 'stellar_10k_demo'",
                 "ALTER TABLE account_state ADD COLUMN is_trial INTEGER DEFAULT 0",
                 "ALTER TABLE account_state ADD COLUMN account_login INTEGER DEFAULT 0",
+                "ALTER TABLE account_state ADD COLUMN drawdown_type TEXT DEFAULT 'STATIC'",
+                "ALTER TABLE account_state ADD COLUMN high_water_mark REAL DEFAULT 0.0",
+                "ALTER TABLE account_state ADD COLUMN trailing_max_loss_floor REAL DEFAULT 0.0",
+                "ALTER TABLE account_state ADD COLUMN consistency_rule_pct REAL DEFAULT 0.0",
             ):
                 try:
                     cursor.execute(col_sql)
@@ -303,6 +319,10 @@ class TradingDatabase:
                 p_id = str(self._profile.id) if self._profile else "stellar_10k_demo"
                 is_trial_val = 1 if (self._profile and self._profile.is_trial) else 0
                 acc_login = int(self._profile.login_id) if (self._profile and self._profile.login_id) else 0
+                p_dd_type = str(getattr(self._profile, "drawdown_type", "STATIC")) if self._profile else "STATIC"
+                p_hwm = float(self._profile.initial_balance) if self._profile else 10000.0
+                p_trailing_floor = round(p_hwm * (1.0 - max_dd_pct), 2)
+                p_consistency = float(getattr(self._profile, "consistency_rule_pct", 0.0)) if self._profile else 0.0
                 initial_phase = "CHALLENGE" if is_trial_val else "FASE_1"
 
                 cursor.execute(
@@ -313,8 +333,9 @@ class TradingDatabase:
                         personal_daily_cap_pct, risk_per_trade_pct, max_drawdown_limit_pct,
                         min_trading_days, funded_profit_split, ea_enabled, daily_loss_limit_pct,
                         profit_target_pct, profit_target_phase2_pct, profile_id, is_trial,
-                        account_login, updated_at
-                    ) VALUES (1, ?, ?, ?, ?, ?, ?, 'ACTIVE', '', 0.0, ?, ?, ?, ?, 0.80, 1, ?, ?, ?, ?, ?, ?, ?)
+                        account_login, drawdown_type, high_water_mark, trailing_max_loss_floor,
+                        consistency_rule_pct, updated_at
+                    ) VALUES (1, ?, ?, ?, ?, ?, ?, 'ACTIVE', '', 0.0, ?, ?, ?, ?, 0.80, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         init_bal,
@@ -333,6 +354,10 @@ class TradingDatabase:
                         p_id,
                         is_trial_val,
                         acc_login,
+                        p_dd_type,
+                        p_hwm,
+                        p_trailing_floor,
+                        p_consistency,
                         now_utc.isoformat(),
                     ),
                 )
@@ -464,6 +489,11 @@ class TradingDatabase:
                         (now_utc.isoformat(),)
                     )
 
+            reset_dd_type = str(getattr(self._profile, "drawdown_type", "STATIC")) if self._profile else "STATIC"
+            reset_hwm = initial_balance
+            reset_trailing_floor = round(initial_balance * (1.0 - max_drawdown_limit_pct), 2)
+            reset_consistency = float(getattr(self._profile, "consistency_rule_pct", 0.0)) if self._profile else 0.0
+
             cursor.execute("DELETE FROM trades")
             cursor.execute("DELETE FROM trading_days")
             cursor.execute("DELETE FROM audit_events")
@@ -485,6 +515,10 @@ class TradingDatabase:
                     min_trading_days = ?,
                     funded_profit_split = ?,
                     ea_enabled = 1,
+                    drawdown_type = ?,
+                    high_water_mark = ?,
+                    trailing_max_loss_floor = ?,
+                    consistency_rule_pct = ?,
                     updated_at = ?
                 WHERE id = 1
                 """,
@@ -500,6 +534,10 @@ class TradingDatabase:
                     max_drawdown_limit_pct,
                     min_trading_days,
                     funded_profit_split,
+                    reset_dd_type,
+                    reset_hwm,
+                    reset_trailing_floor,
+                    reset_consistency,
                     now_utc.isoformat(),
                 ),
             )
@@ -517,46 +555,134 @@ class TradingDatabase:
         state["synced_mt5_login"] = synced_mt5_login
         return state
 
-    def sync_with_mt5(self) -> Dict[str, Any]:
+    def sync_with_mt5(self, magic: Optional[int] = None, lookback_days: int = 7) -> Dict[str, Any]:
         """
-        Sincroniza en tiempo real el balance y equidad de la base de datos
-        con la cuenta activa en MetaTrader 5.
+        Sincroniza en tiempo real la base de datos con MetaTrader 5 (MT5 como Fuente Maestra).
+        Reconcilia automáticamente balance, equidad, posiciones abiertas y deals de salida cerrados.
         """
         try:
             from mt5_bridge import MT5Bridge
             bridge = MT5Bridge()
             if not bridge.initialize():
                 return {"success": False, "reason": "No se pudo conectar a MetaTrader 5 (¿terminal abierta y AlgoTrading activo?)"}
-            summary = bridge.get_account_summary()
-            bal = float(summary.get("balance", 0.0))
-            eq = float(summary.get("equity", 0.0))
+            res = bridge.reconcile_with_database(self, magic=magic, lookback_days=lookback_days)
             bridge.shutdown()
-            if bal <= 0:
-                return {"success": False, "reason": "Balance inválido retornado por MT5"}
+            return res
+        except Exception as e:
+            return {"success": False, "reason": str(e)}
 
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
+    def sync_deal_from_mt5(self, deal: Dict[str, Any]) -> bool:
+        """
+        Sincroniza un deal de cierre ejecutado en MetaTrader 5 (recibido por EA Webhook o IPC).
+        Actualiza el trade correspondiente en SQLite con PnL neto real, swaps, comisiones y precio de salida.
+        """
+        pos_id = int(deal.get("position_id", 0))
+        deal_ticket = int(deal.get("deal_ticket", deal.get("ticket", 0)))
+        profit = float(deal.get("profit", 0.0))
+        swap = float(deal.get("swap", 0.0))
+        comm = float(deal.get("commission", 0.0))
+        net_pnl = round(profit + swap + comm, 2)
+        exit_p = float(deal.get("exit_price", deal.get("price", 0.0)))
+        symbol = str(deal.get("symbol", ""))
+        comment = str(deal.get("comment", ""))
+        magic = int(deal.get("magic", 0))
+        dt_closed = deal.get("closed_at", datetime.now(timezone.utc).isoformat())
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            trade = None
+            if pos_id > 0:
+                cursor.execute("SELECT * FROM trades WHERE mt5_ticket = ? ORDER BY id DESC LIMIT 1", (pos_id,))
+                row = cursor.fetchone()
+                if row:
+                    trade = dict(row)
+
+            if not trade and symbol:
+                clean_sym = symbol.replace("XAUUSD", "GC=F")
+                cursor.execute(
+                    "SELECT * FROM trades WHERE status = 'OPEN' AND (symbol = ? OR symbol = ?) ORDER BY id DESC LIMIT 1",
+                    (symbol, clean_sym),
+                )
+                row = cursor.fetchone()
+                if row:
+                    trade = dict(row)
+
+            if trade:
+                tr_id = trade["id"]
+                notes = f"{trade.get('notes', '')} | MT5_DEAL #{deal_ticket} ({comment})".strip(" |")
                 cursor.execute(
                     """
-                    UPDATE account_state
-                    SET balance = ?, equity = ?, updated_at = ?
-                    WHERE id = 1
+                    UPDATE trades
+                    SET status = 'CLOSED',
+                        exit_price = ?,
+                        pnl = ?,
+                        gross_pnl = ?,
+                        commission = ?,
+                        swap = ?,
+                        spread_cost = 0.0,
+                        closed_at = ?,
+                        mt5_ticket = ?,
+                        mt5_deal_ticket = ?,
+                        magic = ?,
+                        notes = ?
+                    WHERE id = ?
                     """,
-                    (bal, eq, datetime.now(timezone.utc).isoformat()),
+                    (exit_p, net_pnl, profit, abs(comm), swap, dt_closed, pos_id, deal_ticket, magic, notes, tr_id),
+                )
+
+                cursor.execute(
+                    """
+                    INSERT INTO trading_days (phase, trading_date, trades_count, daily_pnl)
+                    VALUES (?, ?, 0, ?)
+                    ON CONFLICT(phase, trading_date) DO UPDATE SET
+                        daily_pnl = ROUND(daily_pnl + ?, 2)
+                    """,
+                    (trade["phase"], trade["trading_date"], net_pnl, net_pnl),
                 )
                 conn.commit()
 
-            self.log_event("SINCRONIZACION_MT5", "ALL", f"Sincronizado con MT5 #{summary.get('login')}: Balance ${bal:,.2f}, Equidad ${eq:,.2f}")
-            return {
-                "success": True,
-                "login": summary.get("login"),
-                "server": summary.get("server"),
-                "balance": bal,
-                "equity": eq,
-                "currency": summary.get("currency", "USD"),
-            }
-        except Exception as e:
-            return {"success": False, "reason": str(e)}
+            bal = float(deal.get("balance", 0.0))
+            eq = float(deal.get("equity", 0.0))
+            if bal > 0:
+                self.update_account_state_from_mt5(balance=bal, equity=eq)
+
+            return trade is not None
+
+    def update_account_state_from_mt5(
+        self,
+        balance: float,
+        equity: float,
+        login: Optional[int] = None,
+        server: Optional[str] = None,
+    ) -> None:
+        """Actualiza el balance y equidad de account_state con los valores reales reportados por MT5."""
+        if balance <= 0:
+            return
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT initial_balance, high_water_mark, max_drawdown_limit_pct, drawdown_type FROM account_state WHERE id = 1")
+            acc = cursor.fetchone()
+            if not acc:
+                return
+            cur_hwm = float(acc["high_water_mark"]) if acc["high_water_mark"] else balance
+            new_hwm = round(max(cur_hwm, balance), 2)
+            is_trailing = (acc["drawdown_type"] or "").upper() == "TRAILING"
+            trailing_floor = 0.0
+            if is_trailing:
+                init_b = float(acc["initial_balance"])
+                max_dd_pct = float(acc["max_drawdown_limit_pct"])
+                trailing_floor = round(new_hwm - (init_b * max_dd_pct), 2)
+
+            cursor.execute(
+                """
+                UPDATE account_state
+                SET balance = ?, equity = ?, high_water_mark = ?, trailing_max_loss_floor = ?, updated_at = ?
+                WHERE id = 1
+                """,
+                (round(balance, 2), round(equity, 2), new_hwm, trailing_floor, now_iso),
+            )
+            conn.commit()
 
     def get_archived_trades(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Devuelve el historial de operaciones archivadas de ciclos anteriores."""
@@ -639,14 +765,18 @@ class TradingDatabase:
             clean_sym = symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
             if any(k in clean_sym for k in ("GC", "XAU", "GOLD")):
                 sym_mt5 = "XAUUSD"
+            elif any(k in clean_sym for k in ("SI", "XAG", "SILVER")):
+                sym_mt5 = "XAGUSD"
+            elif any(k in clean_sym for k in ("YM", "30", "DJ", "WS30", "DOW")):
+                sym_mt5 = "US30"
+            elif any(k in clean_sym for k in ("ES", "500", "SPX", "US500", "SP500")):
+                sym_mt5 = "US500"
             elif any(k in clean_sym for k in ("EURUSD", "EUR")):
                 sym_mt5 = "EURUSD"
             elif any(k in clean_sym for k in ("USDJPY", "JPY")):
                 sym_mt5 = "USDJPY"
             elif any(k in clean_sym for k in ("AUDUSD", "AUD")):
                 sym_mt5 = "AUDUSD"
-            elif any(k in clean_sym for k in ("ES", "500", "SPX", "US500", "SP500")):
-                sym_mt5 = "US500"
             else:
                 sym_mt5 = clean_sym
             target_pairs = resolve_dual_target_magics(symbol, self._profile)
@@ -745,7 +875,23 @@ class TradingDatabase:
             )
 
             # Encolar cierre para EA Webhook MT5 (Dual Architecture: notificar a todas las terminales que operan el activo)
-            sym_mt5 = "XAUUSD" if "GC" in trade["symbol"].upper() else trade["symbol"]
+            raw_sym = trade["symbol"].upper().replace("=X", "").replace("=F", "").replace("/", "")
+            if any(k in raw_sym for k in ("GC", "XAU", "GOLD")):
+                sym_mt5 = "XAUUSD"
+            elif any(k in raw_sym for k in ("SI", "XAG", "SILVER")):
+                sym_mt5 = "XAGUSD"
+            elif any(k in raw_sym for k in ("YM", "30", "DJ", "WS30", "DOW")):
+                sym_mt5 = "US30"
+            elif any(k in raw_sym for k in ("ES", "500", "SPX", "US500", "SP500")):
+                sym_mt5 = "US500"
+            elif any(k in raw_sym for k in ("EURUSD", "EUR")):
+                sym_mt5 = "EURUSD"
+            elif any(k in raw_sym for k in ("USDJPY", "JPY")):
+                sym_mt5 = "USDJPY"
+            elif any(k in raw_sym for k in ("AUDUSD", "AUD")):
+                sym_mt5 = "AUDUSD"
+            else:
+                sym_mt5 = trade["symbol"]
             target_pairs = resolve_dual_target_magics(trade["symbol"], self._profile)
             for t_magic, _ in target_pairs:
                 cursor.execute(
@@ -793,17 +939,21 @@ class TradingDatabase:
 
             # Encolar modificación de Stop Loss (Break-Even / Escalera de Candados) para EA Webhook MT5
             if is_break_even:
-                raw_sym = trade["symbol"].upper()
-                if "GC" in raw_sym or "XAU" in raw_sym:
+                raw_sym = trade["symbol"].upper().replace("=X", "").replace("=F", "").replace("/", "")
+                if any(k in raw_sym for k in ("GC", "XAU", "GOLD")):
                     sym_mt5 = "XAUUSD"
-                elif "EUR" in raw_sym:
-                    sym_mt5 = "EURUSD"
-                elif "JPY" in raw_sym:
-                    sym_mt5 = "USDJPY"
-                elif "AUD" in raw_sym:
-                    sym_mt5 = "AUDUSD"
-                elif "ES" in raw_sym or "500" in raw_sym:
+                elif any(k in raw_sym for k in ("SI", "XAG", "SILVER")):
+                    sym_mt5 = "XAGUSD"
+                elif any(k in raw_sym for k in ("YM", "30", "DJ", "WS30", "DOW")):
+                    sym_mt5 = "US30"
+                elif any(k in raw_sym for k in ("ES", "500", "SPX", "US500", "SP500")):
                     sym_mt5 = "US500"
+                elif any(k in raw_sym for k in ("EURUSD", "EUR")):
+                    sym_mt5 = "EURUSD"
+                elif any(k in raw_sym for k in ("USDJPY", "JPY")):
+                    sym_mt5 = "USDJPY"
+                elif any(k in raw_sym for k in ("AUDUSD", "AUD")):
+                    sym_mt5 = "AUDUSD"
                 else:
                     sym_mt5 = trade["symbol"]
                 action_comment = (notes[:60] if notes else "Break-Even 1R")
@@ -877,6 +1027,22 @@ class TradingDatabase:
             )
             row = cursor.fetchone()
             return int(row["days_cnt"]) if row else 0
+
+    def get_daily_pnl_breakdown(self, phase: str) -> List[Dict[str, Any]]:
+        """Retorna el PnL neto desglosado por día para la fase actual (para validar consistencia FTMO)."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT trading_date, SUM(pnl) AS daily_pnl, COUNT(*) AS trade_count
+                FROM trades
+                WHERE phase = ? AND status = 'CLOSED'
+                GROUP BY trading_date
+                ORDER BY trading_date ASC
+                """,
+                (phase,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
 
     def log_event(self, event_type: str, phase: str, message: str) -> None:
         """Registra un evento de auditoría o alerta de riesgo."""
@@ -971,6 +1137,15 @@ class TradingDatabase:
                     WHERE id = (SELECT trade_id FROM webhook_actions WHERE id = ?) AND status = 'OPEN'
                     """,
                     (action_id,),
+                )
+            elif status == "CONFIRMED" and mt5_ticket > 0:
+                cursor.execute(
+                    """
+                    UPDATE trades
+                    SET mt5_ticket = ?
+                    WHERE id = (SELECT trade_id FROM webhook_actions WHERE id = ?)
+                    """,
+                    (mt5_ticket, action_id),
                 )
             conn.commit()
             return cursor.rowcount > 0

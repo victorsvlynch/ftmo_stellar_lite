@@ -1,17 +1,21 @@
 """
-stellar_rules.py - Motor de Validación Estricta de Reglas FundedNext Stellar Lite.
-Configurado para el Plan Oficial: Stellar Lite 2-Step-10K USD (cloud.png)
-Implementa:
+stellar_rules.py - Motor de Validación Estricta de Reglas Multi-Prop Firm.
+Soporta dos modelos de drawdown y reglas diferenciadas:
+
+[FundedNext Stellar Lite 2-Step] (Perfil: stellar_10k_demo)
 - Cuenta Base: $10,000 USD
-- Fase 1 (+8% Target = $800 en $10K -> Meta: $10,800)
-- Fase 2 (+4% Target = $400 en $10K -> Meta: $10,400)
-- Cuenta Fondeada (Sin target obligatorio, Profit Split 80% escalable a 90%)
-- Daily Loss Limit (4% Estático = $400 en $10K sobre balance inicial de jornada, reseteo 00:00 UTC)
-- Max Drawdown Limit (8% Estático = $800 en $10K, piso fijo inamovible en $9,200)
-- Mínimo 2 días operativos por fase (Fase 1 y Fase 2)
-- 40% News Profit Cap Rule (NFP, CPI, FOMC)
-- EA / Trading Algorítmico Autorizado (Add-on EA en checkout)
-- Overnight & Weekend Trading permitido
+- Fase 1 (+8% Target), Fase 2 (+4% Target)
+- Daily Loss Limit 4% Estático, Max Drawdown 8% ESTÁTICO (piso fijo $9,200)
+- Mínimo 2 días operativos, 40% News Profit Cap, EA autorizado
+- Overnight & Weekend Trading permitido, Sin regla de consistencia
+
+[FTMO Challenge 2-Step] (Perfil: ftmo_10k_challenge)
+- Cuenta Base: $10,000 USD
+- Fase 1 (+10% Target), Fase 2 (+5% Target)
+- Daily Loss Limit 5% Estático, Max Drawdown 10% TRAILING (piso sube con HWM)
+- Mínimo 4 días operativos, Sin News Profit Cap
+- Overnight & Weekend Trading PROHIBIDO (Estándar 1:100)
+- Regla de Consistencia 50% (ningún día > 50% del profit total)
 """
 
 from dataclasses import dataclass, field
@@ -42,6 +46,10 @@ class RuleCheckResult:
     news_profit_ratio: float
     news_cap_warning: bool
     profit_split: float
+    drawdown_type: str = "STATIC"
+    high_water_mark: float = 0.0
+    consistency_ratio: float = 0.0
+    consistency_warning: bool = False
     alerts: List[str] = field(default_factory=list)
     target_reached: bool = False
     waiting_min_days: bool = False
@@ -50,7 +58,10 @@ class RuleCheckResult:
 
 
 class StellarLiteRulesEngine:
-    """Validador oficial de reglas de fondeo FundedNext - Stellar Lite 2-Step & Free Trial."""
+    """
+    Validador oficial de reglas de fondeo Multi-Prop Firm.
+    Soporta FundedNext Stellar Lite (DD Estático) y FTMO Challenge (DD Trailing).
+    """
 
     PHASE_1 = "FASE_1"
     PHASE_2 = "FASE_2"
@@ -85,6 +96,9 @@ class StellarLiteRulesEngine:
         is_trial: Optional[bool] = None,
         profile: Optional[Any] = None,
         use_cloud_addons: bool = True,
+        drawdown_type: Optional[str] = None,
+        consistency_rule_pct: Optional[float] = None,
+        allow_overnight_weekend: Optional[bool] = None,
     ) -> None:
         self.db = db
         acc = self.db.get_account_state()
@@ -135,6 +149,34 @@ class StellarLiteRulesEngine:
             self.max_drawdown_limit_pct = float(acc["max_drawdown_limit_pct"])
         else:
             self.max_drawdown_limit_pct = self.MAX_DRAWDOWN_LIMIT_PCT
+
+        # Drawdown Type: "STATIC" (FundedNext) o "TRAILING" (FTMO)
+        if drawdown_type is not None:
+            self.drawdown_type = str(drawdown_type).upper()
+        elif self.profile is not None:
+            self.drawdown_type = str(getattr(self.profile, "drawdown_type", "STATIC")).upper()
+        elif acc.get("drawdown_type") is not None:
+            self.drawdown_type = str(acc["drawdown_type"]).upper()
+        else:
+            self.drawdown_type = "STATIC"
+
+        # Consistency Rule: fracción máxima del profit en 1 día (ej. 0.50 en FTMO, 0.0 en FundedNext)
+        if consistency_rule_pct is not None:
+            self.consistency_rule_pct = float(consistency_rule_pct)
+        elif self.profile is not None:
+            self.consistency_rule_pct = float(getattr(self.profile, "consistency_rule_pct", 0.0))
+        elif acc.get("consistency_rule_pct") is not None:
+            self.consistency_rule_pct = float(acc["consistency_rule_pct"])
+        else:
+            self.consistency_rule_pct = 0.0
+
+        # Overnight & Weekend
+        if allow_overnight_weekend is not None:
+            self.allow_overnight_weekend = bool(allow_overnight_weekend)
+        elif self.profile is not None:
+            self.allow_overnight_weekend = bool(getattr(self.profile, "allow_overnight_weekend", True))
+        else:
+            self.allow_overnight_weekend = True
 
         # Min trading days
         if min_trading_days is not None:
@@ -242,16 +284,44 @@ class StellarLiteRulesEngine:
             "exceeds_40_cap": ratio > self.NEWS_PROFIT_CAP_PCT,
         }
 
+    def check_consistency_rule(self, phase: str) -> Dict[str, Any]:
+        """
+        Verifica la regla de consistencia de FTMO (ej. ningún día puede superar el 50% del profit total acumulado).
+        Solo aplica si consistency_rule_pct > 0.
+        """
+        if self.consistency_rule_pct <= 0.0:
+            return {"active": False, "ratio": 0.0, "exceeds": False, "max_day_profit": 0.0, "total_profit": 0.0}
+
+        breakdown = self.db.get_daily_pnl_breakdown(phase)
+        closed_trades = self.db.get_trades_by_phase(phase, status="CLOSED")
+        total_profit = sum(float(t["pnl"]) for t in closed_trades)
+
+        if total_profit <= 0 or not breakdown:
+            return {"active": True, "ratio": 0.0, "exceeds": False, "max_day_profit": 0.0, "total_profit": round(total_profit, 2)}
+
+        max_day_pnl = max((float(d["daily_pnl"]) for d in breakdown if float(d["daily_pnl"]) > 0), default=0.0)
+        ratio = max_day_pnl / total_profit if total_profit > 0 else 0.0
+        exceeds = ratio > self.consistency_rule_pct
+
+        return {
+            "active": True,
+            "ratio": round(ratio, 4),
+            "exceeds": exceeds,
+            "max_day_profit": round(max_day_pnl, 2),
+            "total_profit": round(total_profit, 2),
+        }
+
     def evaluate_account(
         self,
         floating_pnl: float = 0.0,
         now_server: Optional[datetime] = None,
     ) -> RuleCheckResult:
         """
-        Evalúa en tiempo real todas las reglas de FundedNext Stellar Lite:
+        Evalúa en tiempo real todas las reglas del desafío (FundedNext o FTMO):
         - Actualiza la equidad flotante (balance + floating_pnl).
-        - Verifica Hard Breaches (Daily Loss 4% y Max Drawdown 8%).
-        - Verifica Soft Breaches (40% News Cap y mínimo de 2 días operativos).
+        - Verifica Hard Breaches: Daily Loss (4% o 5%) y Max Drawdown (Estático o Trailing).
+        - En modo TRAILING (FTMO): el piso de pérdida máxima escala dinámicamente con el High-Water Mark.
+        - Verifica Soft Breaches: 40% News Cap (FundedNext), Regla de Consistencia 50% (FTMO), y días mínimos.
         - Promueve automáticamente de Fase 1 -> Fase 2 -> Fondeada si se cumplen los objetivos.
         """
         acc = self.check_daily_rollover(now_server)
@@ -265,10 +335,28 @@ class StellarLiteRulesEngine:
         equity = round(balance + floating_pnl, 2)
         self.db.update_account_state(equity=equity)
 
-        # Cálculos de límites estáticos FundedNext Stellar Lite (ajustados con Add-ons si aplican)
-        daily_max_loss_allowance = round(initial_balance * self.daily_loss_limit_pct, 2)  # $400 en $10,000 (4%)
+        # Límite de pérdida diaria
+        daily_max_loss_allowance = round(initial_balance * self.daily_loss_limit_pct, 2)
         daily_loss_floor = round(day_start_balance - daily_max_loss_allowance, 2)
-        max_loss_floor = round(initial_balance * (1.0 - self.max_drawdown_limit_pct), 2)  # $9,200 en $10,000 (8% Estándar) o $9,000 (10% si Add-on)
+
+        # Cálculo de Max Drawdown: Estático (FundedNext) vs Trailing (FTMO)
+        is_trailing = (self.drawdown_type == "TRAILING")
+        stored_hwm = float(acc.get("high_water_mark") or initial_balance)
+        if stored_hwm < initial_balance:
+            stored_hwm = initial_balance
+
+        current_peak = max(stored_hwm, balance, equity)
+        if is_trailing:
+            high_water_mark = round(current_peak, 2)
+            if high_water_mark > stored_hwm:
+                self.db.update_account_state(high_water_mark=high_water_mark)
+                stored_hwm = high_water_mark
+            max_drawdown_amount = round(initial_balance * self.max_drawdown_limit_pct, 2)
+            max_loss_floor = round(stored_hwm - max_drawdown_amount, 2)
+            self.db.update_account_state(trailing_max_loss_floor=max_loss_floor)
+        else:
+            high_water_mark = initial_balance
+            max_loss_floor = round(initial_balance * (1.0 - self.max_drawdown_limit_pct), 2)
 
         daily_loss_remaining = round(max(0.0, equity - daily_loss_floor), 2)
         max_loss_remaining = round(max(0.0, equity - max_loss_floor), 2)
@@ -278,23 +366,30 @@ class StellarLiteRulesEngine:
 
         # Si la cuenta ya estaba fallada, mantener el estado
         if status == "FAILED" or phase == self.FAILED:
-            if acc["fail_reason"]:
+            if acc.get("fail_reason"):
                 alerts.append(f"CUENTA FALLADA: {acc['fail_reason']}")
             hard_breach = True
         else:
-            # 1. Verificación de Límite de Pérdida Máxima (10% o 8% Estático)
+            # 1. Verificación de Límite de Pérdida Máxima (Estático o Trailing)
             if equity <= max_loss_floor or balance <= max_loss_floor:
-                reason = (
-                    f"Hard Breach: Max Drawdown Limit ({self.max_drawdown_limit_pct * 100:.0f}%) alcanzado. "
-                    f"Equidad (${equity:,.2f}) tocó o perforó el piso fijo de ${max_loss_floor:,.2f}."
-                )
+                if is_trailing:
+                    reason = (
+                        f"Hard Breach: Max Drawdown Limit Trailing ({self.max_drawdown_limit_pct * 100:.0f}%) alcanzado. "
+                        f"Equidad (${equity:,.2f}) tocó o perforó el piso móvil de ${max_loss_floor:,.2f} "
+                        f"(High-Water Mark: ${stored_hwm:,.2f})."
+                    )
+                else:
+                    reason = (
+                        f"Hard Breach: Max Drawdown Limit Estático ({self.max_drawdown_limit_pct * 100:.0f}%) alcanzado. "
+                        f"Equidad (${equity:,.2f}) tocó o perforó el piso fijo de ${max_loss_floor:,.2f}."
+                    )
                 self._fail_account(phase, reason)
                 phase = self.FAILED
                 status = "FAILED"
                 hard_breach = True
                 alerts.append(reason)
 
-            # 2. Verificación de Límite de Pérdida Diaria (4% Estático -> $200 desde day_start_balance)
+            # 2. Verificación de Límite de Pérdida Diaria
             elif equity <= daily_loss_floor or balance <= daily_loss_floor:
                 reason = (
                     f"Hard Breach: Daily Loss Limit ({self.daily_loss_limit_pct * 100:.0f}% = ${daily_max_loss_allowance:,.2f}) alcanzado. "
@@ -307,15 +402,26 @@ class StellarLiteRulesEngine:
                 hard_breach = True
                 alerts.append(reason)
 
-        # Evaluación de noticias (40% Cap Rule)
+        # Evaluación de noticias (40% Cap Rule - relevante para FundedNext)
         news_metrics = self.calculate_news_profit_metrics(phase)
         news_ratio = news_metrics["news_profit_ratio"]
         news_warning = bool(news_metrics["exceeds_40_cap"])
-        if news_warning:
+        if news_warning and self.profile and getattr(self.profile, "news_profit_cap_pct", 1.0) < 1.0:
             alerts.append(
                 f"SOFT BREACH / ALERTA 40% NEWS CAP: {news_ratio * 100:.1f}% del profit "
                 f"(${news_metrics['news_profit']:,.2f} de ${news_metrics['total_profit']:,.2f}) "
                 f"proviene de ventanas de noticias de alto impacto (NFP/CPI/FOMC)."
+            )
+
+        # Evaluación de consistencia (relevante para FTMO 50% Rule)
+        consistency_metrics = self.check_consistency_rule(phase)
+        consistency_warning = consistency_metrics["exceeds"]
+        if consistency_warning:
+            alerts.append(
+                f"ALERTA REGLA CONSISTENCIA FTMO ({self.consistency_rule_pct * 100:.0f}%): "
+                f"El mejor día (${consistency_metrics['max_day_profit']:,.2f}) representa "
+                f"{consistency_metrics['ratio'] * 100:.1f}% del profit total (${consistency_metrics['total_profit']:,.2f}). "
+                "Se requiere distribuir el beneficio operando más jornadas para cumplir la regla."
             )
 
         # Días operativos completados en la fase actual
@@ -375,7 +481,9 @@ class StellarLiteRulesEngine:
                 profit_target_balance = round(initial_balance + profit_target_amount, 2)
                 if balance >= profit_target_balance:
                     target_reached = True
-                    if trading_days >= self.min_trading_days:
+                    days_ok = trading_days >= self.min_trading_days
+                    consistency_ok = not consistency_warning
+                    if days_ok and consistency_ok:
                         can_pass_phase = True
                         self._promote_phase(
                             from_phase=self.PHASE_1,
@@ -383,17 +491,23 @@ class StellarLiteRulesEngine:
                             initial_balance=initial_balance,
                             new_split=0.0,
                         )
-                        day_msg = f"{trading_days} días cumplidos" if self.min_trading_days > 0 else "Sin requisito de días mínimos [Add-on]"
+                        day_msg = f"{trading_days} días cumplidos" if self.min_trading_days > 0 else "Sin requisito de días mínimos"
                         alerts.append(
                             f"¡FASE 1 SUPERADA! Target +{t1_pct * 100:.1f}% (${profit_target_amount:,.2f}) alcanzado ({day_msg}). "
                             f"Cuenta promovida a FASE 2."
                         )
                         return self.evaluate_account(floating_pnl=0.0, now_server=now_server)
-                    else:
+                    elif not days_ok:
                         waiting_min_days = True
                         alerts.append(
                             f"Target de Fase 1 alcanzado (${balance:,.2f}), pero faltan días operativos: "
                             f"{trading_days}/{self.min_trading_days} días requeridos."
+                        )
+                    elif not consistency_ok:
+                        alerts.append(
+                            f"Target de Fase 1 alcanzado (${balance:,.2f}), pero se excede la Regla de Consistencia FTMO "
+                            f"({self.consistency_rule_pct * 100:.0f}%): mejor día = {consistency_metrics['ratio'] * 100:.1f}%. "
+                            "Se requieren días adicionales con ganancias para diluir la concentración."
                         )
 
             elif phase == self.PHASE_2:
@@ -402,7 +516,9 @@ class StellarLiteRulesEngine:
                 profit_target_balance = round(initial_balance + profit_target_amount, 2)
                 if balance >= profit_target_balance:
                     target_reached = True
-                    if trading_days >= self.min_trading_days:
+                    days_ok = trading_days >= self.min_trading_days
+                    consistency_ok = not consistency_warning
+                    if days_ok and consistency_ok:
                         can_pass_phase = True
                         self._promote_phase(
                             from_phase=self.PHASE_2,
@@ -410,17 +526,23 @@ class StellarLiteRulesEngine:
                             initial_balance=initial_balance,
                             new_split=self.funded_profit_split,
                         )
-                        day_msg = f"{trading_days} días cumplidos" if self.min_trading_days > 0 else "Sin requisito de días mínimos [Add-on]"
+                        day_msg = f"{trading_days} días cumplidos" if self.min_trading_days > 0 else "Sin requisito de días mínimos"
                         alerts.append(
                             f"¡FASE 2 SUPERADA! Target +{t2_pct * 100:.1f}% (${profit_target_amount:,.2f}) alcanzado ({day_msg}). "
                             f"¡CUENTA FONDEADA OFICIALMENTE! (Profit Split: {self.funded_profit_split * 100:.0f}%)."
                         )
                         return self.evaluate_account(floating_pnl=0.0, now_server=now_server)
-                    else:
+                    elif not days_ok:
                         waiting_min_days = True
                         alerts.append(
                             f"Target de Fase 2 alcanzado (${balance:,.2f}), pero faltan días operativos: "
                             f"{trading_days}/{self.min_trading_days} días requeridos."
+                        )
+                    elif not consistency_ok:
+                        alerts.append(
+                            f"Target de Fase 2 alcanzado (${balance:,.2f}), pero se excede la Regla de Consistencia FTMO "
+                            f"({self.consistency_rule_pct * 100:.0f}%): mejor día = {consistency_metrics['ratio'] * 100:.1f}%. "
+                            "Se requieren días adicionales con ganancias para diluir la concentración."
                         )
 
             elif phase == self.FUNDED:
@@ -536,10 +658,19 @@ class StellarLiteRulesEngine:
                 f"🛡️ [GESTIÓN DE RIESGO]: Mantener riesgo por trade en 0.50% (${risk_trade_amount:,.2f} USD). Respeta el freno personal "
                 f"diario (${personal_cap_amount:,.2f} USD), la regla anti-racha (máx. 3 pérdidas) y el límite FundedNext de 3% max risk (${max_risk_amount:,.2f} USD)."
             )
-            real_account_recommendations.append(
-                "⚠️ [REGLA DE NOTICIAS]: No abras operaciones dentro de los 15 minutos previos o posteriores a NFP, "
-                "CPI o FOMC (máximo 40% de ganancias provenientes de noticias según regla oficial 1.png)."
-            )
+            if is_trailing:
+                real_account_recommendations.append(
+                    f"📈 [TRAILING DRAWDOWN FTMO]: High-Water Mark pico en ${stored_hwm:,.2f} | Piso móvil en ${max_loss_floor:,.2f} (Margen restante: ${max_loss_remaining:,.2f})."
+                )
+            if self.consistency_rule_pct > 0.0:
+                c_status = "⚠️ PENDIENTE DILUIR" if consistency_warning else "✅ DENTRO DEL LÍMITE"
+                real_account_recommendations.append(
+                    f"⚖️ [REGLA CONSISTENCIA FTMO {self.consistency_rule_pct * 100:.0f}%]: Concentración del mejor día: {consistency_metrics['ratio'] * 100:.1f}% ({c_status})."
+                )
+            if not self.allow_overnight_weekend:
+                real_account_recommendations.append(
+                    "🌙 [REGLA NO-OVERNIGHT FTMO]: Las posiciones deben cerrarse antes de las 16:45 EST (prohibido mantener operaciones overnight y weekend en cuenta estándar)."
+                )
 
         return RuleCheckResult(
             is_valid=not hard_breach,
@@ -562,6 +693,10 @@ class StellarLiteRulesEngine:
             news_profit_ratio=news_ratio,
             news_cap_warning=news_warning,
             profit_split=profit_split,
+            drawdown_type=self.drawdown_type,
+            high_water_mark=high_water_mark,
+            consistency_ratio=consistency_metrics["ratio"],
+            consistency_warning=consistency_warning,
             alerts=alerts,
             target_reached=target_reached,
             waiting_min_days=waiting_min_days,
@@ -588,6 +723,7 @@ class StellarLiteRulesEngine:
         """Promueve la cuenta a la siguiente fase reiniciando el balance base de la nueva fase."""
         now_utc = datetime.now(timezone.utc)
         today_str = now_utc.strftime("%Y-%m-%d")
+        reset_trailing_floor = round(initial_balance * (1.0 - self.max_drawdown_limit_pct), 2)
         self.db.update_account_state(
             balance=initial_balance,
             equity=initial_balance,
@@ -596,6 +732,8 @@ class StellarLiteRulesEngine:
             phase=to_phase,
             status="ACTIVE",
             profit_split=new_split,
+            high_water_mark=initial_balance,
+            trailing_max_loss_floor=reset_trailing_floor,
         )
         self.db.log_event(
             "PHASE_PROMOTION",

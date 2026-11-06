@@ -161,14 +161,17 @@ def print_console_report(
     print(f"  Objetivo de Fase     : {target_str}")
     print(subsep)
     firm_tag = "FTMO" if "FTMO" in prof_title.upper() else "FUNDEDNEXT"
+    dd_type_str = getattr(state, "drawdown_type", "STATIC")
+    dd_label = "Trailing" if dd_type_str == "TRAILING" else "Estático"
+    hwm_extra = f" | HWM: ${getattr(state, 'high_water_mark', 0.0):>8,.2f}" if dd_type_str == "TRAILING" else ""
     print(f" [REGLAS OFICIALES {firm_tag} & GESTIÓN DE RIESGO]")
     print(
         f"  Piso Pérdida Diaria ({rules.daily_loss_limit_pct * 100:.0f}% Estático) : ${state.daily_loss_floor:>8,.2f} "
         f"(Margen restante: ${state.daily_loss_remaining:>7,.2f})"
     )
     print(
-        f"  Piso Max Drawdown   ({rules.max_drawdown_limit_pct * 100:.0f}% Estático) : ${state.max_loss_floor:>8,.2f} "
-        f"(Margen restante: ${state.max_loss_remaining:>7,.2f})"
+        f"  Piso Max Drawdown   ({rules.max_drawdown_limit_pct * 100:.0f}% {dd_label}) : ${state.max_loss_floor:>8,.2f} "
+        f"(Margen restante: ${state.max_loss_remaining:>7,.2f}{hwm_extra})"
     )
     personal_cap_pct = float(acc.get("personal_daily_cap_pct", risk.personal_daily_cap_pct))
     personal_floor = round(state.day_start_balance * (1.0 - personal_cap_pct), 2)
@@ -176,10 +179,17 @@ def print_console_report(
         f"  Freno Personal Diario (-{personal_cap_pct * 100:.1f}%)     : ${personal_floor:>8,.2f} "
         f"| Riesgo/Trade: {float(acc.get('risk_per_trade_pct', risk.default_risk_pct)) * 100:.2f}%"
     )
-    print(
-        f"  Días Operativos Fase              : {state.trading_days_completed}/{state.min_trading_days_required} mín. "
-        f"| Ratio Profit Noticias (Cap 40%): {state.news_profit_ratio * 100:.1f}%"
-    )
+    if getattr(rules, "consistency_rule_pct", 0.0) > 0.0:
+        c_status = "[ALERTA]" if state.consistency_warning else "[OK]"
+        print(
+            f"  Días Operativos Fase              : {state.trading_days_completed}/{state.min_trading_days_required} mín. "
+            f"| Consistencia ({rules.consistency_rule_pct * 100:.0f}% máx/día): {state.consistency_ratio * 100:.1f}% {c_status}"
+        )
+    else:
+        print(
+            f"  Días Operativos Fase              : {state.trading_days_completed}/{state.min_trading_days_required} mín. "
+            f"| Ratio Profit Noticias (Cap 40%): {state.news_profit_ratio * 100:.1f}%"
+        )
     print(
         f"  Racha Pérdidas Hoy (Tilt Alert 3) : {pre_trade.consecutive_losses_today}/3 "
         f"{'[BLOQUEO TILT ACTIVO]' if pre_trade.tilt_locked else '[OK]'}"
@@ -681,11 +691,11 @@ MODALITIES_METADATA = [
         "num": "1",
         "label": "PORTFOLIO MT5 [EN VIVO]",
         "db": "trading_ny_open.db",
-        "symbol": "GC=F,EURUSD=X,USDJPY=X",
-        "symbol_standby": "ES=F,AUDUSD=X",  # S&P 500 y AUD/USD guardados en Standby para reactivación futura
+        "symbol": "GC=F,SI=F,USDJPY=X",
+        "symbol_standby": "YM=F,ES=F,EURUSD=X",  # US30, S&P 500 y EUR/USD
         "provider": "mt5",
         "session": "PORTFOLIO_DUAL",
-        "hours": "03:00-11:30 EST",
+        "hours": "08:30-11:30 EST",
         "service": "stellar_ny_open.service",
         "active_portfolio": True,
     },
@@ -702,15 +712,15 @@ MODALITIES_METADATA = [
         "active_portfolio": True,
     },
     {
-        "id": "3_TEST_EURUSD",
+        "id": "3_TEST_PLATA",
         "num": "3",
-        "label": "EURUSD TEST [SANDBOX]",
-        "db": "trading_test_eurusd.db",
-        "symbol": "EURUSD=X",
+        "label": "PLATA TEST [SANDBOX]",
+        "db": "trading_test_plata.db",
+        "symbol": "SI=F",
         "provider": "mt5",
         "session": "PORTFOLIO_DUAL",
-        "hours": "03-06 & 08:30-11",
-        "service": "stellar_test_eurusd.service",
+        "hours": "08:30-11:30 EST",
+        "service": "stellar_test_plata.service",
         "active_portfolio": True,
     },
     {
@@ -726,16 +736,28 @@ MODALITIES_METADATA = [
         "active_portfolio": True,
     },
     {
-        "id": "5_TEST_SP500",
+        "id": "5_TEST_US30",
         "num": "5",
-        "label": "SP500 TEST [STANDBY]",
+        "label": "US30 TEST [FTMO]",
+        "db": "trading_test_us30.db",
+        "symbol": "YM=F",
+        "provider": "mt5",
+        "session": "PORTFOLIO_DUAL",
+        "hours": "09:30-11:30 EST",
+        "service": "stellar_test_us30.service",
+        "active_portfolio": True,
+    },
+    {
+        "id": "6_TEST_SP500",
+        "num": "6",
+        "label": "SP500 TEST [FTMO]",
         "db": "trading_test_sp500.db",
         "symbol": "ES=F",
         "provider": "mt5",
         "session": "PORTFOLIO_DUAL",
         "hours": "09:30-11:30 EST",
         "service": "stellar_test_sp500.service",
-        "active_portfolio": False,  # Inactivado temporalmente (guardado sin borrar)
+        "active_portfolio": True,
     },
 ]
 
@@ -1376,9 +1398,12 @@ def main() -> None:
         funded_profit_split=args.profit_split if args.profit_split != 0.80 else active_profile.funded_profit_split,
         daily_loss_limit_pct=active_profile.daily_loss_limit_pct,
         profit_target_pct=active_profile.profit_target_pct,
+        profit_target_phase2_pct=active_profile.profit_target_phase2_pct,
         profile_id=active_profile.id,
         is_trial=1 if active_profile.is_trial else 0,
         account_login=active_profile.login_id or 0,
+        drawdown_type=getattr(active_profile, "drawdown_type", "STATIC"),
+        consistency_rule_pct=getattr(active_profile, "consistency_rule_pct", 0.0),
     )
 
     rules = StellarLiteRulesEngine(
@@ -1391,6 +1416,9 @@ def main() -> None:
         profit_target_phase2_pct=active_profile.profit_target_phase2_pct,
         is_trial=active_profile.is_trial,
         profile=active_profile,
+        drawdown_type=getattr(active_profile, "drawdown_type", "STATIC"),
+        consistency_rule_pct=getattr(active_profile, "consistency_rule_pct", 0.0),
+        allow_overnight_weekend=getattr(active_profile, "allow_overnight_weekend", True),
     )
     session_target = "NY_OPEN" if args.command in ("winner", "winner-live") else args.session
     symbol_target = "GC=F" if args.command in ("winner", "winner-live") else args.symbol
@@ -1454,15 +1482,32 @@ def main() -> None:
     elif args.command == "sync-mt5":
         res = db.sync_with_mt5()
         if res.get("success"):
-            print("=" * 78)
-            print("  SINCRONIZACIÓN EXITOSA CON METATRADER 5 (MT5)")
-            print("=" * 78)
-            print(f"  • Cuenta / Login   : #{res.get('login')}")
-            print(f"  • Servidor Broker  : {res.get('server')}")
-            print(f"  • Balance en MT5   : ${res.get('balance'):,.2f} {res.get('currency')}")
-            print(f"  • Equidad en MT5   : ${res.get('equity'):,.2f} {res.get('currency')}")
-            print("  • Base de datos SQLite actualizada correctamente.")
-            print("=" * 78)
+            print("=" * 82)
+            print("  SINCRONIZACIÓN PROFESIONAL EXITOSA CON METATRADER 5 (MT5 - SINGLE TRUTH)")
+            print("=" * 82)
+            print(f"  • Cuenta / Login       : #{res.get('login')}")
+            print(f"  • Servidor Broker      : {res.get('server')}")
+            print(f"  • Balance Real Broker  : ${res.get('balance'):,.2f} USD")
+            print(f"  • Equidad Real Broker  : ${res.get('equity'):,.2f} USD")
+            print(f"  • High Water Mark      : ${res.get('high_water_mark', res.get('balance')):,.2f} USD")
+            if res.get('trailing_max_loss_floor', 0.0) > 0:
+                print(f"  • Piso Trailing Max DD : ${res.get('trailing_max_loss_floor'):,.2f} USD")
+            print(f"  • Posiciones Abiertas  : {res.get('open_positions_mt5', 0)}")
+            
+            closed_list = res.get("closed_from_mt5", [])
+            if closed_list:
+                print(f"\n  [+] Posiciones cerradas en MT5 sincronizadas hacia BD ({len(closed_list)}):")
+                for c in closed_list:
+                    print(f"      - Trade #{c['trade_id']} ({c['symbol']}): Ticket #{c['ticket']} @ {c['exit_price']} | Net PnL: ${c['net_pnl']:+,.2f} (Swap: ${c['swap']:+,.2f})")
+            
+            corr_list = res.get("corrections", [])
+            if corr_list:
+                print(f"\n  [*] Correcciones de PnL aplicadas vs deals reales del broker ({len(corr_list)}):")
+                for cr in corr_list:
+                    print(f"      - Trade #{cr['trade_id']} ({cr['symbol']}): BD anterior ${cr['old_pnl']:+,.2f} -> Broker Real ${cr['real_mt5_pnl']:+,.2f} (Ajuste: ${cr['diff']:+,.2f})")
+            
+            print("\n  Base de datos SQLite 100% alineada con los datos de MetaTrader 5.")
+            print("=" * 82)
         else:
             print(f"[!] Error al sincronizar con MT5: {res.get('reason')}")
     elif args.command == "history":

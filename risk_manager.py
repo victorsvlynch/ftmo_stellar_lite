@@ -28,7 +28,15 @@ INSTRUMENT_SPECS: Dict[str, Dict[str, float]] = {
     # Oro XAU/USD: 1 lote estándar = 100 onzas troy, 1 pip/punto = $0.10 o $1.00, Comisión $5/lote round-turn, spread típico $0.25 [ACTIVO OFICIAL]
     "GC=F": {"contract_size": 100.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.25, "active": True},
     "XAUUSD": {"contract_size": 100.0, "pip_size": 0.10, "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.25, "active": True},
-    # Forex EUR/USD: 1 lote estándar = 100,000 unidades, Comisión $5/lote round-turn, spread típico 0.00015 [ACTIVO OFICIAL]
+    # Plata XAG/USD: 1 lote estándar = 5,000 onzas troy, tick = $0.001 o $0.01, Comisión $5/lote round-turn, spread típico $0.02 [ACTIVO OFICIAL STELLAR LITE]
+    "SI=F": {"contract_size": 5000.0, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.02, "active": True},
+    "XAGUSD": {"contract_size": 5000.0, "pip_size": 0.01, "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.02, "active": True},
+    # Dow Jones (Índice USA 30 / US30 / DJ30): 1 lote = 1 CFD, Cero comisiones en FTMO, spread típico 2.0 pts [ACTIVO OFICIAL FTMO]
+    "YM=F": {"contract_size": 1.0, "pip_size": 1.0, "min_lot": 0.1, "max_lot": 100.0, "lot_step": 0.1, "commission_per_lot": 0.0, "typical_spread": 2.0, "active": True},
+    "US30": {"contract_size": 1.0, "pip_size": 1.0, "min_lot": 0.1, "max_lot": 100.0, "lot_step": 0.1, "commission_per_lot": 0.0, "typical_spread": 2.0, "active": True},
+    "DJ30": {"contract_size": 1.0, "pip_size": 1.0, "min_lot": 0.1, "max_lot": 100.0, "lot_step": 0.1, "commission_per_lot": 0.0, "typical_spread": 2.0, "active": True},
+    "WS30": {"contract_size": 1.0, "pip_size": 1.0, "min_lot": 0.1, "max_lot": 100.0, "lot_step": 0.1, "commission_per_lot": 0.0, "typical_spread": 2.0, "active": True},
+    # Forex EUR/USD: 1 lote estándar = 100,000 unidades, Comisión $5/lote round-turn, spread típico 0.00015 [STANDBY]
     "EURUSD=X": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015, "active": True},
     "EURUSD": {"contract_size": 100000.0, "pip_size": 0.0001, "min_lot": 0.01, "max_lot": 100.0, "lot_step": 0.01, "commission_per_lot": 5.0, "typical_spread": 0.00015, "active": True},
     # S&P 500 (Índice USA 500 / US500): 1 lote = 1 CFD, Cero comisiones en FTMO, spread típico 0.40 pts [ACTIVO OFICIAL]
@@ -128,6 +136,11 @@ class RiskManager:
 
         self.rr_ratio = rr_ratio
         self.session_mode = session_mode.upper()
+        self.allow_overnight_weekend = (
+            bool(getattr(self.profile, "allow_overnight_weekend", True))
+            if self.profile is not None
+            else True
+        )
 
     @staticmethod
     def set_custom_instrument_spec(symbol: str, spec: Dict[str, float]) -> None:
@@ -139,18 +152,26 @@ class RiskManager:
     def get_instrument_spec(symbol: str) -> Dict[str, float]:
         """Obtiene la especificación del contrato o retorna un estándar seguro."""
         clean_sym = symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
-        # Bloqueo explícito de activos inactivos: Portafolios Oficiales (Oro, EUR/USD, S&P 500 y USD/JPY)
+        # Bloqueo explícito de activos inactivos: Portafolios Oficiales (Oro, Plata, Dow Jones, S&P 500 y USD/JPY)
         is_gold = any(k in clean_sym for k in ("XAU", "GC", "GOLD"))
+        is_silver = any(k in clean_sym for k in ("XAG", "SILVER", "SI"))
+        is_us30 = any(k in clean_sym for k in ("US30", "DJ30", "WS30", "YM", "USA30"))
         is_eurusd = ("EUR" in clean_sym and "USD" in clean_sym) or clean_sym == "EURUSD"
         is_sp500 = any(k in clean_sym for k in ("500", "SPX", "ES"))
         is_usdjpy = ("JPY" in clean_sym and "USD" in clean_sym) or clean_sym == "USDJPY"
 
-        if not (is_gold or is_eurusd or is_sp500 or is_usdjpy):
+        if not (is_gold or is_silver or is_us30 or is_eurusd or is_sp500 or is_usdjpy):
             raise ValueError(
                 f"El activo {symbol} se encuentra INACTIVO. "
-                "La configuración actual opera exclusivamente Oro (XAUUSD), EUR/USD, S&P 500 (US500) y USD/JPY."
+                "La configuración actual opera exclusivamente Oro (XAUUSD), Plata (XAGUSD), Dow Jones (US30), S&P 500 (US500) y USD/JPY."
             )
 
+        # Plata XAG/USD
+        if is_silver:
+            return INSTRUMENT_SPECS.get(symbol.upper()) or INSTRUMENT_SPECS.get(clean_sym) or INSTRUMENT_SPECS["XAGUSD"]
+        # Dow Jones US30
+        if is_us30:
+            return INSTRUMENT_SPECS.get(symbol.upper()) or INSTRUMENT_SPECS.get(clean_sym) or INSTRUMENT_SPECS["US30"]
         # Índices S&P 500
         if is_sp500:
             return INSTRUMENT_SPECS.get(symbol.upper()) or INSTRUMENT_SPECS.get(clean_sym) or INSTRUMENT_SPECS["US500"]
@@ -262,6 +283,22 @@ class RiskManager:
         ny_minutes = dt_ny.hour * 60 + dt_ny.minute
         return is_friday and ny_minutes >= (15 * 60 + 30)
 
+    def is_market_nearing_daily_close(self, now_utc: Optional[datetime] = None) -> bool:
+        """
+        Detecta si nos encontramos cerca del cierre diario del mercado (>= 16:15 EST).
+        Vital para perfiles como FTMO Estándar donde está PROHIBIDO mantener operaciones overnight.
+        """
+        dt_utc = now_utc or datetime.now(timezone.utc)
+        ny_tz = ZoneInfo("America/New_York")
+        dt_ny = dt_utc.astimezone(ny_tz)
+        weekday = dt_ny.weekday()
+        if weekday >= 5:
+            return True
+        ny_minutes = dt_ny.hour * 60 + dt_ny.minute
+        if weekday == 4 and ny_minutes >= (15 * 60 + 30):
+            return True
+        return ny_minutes >= (16 * 60 + 15)
+
     def check_market_session(self, now_utc: Optional[datetime] = None) -> Tuple[bool, str]:
         """
         Verifica si la hora actual se encuentra dentro de una sesión de alta liquidez:
@@ -339,25 +376,32 @@ class RiskManager:
         sym_upper = symbol.upper()
         sym_clean = sym_upper.replace("=X", "").replace("=F", "").replace("/", "")
 
-        # Filtro de activos autorizados: Oro (XAUUSD), EUR/USD, S&P 500 (US500) y USD/JPY
+        # Filtro de activos autorizados: Oro (XAUUSD), Plata (XAGUSD), Dow Jones (US30), S&P 500 (US500), USD/JPY y EUR/USD
         is_gold = any(k in sym_clean for k in ("XAU", "GC", "GOLD"))
-        is_eurusd = ("EUR" in sym_clean and "USD" in sym_clean) or sym_clean == "EURUSD"
+        is_silver = any(k in sym_clean for k in ("XAG", "SILVER", "SI"))
+        is_us30 = any(k in sym_clean for k in ("US30", "DJ30", "WS30", "YM", "USA30"))
         is_sp500 = any(k in sym_clean for k in ("500", "SPX", "ES"))
         is_usdjpy = ("JPY" in sym_clean and "USD" in sym_clean) or sym_clean == "USDJPY"
+        is_eurusd = ("EUR" in sym_clean and "USD" in sym_clean) or sym_clean == "EURUSD"
 
-        if not (is_gold or is_eurusd or is_sp500 or is_usdjpy):
+        if not (is_gold or is_silver or is_us30 or is_eurusd or is_sp500 or is_usdjpy):
             return False, f"INACTIVO: {symbol} está desactivado por configuración de portafolio institucional"
 
         # Validación según perfil activo si está disponible (por familias canónicas de activos)
         if self.profile and hasattr(self.profile, "allowed_symbols") and self.profile.allowed_symbols:
-            # En modo PORTFOLIO_DUAL se gestiona el conjunto coordinado de MT1 (Oro, EURUSD, SP500) y MT2 (Oro, EURUSD, USDJPY)
-            if self.session_mode in ("PORTFOLIO_DUAL", "SP500_EURUSD") and (is_gold or is_eurusd or is_sp500 or is_usdjpy):
+            if self.session_mode in ("PORTFOLIO_DUAL", "SP500_EURUSD") and (is_gold or is_silver or is_us30 or is_eurusd or is_sp500 or is_usdjpy):
                 allowed_for_profile = True
             else:
                 allowed_for_profile = False
                 for allowed in self.profile.allowed_symbols:
                     al_clean = allowed.upper().replace("=X", "").replace("=F", "").replace("/", "")
                     if is_gold and any(k in al_clean for k in ("XAU", "GC", "GOLD")):
+                        allowed_for_profile = True
+                        break
+                    if is_silver and any(k in al_clean for k in ("XAG", "SILVER", "SI")):
+                        allowed_for_profile = True
+                        break
+                    if is_us30 and any(k in al_clean for k in ("US30", "DJ30", "WS30", "YM", "USA30")):
                         allowed_for_profile = True
                         break
                     if is_eurusd and (("EUR" in al_clean and "USD" in al_clean) or al_clean == "EURUSD"):
@@ -376,7 +420,8 @@ class RiskManager:
                     return False, f"INACTIVO_POR_PERFIL: {symbol} no está autorizado en {self.profile.name} (activos: {', '.join(self.profile.allowed_symbols)})"
 
         is_crypto = "BTC" in sym_upper or "/" in sym_upper or "USDT" in sym_upper
-        is_index = is_sp500
+        is_index = is_sp500 or is_us30
+        is_metals = is_gold or is_silver
         is_forex = is_eurusd or is_usdjpy
 
         if is_crypto:
@@ -509,6 +554,22 @@ class RiskManager:
             session_ok, session_name = self.is_symbol_session_active(symbol, dt_utc)
         else:
             session_ok, session_name = self.check_market_session(dt_utc)
+
+        # 0. Regla No-Overnight (FTMO Estándar): Bloqueo de nuevas entradas cerca del cierre
+        if not self.allow_overnight_weekend and self.is_market_nearing_daily_close(dt_utc):
+            reason = (
+                f"REGLA NO-OVERNIGHT FTMO: Mercado próximo al cierre diario ({session_name}). "
+                "Entrada bloqueada para evitar penalización por mantener posiciones overnight o fin de semana."
+            )
+            return PreTradeRiskCheck(
+                allowed=False,
+                reason=reason,
+                active_session=session_name,
+                consecutive_losses_today=consecutive_losses,
+                tilt_locked=False,
+                personal_cap_triggered=False,
+                daily_pnl_pct=round(daily_pnl_pct, 4),
+            )
 
         # 1. Freno de Mano Personal (Personal Daily Loss Cap)
         if daily_pnl_pct <= -abs(personal_cap_pct):

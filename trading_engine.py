@@ -72,6 +72,10 @@ class MarketDataConnector:
         clean_upper = symbol.upper().replace(".M", "").replace(".RAW", "").replace(".PRO", "")
         if clean_upper in ("XAUUSD", "XAU/USD", "GOLD"):
             return "GC=F"
+        if clean_upper in ("XAGUSD", "XAG/USD", "SILVER"):
+            return "SI=F"
+        if any(k in clean_upper for k in ("US30", "DJ30", "WS30", "USA30", "DOW")):
+            return "YM=F"
         if clean_upper in ("EURUSD", "EUR/USD"):
             return "EURUSD=X"
         if clean_upper in ("USDJPY", "USD/JPY"):
@@ -88,10 +92,14 @@ class MarketDataConnector:
 
     @staticmethod
     def resolve_mt5_symbol(symbol: str) -> str:
-        """Resuelve el símbolo estándar o ticker de Yahoo a la nomenclatura oficial de MT5 (FundedNext)."""
+        """Resuelve el símbolo estándar o ticker de Yahoo a la nomenclatura oficial de MT5 (FundedNext/FTMO)."""
         clean = symbol.upper().replace("=X", "").replace("=F", "").replace("/", "")
         if any(k in clean for k in ("GC", "XAU", "GOLD")):
             return "XAUUSD"
+        if any(k in clean for k in ("SI", "XAG", "SILVER")):
+            return "XAGUSD"
+        if any(k in clean for k in ("30", "DJ", "YM", "DOW")):
+            return "US30"
         if "EUR" in clean:
             return "EURUSD"
         if "JPY" in clean:
@@ -906,10 +914,12 @@ class AutomatedTradingEngine:
                     )
             return closed_events
 
-        # 1. Cierre forzoso de fin de semana (Viernes 15:30 EST) para activos tradicionales (GC=F, Forex)
+        # 1. Cierre forzoso de fin de semana (Viernes 15:30 EST) o fin de jornada (16:15 EST si no permite overnight, ej. FTMO)
         is_friday_close = self.risk.is_friday_weekend_close_window(dt)
-        if is_friday_close:
+        is_no_overnight_close = (not getattr(self.risk, "allow_overnight_weekend", True)) and self.risk.is_market_nearing_daily_close(dt)
+        if is_friday_close or is_no_overnight_close:
             remaining_trades = []
+            close_reason = "CIERRE_FORZOSO_VIERNES_ANTI_GAP" if is_friday_close else "CIERRE_FORZOSO_DIARIO_NO_OVERNIGHT_FTMO"
             for tr in open_trades:
                 sym_up = tr["symbol"].upper()
                 is_crypto = "BTC" in sym_up or "/" in sym_up or "USDT" in sym_up
@@ -920,7 +930,7 @@ class AutomatedTradingEngine:
                         trade_id=int(tr["id"]),
                         exit_price=float(tr["mark_price"]),
                         pnl=float(tr.get("gross_floating_pnl", tr["floating_pnl"])),
-                        notes="CIERRE_FORZOSO_VIERNES_ANTI_GAP",
+                        notes=close_reason,
                         closed_at=dt,
                         commission=comm,
                         spread_cost=spread,
@@ -928,14 +938,60 @@ class AutomatedTradingEngine:
                     if closed:
                         closed_events.append(closed)
                         self.db.log_event(
-                            "WEEKEND_PROTECTION",
+                            "PROTECCION_HORARIO_REGLAS",
                             rule_state.phase,
-                            f"Trade #{tr['id']} ({tr['symbol']}) cerrado por protección de fin de semana (Viernes 15:30 EST) | PnL Neto: ${closed['pnl']:+,.2f}",
+                            f"Trade #{tr['id']} ({tr['symbol']}) cerrado por regla horario ({close_reason}) | PnL Neto: ${closed['pnl']:+,.2f}",
                         )
                         self.notifier.notify_weekend_close(1, float(closed["pnl"]))
                 else:
                     remaining_trades.append(tr)
             open_trades = remaining_trades
+
+        # 1.5. Sincronización en vivo con MetaTrader 5 (si el broker ya cerró la orden, capturar deal real)
+        if self.provider == "mt5" and open_trades:
+            try:
+                from mt5_bridge import MT5Bridge
+                bridge = MT5Bridge()
+                if bridge.initialize():
+                    mt5_open = {p["ticket"]: p for p in bridge.get_open_positions()}
+                    deals = bridge.get_closed_deals(days=2)
+                    deals_by_pos = {d["position_id"]: d for d in deals}
+                    bridge.shutdown()
+
+                    unclosed_trades = []
+                    for tr in open_trades:
+                        tr_ticket = tr.get("mt5_ticket", 0)
+                        if tr_ticket and tr_ticket not in mt5_open and tr_ticket in deals_by_pos:
+                            d = deals_by_pos[tr_ticket]
+                            closed = self.db.record_trade_close(
+                                trade_id=int(tr["id"]),
+                                exit_price=float(d["price"]),
+                                pnl=float(d["net_pnl"]),
+                                notes=f"MT5_BROKER_EXECUTION | Deal #{d['ticket']} ({d['comment']})",
+                                closed_at=dt,
+                                commission=float(d["commission"]),
+                                spread_cost=0.0,
+                            )
+                            if closed:
+                                closed_events.append(closed)
+                                self.notifier.notify_trade_closed(
+                                    trade_id=int(tr["id"]),
+                                    symbol=tr["symbol"],
+                                    side=tr["side"],
+                                    lots=float(tr["lots"]),
+                                    exit_price=float(d["price"]),
+                                    gross_pnl=float(d["profit"]),
+                                    net_pnl=float(d["net_pnl"]),
+                                    commission=float(d["commission"]),
+                                    reason=f"MT5_BROKER_EXECUTION ({d['comment']})",
+                                    balance=rule_state.balance + float(d["net_pnl"]),
+                                    equity=rule_state.equity + float(d["net_pnl"]),
+                                )
+                        else:
+                            unclosed_trades.append(tr)
+                    open_trades = unclosed_trades
+            except Exception:
+                pass
 
         # 2. Gestión de Break-Even a +1R y salida por SL / TP
         for tr in open_trades:
@@ -958,9 +1014,12 @@ class AutomatedTradingEngine:
             if initial_risk_dist > 1e-8:
                 sym_upper = str(tr["symbol"]).upper()
                 is_gold = ("GC" in sym_upper or "XAU" in sym_upper or "GOLD" in sym_upper)
-                is_jpy = (not is_gold and "JPY" in sym_upper)
-                is_aud = (not is_gold and not is_jpy and "AUD" in sym_upper)
-                is_forex = (not is_gold and not is_jpy and not is_aud and (any(k in sym_upper for k in ("EUR", "GBP", "=X")) or entry < 10.0))
+                is_silver = ("SI" in sym_upper or "XAG" in sym_upper or "SILVER" in sym_upper)
+                is_us30 = ("30" in sym_upper or "DJ" in sym_upper or "YM" in sym_upper or "DOW" in sym_upper)
+                is_sp500 = ("500" in sym_upper or "SPX" in sym_upper or "ES" in sym_upper)
+                is_jpy = (not is_gold and not is_silver and "JPY" in sym_upper)
+                is_aud = (not is_gold and not is_silver and not is_jpy and "AUD" in sym_upper)
+                is_forex = (not is_gold and not is_silver and not is_jpy and not is_aud and not is_us30 and not is_sp500 and (any(k in sym_upper for k in ("EUR", "GBP", "=X")) or entry < 10.0))
 
                 if is_gold:
                     # XAUUSD (Oro): BE+ ($0.80) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R | Pre-Rollover (+1.35R)
@@ -970,6 +1029,32 @@ class AutomatedTradingEngine:
                     lock2_trigger_r, lock2_gain_r = 1.75, 1.10
                     preroll_gain_r = 1.35
                     decimals = 4
+                elif is_silver:
+                    # XAGUSD (Plata Spot / SI=F - Alta Volatilidad Metales, ADR ~$1.50):
+                    # BE+ ($0.04) a +1.00R | Candado 1 (+0.60R) a +1.40R | Candado 2 (+1.10R) a +1.75R | Pre-Rollover (+1.35R)
+                    be_trigger_r = 1.00
+                    be_offset = min(0.04, initial_risk_dist * 0.15)
+                    lock1_trigger_r, lock1_gain_r = 1.40, 0.60
+                    lock2_trigger_r, lock2_gain_r = 1.75, 1.10
+                    preroll_gain_r = 1.35
+                    decimals = 3
+                elif is_us30:
+                    # US30 (Dow Jones 30 Industrial - Índice Accionario de Alto Rango, ADR ~450 pts):
+                    # BE+ (12 pts) a +0.95R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R | Pre-Rollover (+1.35R)
+                    be_trigger_r = 0.95
+                    be_offset = min(12.0, initial_risk_dist * 0.15)
+                    lock1_trigger_r, lock1_gain_r = 1.35, 0.60
+                    lock2_trigger_r, lock2_gain_r = 1.70, 1.15
+                    preroll_gain_r = 1.35
+                    decimals = 1
+                elif is_sp500:
+                    # S&P 500 (ES=F / US500): BE+ (1.0 pt) a +1.00R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R | Pre-Rollover (+1.35R)
+                    be_trigger_r = 1.00
+                    be_offset = min(1.00, initial_risk_dist * 0.15)
+                    lock1_trigger_r, lock1_gain_r = 1.35, 0.60
+                    lock2_trigger_r, lock2_gain_r = 1.70, 1.15
+                    preroll_gain_r = 1.35
+                    decimals = 2
                 elif is_jpy:
                     # USDJPY (Forex Bonos US/NY - Alta Eficiencia Tendencial 44.9%, ADR ~87p): BE+ (1.5 pips = 0.015) a +0.95R | Candado 1 (+0.55R) a +1.35R | Candado 2 (+1.15R) a +1.70R | Pre-Rollover (+1.35R)
                     be_trigger_r = 0.95
@@ -979,7 +1064,7 @@ class AutomatedTradingEngine:
                     preroll_gain_r = 1.35
                     decimals = 3
                 elif is_aud:
-                    # AUDUSD (Guardado en Standby): BE+ (1.2 pips) a +0.95R | Candado 1 (+0.55R) a +1.30R | Candado 2 (+1.10R) a +1.65R | Pre-Rollover (+1.30R)
+                    # AUDUSD (Standby): BE+ (1.2 pips) a +0.95R | Candado 1 (+0.55R) a +1.30R | Candado 2 (+1.10R) a +1.65R | Pre-Rollover (+1.30R)
                     be_trigger_r = 0.95
                     be_offset = min(0.00012, initial_risk_dist * 0.15)
                     lock1_trigger_r, lock1_gain_r = 1.30, 0.55
@@ -995,9 +1080,9 @@ class AutomatedTradingEngine:
                     preroll_gain_r = 1.30
                     decimals = 5
                 else:
-                    # S&P 500 (ES=F / US500 - Standby): BE+ (1.0 pt) a +1.00R | Candado 1 (+0.60R) a +1.35R | Candado 2 (+1.15R) a +1.70R | Pre-Rollover (+1.35R)
+                    # Genérico
                     be_trigger_r = 1.00
-                    be_offset = min(1.00, initial_risk_dist * 0.15)
+                    be_offset = initial_risk_dist * 0.10
                     lock1_trigger_r, lock1_gain_r = 1.35, 0.60
                     lock2_trigger_r, lock2_gain_r = 1.70, 1.15
                     preroll_gain_r = 1.35

@@ -41,13 +41,15 @@ class TradingProfile:
     is_trial: bool = False                   # True para Free Trial Challenge (1-step)
     ea_enabled: bool = True                  # Permiso EA
     allow_overnight_weekend: bool = True     # Overnight y fin de semana permitido
+    drawdown_type: str = "STATIC"            # "STATIC" (FundedNext: piso fijo) o "TRAILING" (FTMO: piso sube con HWM)
+    consistency_rule_pct: float = 0.0        # 0.0 = sin regla; 0.50 = FTMO (ningún día > 50% del profit total)
     news_profit_cap_pct: float = 0.40        # Regla 40% ganancia en noticias
     funded_profit_split: float = 0.80        # Split al fondear (80%)
     scaled_funded_split: float = 0.90        # Split escalado (90%)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     notes: str = ""
     magic_number: int = 505001               # Magic Number MT5 exclusivo para aislar ejecuciones
-    allowed_symbols: List[str] = field(default_factory=lambda: ["XAUUSD", "EURUSD", "US500", "USDJPY"])
+    allowed_symbols: List[str] = field(default_factory=lambda: ["XAUUSD", "XAGUSD", "USDJPY", "US30", "US500"])
 
     # Propiedades calculadas útiles
     @property
@@ -93,6 +95,14 @@ class TradingProfile:
     @property
     def personal_daily_cap_amount(self) -> float:
         return round(self.initial_balance * self.personal_daily_cap_pct, 2)
+
+    @property
+    def is_trailing_drawdown(self) -> bool:
+        return getattr(self, "drawdown_type", "STATIC").upper() == "TRAILING"
+
+    @property
+    def has_consistency_rule(self) -> bool:
+        return getattr(self, "consistency_rule_pct", 0.0) > 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -177,7 +187,9 @@ def get_default_profiles() -> Dict[str, TradingProfile]:
             server="FTMO-Demo",
             is_trial=False,
             ea_enabled=True,
-            allow_overnight_weekend=True,
+            allow_overnight_weekend=False,       # FTMO Estándar (1:100) NO permite overnight/weekend
+            drawdown_type="TRAILING",            # FTMO usa Trailing Drawdown (piso sube con High-Water Mark)
+            consistency_rule_pct=0.50,           # FTMO: ningún día puede representar > 50% del profit total
             news_profit_cap_pct=1.0,            # Sin restricción de 40% News Cap en FTMO
             funded_profit_split=0.80,           # Hasta 90% (80% inicial escalable a 90%)
             scaled_funded_split=0.90,
@@ -496,10 +508,17 @@ def print_profile_card(profile: TradingProfile) -> None:
         f" • Límite Pérdida Diaria  : {profile.daily_loss_limit_pct * 100:.1f}% "
         f"(${profile.daily_loss_amount:,.2f} sobre balance al inicio de jornada UTC)"
     )
-    print(
-        f" • Límite Drawdown Total  : {profile.max_drawdown_limit_pct * 100:.1f}% "
-        f"(${profile.max_loss_amount:,.2f} estático -> Piso Fijo: ${profile.max_loss_floor:,.2f})"
-    )
+    dd_type_str = getattr(profile, "drawdown_type", "STATIC").upper()
+    if dd_type_str == "TRAILING":
+        print(
+            f" • Límite Drawdown Total  : {profile.max_drawdown_limit_pct * 100:.1f}% "
+            f"(${profile.max_loss_amount:,.2f} TRAILING -> Piso móvil inicial: ${profile.max_loss_floor:,.2f} [escala con HWM])"
+        )
+    else:
+        print(
+            f" • Límite Drawdown Total  : {profile.max_drawdown_limit_pct * 100:.1f}% "
+            f"(${profile.max_loss_amount:,.2f} ESTÁTICO -> Piso Fijo: ${profile.max_loss_floor:,.2f})"
+        )
     print(
         f" • Regla Max Open Risk 3% : 3.0% (${profile.max_open_risk_amount:,.2f} USD "
         f"máximo riesgo simultáneo en mercado)"
@@ -512,6 +531,12 @@ def print_profile_card(profile: TradingProfile) -> None:
         f" • Riesgo por Operación   : {profile.default_risk_per_trade_pct * 100:.2f}% "
         f"(${profile.risk_amount_per_trade:,.2f} USD por trade institucional)"
     )
+    on_status = "PERMITIDO (Overnight & Fin de Semana)" if profile.allow_overnight_weekend else "PROHIBIDO (Cierre forzoso antes de las 16:15-16:45 EST)"
+    print(f" • Posiciones Overnight   : {on_status}")
+    if getattr(profile, "consistency_rule_pct", 0.0) > 0.0:
+        print(f" • Regla de Consistencia  : Máximo {profile.consistency_rule_pct * 100:.0f}% de la ganancia en un solo día")
+    else:
+        print(" • Regla de Consistencia  : Sin restricción de consistencia")
     print(f" • Regla Profit Noticias  : Máximo {profile.news_profit_cap_pct * 100:.0f}% de ganancias durante eventos NFP/CPI/FOMC")
     if profile.notes:
         print(subsep)

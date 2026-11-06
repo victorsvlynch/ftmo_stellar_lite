@@ -10,7 +10,7 @@ Valida:
 7. Módulo de Alertas Telegram.
 8. Validación de Reglas Oficiales Stellar Lite 2-Step $10K (Piso $9,200, Targets $800/$400, 2 Días Mínimos).
 9. Verificación de Promoción de Fase y Split Institucional (80% / 90%).
-10. Portafolio Multi-Activo (S&P 500 & EUR/USD) con Dimensionamiento Exacto para $10K (0.5% = $50).
+10. Portafolio Multi-Activo (Oro, Plata, US30, US500, USD/JPY) con Dimensionamiento Exacto para $10K (0.5% = $50).
 """
 
 import os
@@ -316,23 +316,38 @@ def run_tests():
     # -------------------------------------------------------------------------
     # TEST 10: Portafolio Profesional Multi-Activo con Capital de $10,000 USD
     # -------------------------------------------------------------------------
-    print("\n[TEST 10] Portafolio Profesional en Cuenta $10K: S&P 500 (ES=F / US500) & EUR/USD (EURUSD=X)")
+    print("\n[TEST 10] Portafolio Profesional Multi-Activo $10K: Oro (GC=F), Plata (SI=F), US30 (YM=F), US500 (ES=F), USD/JPY")
     from profiles import profile_manager
     prof_ftmo = profile_manager.get_profile("ftmo_10k_challenge")
     rm_portfolio = RiskManager(db=db, session_mode="PORTFOLIO_DUAL", profile=prof_ftmo)
     
-    # 1. Dimensionamiento de Posición EUR/USD (25 pips de SL -> $50 USD de riesgo = 0.5% en $10K)
-    pos_eur = rm_portfolio.calculate_position_size(
+    # 1. Dimensionamiento de Posición Plata (XAGUSD / SI=F: $0.20 SL @ 30.00 -> $50 USD de riesgo = 0.5% en $10K)
+    # Contrato 5000 oz: 0.20 * 5000 = $1,000 / lote. $50 / $1000 = 0.05 lotes
+    pos_silver = rm_portfolio.calculate_position_size(
         balance=10000.0,
-        symbol="EURUSD=X",
+        symbol="SI=F",
         side="BUY",
-        entry_price=1.10000,
-        stop_loss=1.09750, # 25 pips
+        entry_price=30.00,
+        stop_loss=29.80, # 20 cents
         risk_pct=0.005,
     )
-    assert pos_eur.lots == 0.20, f"Expected 0.20 lots for EUR/USD with 25 pips SL on 10K, got {pos_eur.lots}"
-    assert abs(pos_eur.risk_amount_usd - 50.0) < 0.50, f"Expected ~$50.00 risk, got {pos_eur.risk_amount_usd}"
-    print(f"  PASS: EUR/USD -> Lotaje: {pos_eur.lots} lotes | Riesgo: ${pos_eur.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_eur.take_profit}")
+    assert pos_silver.lots == 0.05, f"Expected 0.05 lots for Silver with 0.20 SL on 10K, got {pos_silver.lots}"
+    assert abs(pos_silver.risk_amount_usd - 50.0) < 0.50, f"Expected ~$50.00 risk, got {pos_silver.risk_amount_usd}"
+    print(f"  PASS: Plata (SI=F / XAGUSD) -> Lotaje: {pos_silver.lots} lotes | Riesgo: ${pos_silver.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_silver.take_profit}")
+
+    # 1A. Dimensionamiento de Posición Dow Jones (US30 / YM=F: 100 pts SL @ 42000 -> $50 USD de riesgo = 0.5% en $10K)
+    # Contrato 1.0: 100 pts * 1.0 = $100 / lote. $50 / $100 = 0.50 lotes
+    pos_us30 = rm_portfolio.calculate_position_size(
+        balance=10000.0,
+        symbol="YM=F",
+        side="BUY",
+        entry_price=42000.0,
+        stop_loss=41900.0, # 100 puntos
+        risk_pct=0.005,
+    )
+    assert pos_us30.lots == 0.50, f"Expected 0.50 lots for US30 with 100 pts SL on 10K, got {pos_us30.lots}"
+    assert abs(pos_us30.risk_amount_usd - 50.0) < 0.50, f"Expected ~$50.00 risk, got {pos_us30.risk_amount_usd}"
+    print(f"  PASS: Dow Jones (YM=F / US30) -> Lotaje: {pos_us30.lots} lotes | Riesgo: ${pos_us30.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_us30.take_profit}")
 
     # 1B. Dimensionamiento de Posición Oro (XAUUSD / GC=F: $5.00 de SL @ 2000 -> $50 USD de riesgo = 0.5% en $10K)
     pos_gold = rm_portfolio.calculate_position_size(
@@ -381,20 +396,28 @@ def run_tests():
     rm_ftmo = RiskManager(db=db, session_mode="ALL", profile=prof_ftmo)
     rm_stellar = RiskManager(db=db, session_mode="ALL", profile=prof_stellar)
 
-    # En FTMO: Oro, EUR/USD y S&P 500 permitidos; USD/JPY bloqueado
+    # En FTMO: Oro, US30 y S&P 500 permitidos; USD/JPY y XAGUSD bloqueados
     act_ftmo_sp, _ = rm_ftmo.is_symbol_session_active("ES=F")
+    act_ftmo_us30, _ = rm_ftmo.is_symbol_session_active("YM=F")
     act_ftmo_jpy, lbl_ftmo_jpy = rm_ftmo.is_symbol_session_active("USDJPY=X")
+    act_ftmo_xag, lbl_ftmo_xag = rm_ftmo.is_symbol_session_active("SI=F")
     assert act_ftmo_sp is True, "S&P 500 debe estar permitido en FTMO"
+    assert act_ftmo_us30 is True, "US30 debe estar permitido en FTMO"
     assert act_ftmo_jpy is False and "INACTIVO_POR_PERFIL" in lbl_ftmo_jpy, f"USD/JPY debe bloquearse en FTMO: {lbl_ftmo_jpy}"
+    assert act_ftmo_xag is False and "INACTIVO_POR_PERFIL" in lbl_ftmo_xag, f"XAGUSD debe bloquearse en FTMO: {lbl_ftmo_xag}"
 
-    # En Stellar: Oro, EUR/USD y USD/JPY permitidos; S&P 500 bloqueado
+    # En Stellar: Oro, Plata (XAGUSD) y USD/JPY permitidos; S&P 500 y US30 bloqueados
     act_st_jpy, _ = rm_stellar.is_symbol_session_active("USDJPY=X")
+    act_st_xag, _ = rm_stellar.is_symbol_session_active("SI=F")
     act_st_sp, lbl_st_sp = rm_stellar.is_symbol_session_active("ES=F")
+    act_st_us30, lbl_st_us30 = rm_stellar.is_symbol_session_active("YM=F")
     assert act_st_jpy is True, "USD/JPY debe estar permitido en Stellar"
+    assert act_st_xag is True, "XAGUSD debe estar permitido en Stellar"
     assert act_st_sp is False and "INACTIVO_POR_PERFIL" in lbl_st_sp, f"S&P 500 debe bloquearse en Stellar: {lbl_st_sp}"
-    print("  PASS: Aislamiento estricto de portafolio certificado: FTMO (Oro, EURUSD, SP500) vs Stellar (Oro, EURUSD, USDJPY).")
+    assert act_st_us30 is False and "INACTIVO_POR_PERFIL" in lbl_st_us30, f"US30 debe bloquearse en Stellar: {lbl_st_us30}"
+    print("  PASS: Aislamiento estricto de portafolio certificado: FTMO (Oro, US30, US500) vs Stellar (Oro, XAGUSD, USDJPY).")
 
-    # 2. Dimensionamiento de Posición S&P 500 (Guardado en Standby: 15 puntos de SL -> $50 USD de riesgo = 0.5% en $10K)
+    # 2. Dimensionamiento de Posición S&P 500 (15 puntos de SL -> $50 USD de riesgo = 0.5% en $10K)
     pos_sp = rm_portfolio.calculate_position_size(
         balance=10000.0,
         symbol="ES=F",
@@ -408,21 +431,21 @@ def run_tests():
     print(f"  PASS: S&P 500 -> Lotaje: {pos_sp.lots} lotes | Riesgo: ${pos_sp.risk_amount_usd:.2f} USD (0.50% de $10K) | TP: {pos_sp.take_profit}")
 
     # 3. Verificación de Horarios Diferenciados de Sesión:
-    # A. 04:00 EST (Apertura de Londres): EUR/USD activo, S&P 500 inactivo
-    dt_london = datetime.datetime(2026, 10, 28, 9, 0, 0, tzinfo=datetime.timezone.utc) # 04:00 EST
-    eu_act, eu_lbl = rm_portfolio.is_symbol_session_active("EURUSD=X", dt_london)
-    sp_act, sp_lbl = rm_portfolio.is_symbol_session_active("ES=F", dt_london)
-    assert eu_act is True, f"EUR/USD should be active at 04:00 EST in PORTFOLIO_DUAL: {eu_lbl}"
-    assert sp_act is False, f"S&P 500 should be inactive at 04:00 EST: {sp_lbl}"
-    print("  PASS: Sesion 04:00 EST (Londres): EUR/USD ACTIVO | S&P 500 INACTIVO.")
+    # A. 08:30 EST (Metales NY Open): Plata y Oro activos, US30 e índices inactivos hasta 09:30
+    dt_ny_metals = datetime.datetime(2026, 10, 28, 12, 30, 0, tzinfo=datetime.timezone.utc) # 08:30 EST
+    si_act, si_lbl = rm_portfolio.is_symbol_session_active("SI=F", dt_ny_metals)
+    us30_act_early, us30_lbl_early = rm_portfolio.is_symbol_session_active("YM=F", dt_ny_metals)
+    assert si_act is True, f"Silver should be active at 08:30 EST in PORTFOLIO_DUAL: {si_lbl}"
+    assert us30_act_early is False, f"US30 should be inactive at 08:30 EST: {us30_lbl_early}"
+    print("  PASS: Sesion 08:30 EST (Metales NY Open): Plata ACTIVA | US30 INACTIVO.")
 
-    # B. 10:00 EST (Wall Street Cash Open): S&P 500 activo, EUR/USD activo (NY Overlap)
-    dt_ny = datetime.datetime(2026, 10, 28, 15, 0, 0, tzinfo=datetime.timezone.utc) # 10:00 EST
-    eu_act_ny, eu_lbl_ny = rm_portfolio.is_symbol_session_active("EURUSD=X", dt_ny)
+    # B. 10:00 EST (Wall Street Cash Open): US30 activo, S&P 500 activo
+    dt_ny = datetime.datetime(2026, 10, 28, 14, 0, 0, tzinfo=datetime.timezone.utc) # 10:00 EDT / EST
+    us30_act_ny, us30_lbl_ny = rm_portfolio.is_symbol_session_active("YM=F", dt_ny)
     sp_act_ny, sp_lbl_ny = rm_portfolio.is_symbol_session_active("ES=F", dt_ny)
+    assert us30_act_ny is True, f"US30 should be active at 10:00 EST: {us30_lbl_ny}"
     assert sp_act_ny is True, f"S&P 500 should be active at 10:00 EST: {sp_lbl_ny}"
-    assert eu_act_ny is True, f"EUR/USD should be active at 10:00 EST: {eu_lbl_ny}"
-    print("  PASS: Sesion 10:00 EST (Wall Street Cash): S&P 500 ACTIVO | EUR/USD ACTIVO.")
+    print("  PASS: Sesion 10:00 EST (Wall Street Cash): US30 ACTIVO | S&P 500 ACTIVO.")
 
     # 4. Verificación de Rango de Apertura ORB para S&P 500 (Vela 09:30 EST)
     df_sp_m15 = pd.DataFrame([
