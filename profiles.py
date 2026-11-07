@@ -195,6 +195,39 @@ def get_default_profiles() -> Dict[str, TradingProfile]:
             scaled_funded_split=0.90,
             notes="Evaluación Oficial 2-Step FTMO Challenge $10,000 USD (€89 EUR) - Plan 10K FTMO.png.",
         ),
+        "stellar_10k_real": TradingProfile(
+            id="stellar_10k_real",
+            name="Stellar 10K Real",
+            account_type="Stellar Lite 2-Step (Evaluation + Add-ons)",
+            platform="MT5",
+            account_mode="SWAP",                # Swap-Free (+10%) según Plan 10K FUNDEDNEXT.png
+            initial_balance=10000.0,
+            profit_target_pct=0.08,             # +8% Fase 1 ($800) -> Meta: $10,800
+            profit_target_phase2_pct=0.04,      # +4% Fase 2 ($400) -> Meta: $10,400
+            daily_loss_limit_pct=0.04,          # 4% ($400) límite de pérdida diaria
+            max_drawdown_limit_pct=0.10,        # 10% ($1,000) add-on "Maximum Loss Limit 10%" -> piso fijo $9,000
+            min_trading_days=2,                 # 2 días mínimos (sin add-on "No Minimum Trading Days")
+            max_open_risk_pct=0.015,            # 1.5% riesgo abierto máximo ($150), conservador vs 3% del broker
+            default_risk_per_trade_pct=0.005,   # 0.50% por operación ($50)
+            personal_daily_cap_pct=0.02,        # 2.0% freno de mano personal ($200) = 50% del límite diario
+            db_file="trading_stellar_10k_real.db",
+            login_id=None,
+            server="FundedNext-Server",
+            is_trial=False,
+            ea_enabled=True,                    # Add-on "EA" activo
+            allow_overnight_weekend=True,
+            drawdown_type="STATIC",
+            consistency_rule_pct=0.0,
+            news_profit_cap_pct=0.40,
+            funded_profit_split=0.95,           # Add-on "Lifetime Reward 95%"
+            scaled_funded_split=0.95,
+            magic_number=505003,
+            allowed_symbols=["XAUUSD", "US500", "USDJPY"],
+            notes=(
+                "Stellar Lite 2-Step $10K MT5 Swap-Free con add-ons: Lifetime Reward 95%, Max Loss 10%, "
+                "Double Up y EA (Plan 10K FUNDEDNEXT.png). Portafolio: Oro, S&P 500 y USDJPY."
+            ),
+        ),
     }
 
 
@@ -380,7 +413,7 @@ class ProfileManager:
         Elimina un perfil personalizado.
         Protege los perfiles estándar del sistema ('stellar_10k_demo' y 'stellar_6k_trial').
         """
-        if profile_id in ("stellar_10k_demo", "stellar_6k_trial", "ftmo_10k_challenge"):
+        if profile_id in ("stellar_10k_demo", "stellar_6k_trial", "ftmo_10k_challenge", "stellar_10k_real"):
             raise ValueError(f"No se permite eliminar los perfiles predeterminados del sistema ({profile_id}).")
 
         data = self._load_raw_config()

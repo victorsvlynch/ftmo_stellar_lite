@@ -74,6 +74,8 @@ function Reset-SshTunnel {
 
 Write-WatchdogLog "=== INICIANDO WATCHDOG ACTIVO 24/7 DEL PUENTE WEBHOOK MT5 (SONDEO CADA 15s) ==="
 $failCount = 0
+$fridayCounter = 0
+$ScriptGuardian = Join-Path $ScriptDir "friday_guardian.py"
 
 while ($true) {
     if (Test-WebhookHealth) {
@@ -85,5 +87,15 @@ while ($true) {
             $failCount = 0
         }
     }
+
+    # Guardián de Viernes: Cada 60 segundos (4 ciclos de 15s) verifica si es viernes >= 15:30 EST
+    $fridayCounter++
+    if ($fridayCounter -ge 4) {
+        $fridayCounter = 0
+        if (Test-Path $ScriptGuardian) {
+            Start-Process -FilePath "python.exe" -ArgumentList "`"$ScriptGuardian`"" -WorkingDirectory $ScriptDir -WindowStyle Hidden
+        }
+    }
+
     Start-Sleep -Seconds 15
 }

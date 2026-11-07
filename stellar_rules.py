@@ -211,13 +211,39 @@ class StellarLiteRulesEngine:
     def check_daily_rollover(self, now_server: Optional[datetime] = None) -> Dict[str, Any]:
         """
         Verifica si cambió el día del servidor (00:00 UTC) y resetea el
-        day_start_balance al balance actual para el cálculo del Daily Loss Limit.
+        day_start_balance al balance real sincronizado de MT5 para el cálculo del Daily Loss Limit.
+        Auto-Sincronización Institucional: Antes del cálculo, sincroniza con MT5 como Única Verdad.
         """
         dt = now_server or datetime.now(timezone.utc)
         today_str = dt.strftime("%Y-%m-%d")
         acc = self.db.get_account_state()
 
         if acc.get("current_trading_day") != today_str and acc.get("status") == "ACTIVE":
+            # Auto-sincronizar con MT5 en el cambio de día para tomar el balance exacto del broker
+            try:
+                from mt5_bridge import MT5Bridge
+                bridge = MT5Bridge()
+                if bridge.initialize():
+                    acc_mt5 = bridge.get_account_summary()
+                    real_bal = float(acc_mt5.get("balance", 0.0))
+                    real_eq = float(acc_mt5.get("equity", 0.0))
+                    bridge.shutdown()
+                    if real_bal > 0:
+                        acc = self.db.update_account_state(
+                            balance=real_bal,
+                            equity=real_eq,
+                            day_start_balance=real_bal,
+                            current_trading_day=today_str,
+                        )
+                        self.db.log_event(
+                            "DAILY_ROLLOVER",
+                            acc["phase"],
+                            f"Auto-Sync 00:00 MT5 ({today_str}). Balance Real Broker: ${real_bal:,.2f} USD.",
+                        )
+                        return acc
+            except Exception:
+                pass
+
             current_balance = float(acc["balance"])
             acc = self.db.update_account_state(
                 day_start_balance=current_balance,

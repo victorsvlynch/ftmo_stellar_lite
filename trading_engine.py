@@ -1293,6 +1293,21 @@ class AutomatedTradingEngine:
         skipped_session_reasons = []
 
         for sym in symbols_to_run:
+            # 0. Escudo Anti-Fakeouts Cuarentena 48H
+            try:
+                q_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quarantine_status.json")
+                if os.path.exists(q_file):
+                    with open(q_file, "r", encoding="utf-8") as f_q:
+                        q_data = json.load(f_q)
+                        clean_check = sym.replace("=F", "").replace("=X", "").replace(".cash", "").replace(".m", "")
+                        q_asset = q_data.get("assets", {}).get(clean_check) or q_data.get("assets", {}).get(sym)
+                        if q_asset and q_asset.get("in_quarantine"):
+                            rem_h = q_asset.get("hours_remaining", 48.0)
+                            skipped_session_reasons.append(f"{sym}: 🔒 ESCUDO CUARENTENA 48H ACTIVO ({rem_h}h restantes por falsos rompimientos)")
+                            continue
+            except Exception:
+                pass
+
             # 1. Evitar sobre-operar si ya hay una posición abierta en este símbolo
             if any(p["symbol"] == sym for p in open_positions):
                 has_holding_open = True

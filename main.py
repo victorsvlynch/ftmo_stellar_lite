@@ -484,6 +484,15 @@ class LiveDataWorker:
         self.losses_today = 0
         self.realized_today = 0.0
         self.running = True
+        self._mt5_sync_counter = 0
+
+        # Auto-Sincronización Inicial Obligatoria con MT5 al arrancar consola
+        try:
+            self.db.sync_with_mt5()
+            self.acc = self.db.get_account_state()
+        except Exception:
+            pass
+
         self.thread = threading.Thread(target=self._worker_loop, daemon=True)
         self.thread.start()
 
@@ -501,6 +510,14 @@ class LiveDataWorker:
                     price_lbl = f"${price:,.2f}" if price > 0 else "CONECTANDO..."
 
                 # 2. Consultar SQLite y reglas de riesgo
+                # Auto-sincronización periódica con MT5 (cada ~15 segundos en vivo)
+                self._mt5_sync_counter += 1
+                if self._mt5_sync_counter >= 5:
+                    self._mt5_sync_counter = 0
+                    try:
+                        self.db.sync_with_mt5()
+                    except Exception:
+                        pass
                 cached_prices = {self.engine.symbol: price} if price > 0 else {}
                 floating_pnl, open_pos = self.engine.calculate_open_positions_floating_pnl(
                     current_prices=cached_prices

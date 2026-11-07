@@ -46,29 +46,27 @@ El motor cuantitativo incorpora un sistema de **Gestión Multiperfil desacoplado
 
 ### 📊 Comparativa Técnica de Perfiles Oficiales
 
-| Parámetro Institucional | Perfil: Stellar 10K Demo (`cloud.png`) | Perfil: Stellar 6K Trial (`1-trial.png` / `2-trial.png`) | Perfil: FTMO 10K Challenge (`Plan 10K FTMO.png`) |
-| :--- | :--- | :--- | :--- |
-| **Identificador Interno** | `stellar_10k_demo` | `stellar_6k_trial` | `ftmo_10k_challenge` |
-| **Firma / Modelo** | **FundedNext Stellar Lite 2-Step** | **FundedNext Free Trial (CFDs)** | **FTMO Challenge 2-Step (Estándar)** |
-| **Instancia MT5 en PC** | **Terminal 2 (`MetaTrader 5 - 2`)** | *Terminal de Pruebas* | **Terminal 1 (`MetaTrader 5`)** |
-| **Magic Number EA** | **`505002`** | **`505003`** | **`505001`** |
-| **Portafolio de Activos** | **Oro (`XAUUSD`), Plata (`XAGUSD`), USD/JPY (`USDJPY`)** | Oro, Plata, USD/JPY | **Oro (`XAUUSD`), Dow Jones (`US30`), S&P 500 (`US500`)** |
-| **Capital Base** | **$10,000.00 USD** | **$6,000.00 USD** | **$10,000.00 USD** |
-| **Plataforma / Broker** | MetaTrader 5 (MT5 - SWAP) | MetaTrader 5 (MT5 - SWAP) | MetaTrader 5 (MT5 - SWAP) |
-| **Login MT5 Asignado** | **#114929787** (Detectado en MT5) | **#35338849** (Detectado en MT5) | **#1515193448** (Detectado en MT5) |
-| **Servidor Broker** | `FundedNext-Demo` / `MetaQuotes-Demo` | `FundedNext-Server 3` / `FundedNext-Demo` | `FTMO-Demo` |
-| **Objetivo Fase 1 / Reto** | **+8.0% ($800.00)** $\rightarrow$ $10,800.00 | **+5.0% ($300.00)** $\rightarrow$ $6,300.00 | **+10.0% ($1,000.00)** $\rightarrow$ $11,000.00 |
-| **Objetivo Fase 2** | **+4.0% ($400.00)** $\rightarrow$ $10,400.00 | *No aplica (1 sola fase de Trial)* | **+5.0% ($500.00)** $\rightarrow$ $10,500.00 |
-| **Días Mínimos Operativos** | **2 Días por Fase** | **3 Días Mínimos** | **4 Días Mínimos por Fase** |
-| **Límite Pérdida Diaria** | **-4.0% ($400.00)** (sobre balance día) | **-5.0% ($300.00)** (sobre balance día) | **-5.0% ($500.00)** (sobre balance día) |
-| **Límite Drawdown Máximo** | **-8.0% ($800.00)** $\rightarrow$ **Piso Estático: $9,200.00** | **-10.0% ($600.00)** $\rightarrow$ **Piso Estático: $5,400.00** | **-10.0% ($1,000.00)** $\rightarrow$ **Trailing Drawdown Dinámico (Escala con HWM)** |
-| **Regla Max Open Risk** | **3.0% ($300.00 USD)** máx. simultáneo | **3.0% ($180.00 USD)** máx. simultáneo | **3.0% ($300.00 USD)** máx. simultáneo |
-| **Riesgo por Trade (0.5%)** | **0.50% ($50.00 USD)** por operación | **0.50% ($30.00 USD)** por operación | **0.50% ($50.00 USD)** por operación |
-| **Freno Personal Diario** | **-2.0% ($200.00 USD)** (Margen seg. 100%) | **-2.5% ($150.00 USD)** (Margen seg. 100%) | **-2.5% ($250.00 USD)** (Margen seg. 100%) |
-| **Regla Profit Noticias** | Máx. 40% ganancias en eventos NFP/CPI | Máx. 40% ganancias en eventos NFP/CPI | **Sin límite de noticias en Challenge** |
-| **Permiso de EAs en MT5** | Add-on requerido (< $50K) | Habilitado | **100% Autorizado sin Add-on extra** |
-| **Base de Datos SQLite** | [`trading_history.db`](trading_history.db) | [`trading_stellar_6k_trial.db`](trading_stellar_6k_trial.db) | [`trading_ftmo_10k.db`](trading_ftmo_10k.db) |
-| **Estado de Cuenta** | `FASE_1` $\rightarrow$ `FASE_2` $\rightarrow$ `FUNDED` | `CHALLENGE` $\rightarrow$ `SUPERADA` | `FASE_1` $\rightarrow$ `FASE_2` $\rightarrow$ `FUNDED` |
+| Parámetro Institucional | Perfil: Stellar 10K Real (`Plan 10K FUNDEDNEXT.png`) | Perfil: Stellar 10K Demo (`cloud.png`) | Perfil: Stellar 6K Trial (`1-trial.png`) | Perfil: FTMO 10K Challenge (`Plan 10K FTMO.png`) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Identificador Interno** | `stellar_10k_real` | `stellar_10k_demo` | `stellar_6k_trial` | `ftmo_10k_challenge` |
+| **Firma / Modelo** | **FundedNext Stellar Lite 2-Step (Add-ons)** | **FundedNext Stellar Lite 2-Step** | **FundedNext Free Trial (CFDs)** | **FTMO Challenge 2-Step (Estándar)** |
+| **Instancia MT5 en PC** | **Terminal Oficial MT5** | **Terminal 2 (`MetaTrader 5 - 2`)** | *Terminal de Pruebas* | **Terminal 1 (`MetaTrader 5`)** |
+| **Magic Number EA** | **`505003`** | **`505002`** | `505003` | **`505001`** |
+| **Portafolio de Activos** | **Oro (`XAUUSD`), S&P 500 (`US500`), USD/JPY (`USDJPY`)** | Oro (`XAUUSD`), Plata (`XAGUSD`), USD/JPY | Oro, Plata, USD/JPY | Oro (`XAUUSD`), Dow Jones (`US30`), S&P 500 (`US500`) |
+| **Capital Base** | **$10,000.00 USD** | **$10,000.00 USD** | **$6,000.00 USD** | **$10,000.00 USD** |
+| **Plataforma / Modo** | MetaTrader 5 (Swap-Free +10%) | MetaTrader 5 (MT5 - SWAP) | MetaTrader 5 (MT5 - SWAP) | MetaTrader 5 (MT5 - SWAP) |
+| **Objetivo Fase 1 / Reto** | **+8.0% ($800.00)** $\rightarrow$ $10,800.00 | **+8.0% ($800.00)** $\rightarrow$ $10,800.00 | **+5.0% ($300.00)** $\rightarrow$ $6,300.00 | **+10.0% ($1,000.00)** $\rightarrow$ $11,000.00 |
+| **Objetivo Fase 2** | **+4.0% ($400.00)** $\rightarrow$ $10,400.00 | **+4.0% ($400.00)** $\rightarrow$ $10,400.00 | *No aplica (1 sola fase)* | **+5.0% ($500.00)** $\rightarrow$ $10,500.00 |
+| **Días Mínimos Operativos** | **2 Días por Fase** | **2 Días por Fase** | **3 Días Mínimos** | **4 Días Mínimos por Fase** |
+| **Límite Pérdida Diaria** | **-4.0% ($400.00)** (sobre balance día) | **-4.0% ($400.00)** (sobre balance día) | **-5.0% ($300.00)** (sobre balance día) | **-5.0% ($500.00)** (sobre balance día) |
+| **Límite Drawdown Máximo** | **-10.0% ($1,000.00)** $\rightarrow$ **Piso: $9,000.00** | **-8.0% ($800.00)** $\rightarrow$ **Piso: $9,200.00** | **-10.0% ($600.00)** $\rightarrow$ **Piso: $5,400.00** | **-10.0% ($1,000.00)** $\rightarrow$ **Trailing DD Dinámico** |
+| **Regla Max Open Risk** | **1.5% ($150.00 USD)** conservador | **3.0% ($300.00 USD)** máx. simultáneo | **3.0% ($180.00 USD)** máx. simultáneo | **3.0% ($300.00 USD)** máx. simultáneo |
+| **Riesgo por Trade (0.5%)** | **0.50% ($50.00 USD)** por operación | **0.50% ($50.00 USD)** por operación | **0.50% ($30.00 USD)** por operación | **0.50% ($50.00 USD)** por operación |
+| **Freno Personal Diario** | **-2.0% ($200.00 USD)** (Margen 100%) | **-2.0% ($200.00 USD)** (Margen 100%) | **-2.5% ($150.00 USD)** (Margen 100%) | **-2.5% ($250.00 USD)** (Margen 100%) |
+| **Profit Split Fondeada** | **95% De Por Vida** (*Lifetime Reward 95%*) | 80% inicial (escalable a 90%) | 80% inicial (escalable a 90%) | 80% inicial (escalable a 90%) |
+| **Permiso de EAs en MT5** | **Add-on EA Habilitado** | Add-on requerido | Habilitado | **Autorizado sin Add-on extra** |
+| **Base de Datos SQLite** | [`trading_stellar_10k_real.db`](trading_stellar_10k_real.db) | [`trading_history.db`](trading_history.db) | [`trading_stellar_6k_trial.db`](trading_stellar_6k_trial.db) | [`trading_ftmo_10k.db`](trading_ftmo_10k.db) |
+| **Estado de Cuenta** | `FASE_1` $\rightarrow$ `FASE_2` $\rightarrow$ `FUNDED` | `FASE_1` $\rightarrow$ `FASE_2` $\rightarrow$ `FUNDED` | `CHALLENGE` $\rightarrow$ `SUPERADA` | `FASE_1` $\rightarrow$ `FASE_2` $\rightarrow$ `FUNDED` |
 
 ---
 
@@ -521,17 +519,23 @@ Este es el método para comprobar con tus propios ojos cómo Python se conecta a
 
 ---
 
-### 3. Monitoreo en Tiempo Real de la Estrategia Ganadora
+### 3. Monitoreo en Tiempo Real y Centro de Mando Inteligente
 
 Para observar el motor cuantitativo operando en vivo, analizando el mercado segundo a segundo:
 
-- **Desde Windows (1-Clic):**
-  Haz doble clic en [**`Monitor_Estrategia_Ganadora.bat`**](Monitor_Estrategia_Ganadora.bat).
-- **Desde la Línea de Comandos:**
+- **🏛️ Centro de Mando Inteligente con Escudo Anti-Fakeouts (1-Clic):**
+  Haz doble clic en [**`Centro_De_Mando_Inteligente.bat`**](Centro_De_Mando_Inteligente.bat).
+  *Ejecuta el centinela predictivo ([`market_regime_sentinel.py`](market_regime_sentinel.py)), audita en vivo el balance en MT5, muestra el semáforo de activos (Oro, S&P 500, USDJPY) y activa el **Escudo de Cuarentena de 48 Horas** si detecta barridas de mecha consecutivas.*
+- **Monitor Rápido de la Estrategia:**
+  Haz doble clic en [**`Monitor_Estrategia_Ganadora.bat`**](Monitor_Estrategia_Ganadora.bat) o ejecuta:
   ```bash
   python main.py live --session NY_OPEN --refresh 1
   ```
   *Muestra un tablero interactivo con el reloj UTC, hora de Wall Street, cotización del Oro, rango de apertura, equidad flotante, estado de reglas de FundedNext y posiciones abiertas.*
+- **🛡️ Cierre de Emergencia de Viernes (Anti-Gap Fin de Semana):**
+  Haz doble clic en [**`Cierre_Emergencia_Viernes.bat`**](Cierre_Emergencia_Viernes.bat) o deja que el guardián autónomo ([`friday_guardian.py`](friday_guardian.py)) liquide preventivamente a las 15:30 EST.
+- **📖 Manual Maestro Completo de la Estrategia:**
+  Consulta la guía paso a paso con diagramas técnicos en [**`MANUAL_ESTRATEGIA_TRADING_PROFESIONAL.md`**](MANUAL_ESTRATEGIA_TRADING_PROFESIONAL.md).
 
 ---
 
